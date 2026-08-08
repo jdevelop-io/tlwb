@@ -9,3 +9,5 @@ export type {
   ChangeOrigin,
 } from './store/types'
 export { InMemoryBoardStore } from './store/memory'
+export { exportSnapshot, importSnapshot, parseSnapshot } from './snapshot'
+export type { BoardSnapshot } from './snapshot'
