@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createElement } from '../model/create'
+import type { LineElement } from '../model/element'
 import type { BoardChange, BoardStore, BoardStoreEvent } from './types'
 
 type ChangesEvent = Extract<BoardStoreEvent, { kind: 'changes' }>
@@ -266,15 +267,39 @@ export function describeBoardStoreContract(
 
     it('does not expose its internal element state to callers', () => {
       const store = createStore()
+      const element = createElement('line', {
+        index: 'a0',
+        x: 5,
+        points: [
+          { x: 0, y: 0 },
+          { x: 10, y: 10 },
+        ],
+      })
+      store.applyChanges([{ kind: 'create', element }])
+
+      const fromGetElement = store.getElement(element.id) as LineElement
+      expect(() => {
+        ;(fromGetElement as unknown as Record<string, unknown>).x = 999
+      }).toThrow(TypeError)
+      expect(store.getElement(element.id)?.x).toBe(5)
+
+      const fromListElements = store.listElements()[0] as LineElement
+      expect(fromListElements.points).toHaveLength(2)
+      expect(() => {
+        ;(fromListElements.points[0] as unknown as Record<string, unknown>).x =
+          999
+      }).toThrow(TypeError)
+      expect((store.getElement(element.id) as LineElement).points[0]?.x).toBe(0)
+    })
+
+    it('does not let the caller mutate an element after applying it', () => {
+      const store = createStore()
       const element = createElement('rectangle', { index: 'a0', x: 5 })
       store.applyChanges([{ kind: 'create', element }])
 
-      const fromGetElement = store.getElement(element.id)
-      ;(fromGetElement as unknown as Record<string, unknown>).x = 999
-      expect(store.getElement(element.id)?.x).toBe(5)
-
-      const fromListElements = store.listElements()[0]
-      ;(fromListElements as unknown as Record<string, unknown>).x = 999
+      expect(() => {
+        ;(element as unknown as Record<string, unknown>).x = 999
+      }).toThrow(TypeError)
       expect(store.getElement(element.id)?.x).toBe(5)
     })
   })

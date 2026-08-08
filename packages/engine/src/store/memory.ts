@@ -8,6 +8,26 @@ import type {
   ChangeOrigin,
 } from './types'
 
+/**
+ * Freezes a value and everything reachable from it. Elements carry
+ * nested structures (`points` and its `Point` objects, arrow bindings)
+ * that a shallow copy would still share, so the store freezes on write
+ * instead of copying on read: callers cannot mutate stored state, and
+ * the read path stays allocation-free per element for the render loop.
+ * Already-frozen values are left alone, which also stops the walk from
+ * revisiting a structure the store has frozen before.
+ */
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) {
+    return value
+  }
+  Object.freeze(value)
+  for (const nested of Object.values(value)) {
+    deepFreeze(nested)
+  }
+  return value
+}
+
 export class InMemoryBoardStore implements BoardStore {
   private elements = new Map<ElementId, BoardElement>()
   private meta: BoardMeta = { name: 'Untitled', createdAt: Date.now() }
@@ -16,12 +36,11 @@ export class InMemoryBoardStore implements BoardStore {
   private redoStack: BoardChange[][] = []
 
   getElement(id: ElementId): BoardElement | undefined {
-    const element = this.elements.get(id)
-    return element ? { ...element } : undefined
+    return this.elements.get(id)
   }
 
   listElements(): BoardElement[] {
-    return sortByIndex([...this.elements.values()].map((element) => ({ ...element })))
+    return sortByIndex([...this.elements.values()])
   }
 
   getMeta(): BoardMeta {
@@ -88,15 +107,15 @@ export class InMemoryBoardStore implements BoardStore {
   protected applyOne(change: BoardChange): void {
     switch (change.kind) {
       case 'create':
-        this.elements.set(change.element.id, change.element)
+        this.elements.set(change.element.id, deepFreeze(change.element))
         break
       case 'update': {
         const element = this.elements.get(change.id)
         if (element) {
-          this.elements.set(change.id, {
-            ...element,
-            ...change.props,
-          } as BoardElement)
+          this.elements.set(
+            change.id,
+            deepFreeze({ ...element, ...change.props } as BoardElement),
+          )
         }
         break
       }
