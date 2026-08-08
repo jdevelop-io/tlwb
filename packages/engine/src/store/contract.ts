@@ -170,9 +170,7 @@ export function describeBoardStoreContract(
       const store = createStore()
       const element = createElement('rectangle', { index: 'a0', x: 5 })
       store.applyChanges([{ kind: 'create', element }])
-      store.applyChanges([
-        { kind: 'update', id: element.id, props: { x: 42 } },
-      ])
+      store.applyChanges([{ kind: 'update', id: element.id, props: { x: 42 } }])
       store.undo()
       expect(store.getElement(element.id)?.x).toBe(5)
     })

@@ -28,7 +28,11 @@ const elementSchema = z.discriminatedUnion('type', [
   z.object({ ...baseShape, type: z.literal('rectangle') }),
   z.object({ ...baseShape, type: z.literal('ellipse') }),
   z.object({ ...baseShape, type: z.literal('diamond') }),
-  z.object({ ...baseShape, type: z.literal('line'), points: z.array(pointSchema) }),
+  z.object({
+    ...baseShape,
+    type: z.literal('line'),
+    points: z.array(pointSchema),
+  }),
   z.object({
     ...baseShape,
     type: z.literal('arrow'),
@@ -36,7 +40,11 @@ const elementSchema = z.discriminatedUnion('type', [
     startBinding: bindingSchema,
     endBinding: bindingSchema,
   }),
-  z.object({ ...baseShape, type: z.literal('draw'), points: z.array(pointSchema) }),
+  z.object({
+    ...baseShape,
+    type: z.literal('draw'),
+    points: z.array(pointSchema),
+  }),
   z.object({
     ...baseShape,
     type: z.literal('text'),

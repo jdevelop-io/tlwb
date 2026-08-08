@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createElement } from '../src/model/create'
-import {
-  exportSnapshot,
-  importSnapshot,
-  parseSnapshot,
-} from '../src/snapshot'
+import { exportSnapshot, importSnapshot, parseSnapshot } from '../src/snapshot'
 import { InMemoryBoardStore } from '../src/store/memory'
 
 /** Wraps a single (possibly invalid) element into a full snapshot payload. */
@@ -92,7 +88,11 @@ describe('board snapshot', () => {
 
   it('rejects data with an unknown schema version', () => {
     expect(() =>
-      parseSnapshot({ schema: 2, meta: { name: 'x', createdAt: 1 }, elements: [] }),
+      parseSnapshot({
+        schema: 2,
+        meta: { name: 'x', createdAt: 1 },
+        elements: [],
+      }),
     ).toThrow()
   })
 

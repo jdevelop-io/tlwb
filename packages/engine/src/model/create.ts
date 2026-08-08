@@ -1,4 +1,9 @@
-import type { BoardElement, ElementId, ElementProps, ElementType } from './element'
+import type {
+  BoardElement,
+  ElementId,
+  ElementProps,
+  ElementType,
+} from './element'
 
 const variantDefaults: Record<ElementType, Record<string, unknown>> = {
   rectangle: {},

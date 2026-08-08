@@ -4,9 +4,16 @@
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@11.20.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
+    "check": "biome check",
+    "check:write": "biome check --write",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.7"
   }
 }

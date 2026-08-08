@@ -1,6 +1,14 @@
-export * from './model/element'
 export { createElement } from './model/create'
-export { firstIndex, indexAfter, indexBetween, sortByIndex } from './model/ordering'
+export * from './model/element'
+export {
+  firstIndex,
+  indexAfter,
+  indexBetween,
+  sortByIndex,
+} from './model/ordering'
+export type { BoardSnapshot } from './snapshot'
+export { exportSnapshot, importSnapshot, parseSnapshot } from './snapshot'
+export { InMemoryBoardStore } from './store/memory'
 export type {
   BoardChange,
   BoardMeta,
@@ -8,6 +16,3 @@ export type {
   BoardStoreEvent,
   ChangeOrigin,
 } from './store/types'
-export { InMemoryBoardStore } from './store/memory'
-export { exportSnapshot, importSnapshot, parseSnapshot } from './snapshot'
-export type { BoardSnapshot } from './snapshot'

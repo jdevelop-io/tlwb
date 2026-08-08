@@ -105,6 +105,9 @@ export type ElementProps = Partial<Omit<ElementBase, 'id' | 'type'>> &
   Partial<Pick<LineElement, 'points'>> &
   Partial<Pick<ArrowElement, 'startBinding' | 'endBinding'>> &
   Partial<
-    Pick<TextElement, 'text' | 'fontSize' | 'fontFamily' | 'textAlign' | 'containerId'>
+    Pick<
+      TextElement,
+      'text' | 'fontSize' | 'fontFamily' | 'textAlign' | 'containerId'
+    >
   > &
   Partial<Pick<ImageElement, 'assetHash'>>
