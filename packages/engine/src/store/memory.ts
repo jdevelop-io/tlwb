@@ -30,6 +30,7 @@ export class InMemoryBoardStore implements BoardStore {
 
   setMeta(patch: Partial<BoardMeta>): void {
     this.meta = { ...this.meta, ...patch }
+    this.emit({ kind: 'meta', meta: this.getMeta() })
   }
 
   applyChanges(changes: BoardChange[], origin: ChangeOrigin = 'local'): void {
@@ -37,11 +38,11 @@ export class InMemoryBoardStore implements BoardStore {
     for (const change of changes) {
       this.applyOne(change)
     }
-    if (origin === 'local') {
+    if (origin === 'local' && inverse.length > 0) {
       this.undoStack.push(inverse)
       this.redoStack = []
     }
-    this.emit({ changes, origin })
+    this.emit({ kind: 'changes', changes: [...changes], origin })
   }
 
   subscribe(listener: (event: BoardStoreEvent) => void): () => void {
@@ -57,7 +58,7 @@ export class InMemoryBoardStore implements BoardStore {
       this.applyOne(change)
     }
     this.redoStack.push(redo)
-    this.emit({ changes: batch, origin: 'undo' })
+    this.emit({ kind: 'changes', changes: batch, origin: 'undo' })
   }
 
   redo(): void {
@@ -68,7 +69,7 @@ export class InMemoryBoardStore implements BoardStore {
       this.applyOne(change)
     }
     this.undoStack.push(undo)
-    this.emit({ changes: batch, origin: 'undo' })
+    this.emit({ kind: 'changes', changes: batch, origin: 'undo' })
   }
 
   canUndo(): boolean {
@@ -77,6 +78,11 @@ export class InMemoryBoardStore implements BoardStore {
 
   canRedo(): boolean {
     return this.redoStack.length > 0
+  }
+
+  clearHistory(): void {
+    this.undoStack = []
+    this.redoStack = []
   }
 
   protected applyOne(change: BoardChange): void {

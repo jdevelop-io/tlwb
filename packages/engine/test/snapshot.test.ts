@@ -69,6 +69,27 @@ describe('board snapshot', () => {
     expect(store.canUndo()).toBe(false)
   })
 
+  it('drops the previous board history on import', () => {
+    const store = new InMemoryBoardStore()
+    const rectangle = createElement('rectangle', { index: 'a0' })
+    store.applyChanges([{ kind: 'create', element: rectangle }])
+    store.applyChanges([{ kind: 'delete', id: rectangle.id }])
+
+    const ellipse = createElement('ellipse', { index: 'a0' })
+    importSnapshot(store, {
+      schema: 1,
+      meta: { name: 'imported', createdAt: 1 },
+      elements: [ellipse],
+    })
+
+    expect(store.canUndo()).toBe(false)
+    expect(store.canRedo()).toBe(false)
+    store.undo()
+    expect(store.listElements().map((element) => element.id)).toEqual([
+      ellipse.id,
+    ])
+  })
+
   it('rejects data with an unknown schema version', () => {
     expect(() =>
       parseSnapshot({ schema: 2, meta: { name: 'x', createdAt: 1 }, elements: [] }),

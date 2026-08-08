@@ -81,6 +81,7 @@ export function importSnapshot(
   )
   store.applyChanges([...deletions, ...creations], 'remote')
   store.setMeta(snapshot.meta)
+  store.clearHistory()
 }
 
 export function parseSnapshot(data: unknown): BoardSnapshot {
