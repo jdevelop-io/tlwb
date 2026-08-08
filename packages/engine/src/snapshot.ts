@@ -55,11 +55,14 @@ const snapshotSchema = z.object({
   elements: z.array(elementSchema),
 })
 
-export interface BoardSnapshot {
-  schema: 1
-  meta: BoardMeta
-  elements: BoardElement[]
-}
+export type BoardSnapshot = z.infer<typeof snapshotSchema>
+
+/** Fails to compile if the zod schema and the element model drift apart. */
+type Assert<A extends B, B> = A
+type _ElementsMatchModel = Assert<BoardSnapshot['elements'], BoardElement[]>
+type _ModelMatchesElements = Assert<BoardElement[], BoardSnapshot['elements']>
+type _MetaMatchesModel = Assert<BoardSnapshot['meta'], BoardMeta>
+type _ModelMatchesMeta = Assert<BoardMeta, BoardSnapshot['meta']>
 
 export function exportSnapshot(store: BoardStore): BoardSnapshot {
   return {
@@ -85,5 +88,5 @@ export function importSnapshot(
 }
 
 export function parseSnapshot(data: unknown): BoardSnapshot {
-  return snapshotSchema.parse(data) as BoardSnapshot
+  return snapshotSchema.parse(data)
 }
