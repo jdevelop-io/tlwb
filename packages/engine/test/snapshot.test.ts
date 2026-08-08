@@ -7,6 +7,15 @@ import {
 } from '../src/snapshot'
 import { InMemoryBoardStore } from '../src/store/memory'
 
+/** Wraps a single (possibly invalid) element into a full snapshot payload. */
+function toSnapshotPayload(element: unknown) {
+  return {
+    schema: 1,
+    meta: { name: 'x', createdAt: 1 },
+    elements: [element],
+  }
+}
+
 describe('board snapshot', () => {
   it('round-trips a board through export, JSON, parse, and import', () => {
     const source = new InMemoryBoardStore()
@@ -74,5 +83,28 @@ describe('board snapshot', () => {
         elements: [{ type: 'rectangle', id: 'e1' }],
       }),
     ).toThrow()
+  })
+
+  it('strips properties belonging to another variant', () => {
+    const rectangle = createElement('rectangle', { index: 'a0' })
+    const contaminated = { ...rectangle, points: [{ x: 1, y: 2 }] }
+
+    const parsed = parseSnapshot(toSnapshotPayload(contaminated))
+
+    expect(parsed.elements[0]).not.toHaveProperty('points')
+  })
+
+  it('rejects an invalid enum member', () => {
+    const rectangle = createElement('rectangle', { index: 'a0' })
+    const invalid = { ...rectangle, strokeStyle: 'dotted' }
+
+    expect(() => parseSnapshot(toSnapshotPayload(invalid))).toThrow()
+  })
+
+  it('rejects an unknown element type', () => {
+    const rectangle = createElement('rectangle', { index: 'a0' })
+    const invalid = { ...rectangle, type: 'hexagon' }
+
+    expect(() => parseSnapshot(toSnapshotPayload(invalid))).toThrow()
   })
 })
