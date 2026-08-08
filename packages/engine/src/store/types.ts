@@ -31,4 +31,10 @@ export interface BoardStore {
   /** Applies the batch atomically and emits exactly one event. */
   applyChanges(changes: BoardChange[], origin?: ChangeOrigin): void
   subscribe(listener: (event: BoardStoreEvent) => void): () => void
+  /** Reverts the newest local batch. No-op when nothing is undoable. */
+  undo(): void
+  /** Re-applies the newest undone batch. No-op when nothing is redoable. */
+  redo(): void
+  canUndo(): boolean
+  canRedo(): boolean
 }

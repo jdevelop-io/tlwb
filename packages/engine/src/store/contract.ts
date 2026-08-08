@@ -97,5 +97,70 @@ export function describeBoardStoreContract(
       expect(store.getMeta().name).toBe('payments architecture')
       expect(typeof store.getMeta().createdAt).toBe('number')
     })
+
+    it('undoes the newest local batch and emits an undo event', () => {
+      const store = createStore()
+      const element = createElement('rectangle', { index: 'a0', x: 5 })
+      store.applyChanges([{ kind: 'create', element }])
+      const events: BoardStoreEvent[] = []
+      store.subscribe((event) => events.push(event))
+      expect(store.canUndo()).toBe(true)
+      store.undo()
+      expect(store.getElement(element.id)).toBeUndefined()
+      expect(events[0]?.origin).toBe('undo')
+    })
+
+    it('undoes an update by restoring the prior property values', () => {
+      const store = createStore()
+      const element = createElement('rectangle', { index: 'a0', x: 5 })
+      store.applyChanges([{ kind: 'create', element }])
+      store.applyChanges([
+        { kind: 'update', id: element.id, props: { x: 42 } },
+      ])
+      store.undo()
+      expect(store.getElement(element.id)?.x).toBe(5)
+    })
+
+    it('redoes an undone batch', () => {
+      const store = createStore()
+      const element = createElement('rectangle', { index: 'a0' })
+      store.applyChanges([{ kind: 'create', element }])
+      store.undo()
+      expect(store.canRedo()).toBe(true)
+      store.redo()
+      expect(store.getElement(element.id)).toBeDefined()
+      expect(store.canRedo()).toBe(false)
+    })
+
+    it('does not undo remote batches', () => {
+      const store = createStore()
+      const local = createElement('rectangle', { index: 'a0' })
+      const remote = createElement('ellipse', { index: 'a1' })
+      store.applyChanges([{ kind: 'create', element: local }])
+      store.applyChanges([{ kind: 'create', element: remote }], 'remote')
+      store.undo()
+      expect(store.getElement(local.id)).toBeUndefined()
+      expect(store.getElement(remote.id)).toBeDefined()
+      expect(store.canUndo()).toBe(false)
+    })
+
+    it('clears the redo stack on a new local batch', () => {
+      const store = createStore()
+      const first = createElement('rectangle', { index: 'a0' })
+      store.applyChanges([{ kind: 'create', element: first }])
+      store.undo()
+      const second = createElement('ellipse', { index: 'a1' })
+      store.applyChanges([{ kind: 'create', element: second }])
+      expect(store.canRedo()).toBe(false)
+    })
+
+    it('is a no-op to undo or redo with empty stacks', () => {
+      const store = createStore()
+      expect(store.canUndo()).toBe(false)
+      expect(store.canRedo()).toBe(false)
+      store.undo()
+      store.redo()
+      expect(store.listElements()).toEqual([])
+    })
   })
 }
