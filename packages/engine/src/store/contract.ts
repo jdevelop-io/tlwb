@@ -130,6 +130,7 @@ export function describeBoardStoreContract(
       store.redo()
       expect(store.getElement(element.id)).toBeDefined()
       expect(store.canRedo()).toBe(false)
+      expect(store.canUndo()).toBe(true)
     })
 
     it('does not undo remote batches', () => {
