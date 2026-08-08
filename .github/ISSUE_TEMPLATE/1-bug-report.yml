@@ -1,0 +1,65 @@
+name: Bug report
+description: Report something that behaves incorrectly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. For anything
+        security related, follow the
+        [security policy](https://github.com/jdevelop-io/tlwb/security/policy)
+        instead of opening a public issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the behavior you observed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: >
+        The smallest sequence that triggers the problem. A failing test
+        or a short code snippet is the most useful form.
+      placeholder: |
+        1. Create a store with ...
+        2. Apply ...
+        3. Observe that ...
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Version or commit
+      description: The tlwb version, or the commit you tested.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Node.js version, pnpm version, and operating system.
+      placeholder: Node 24.4.0, pnpm 11.20.0, macOS 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Logs, stack traces, or context that might help.
+    validations:
+      required: false

@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a capability or a change in behavior
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you trying to do that tlwb makes hard or impossible?
+        Describe the situation rather than the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like instead
+      description: >
+        The behavior, interface, or capability you have in mind. Sketch
+        the shape if you have one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: >
+        Workarounds you tried, or other designs you weighed and why you
+        set them aside.
+    validations:
+      required: false

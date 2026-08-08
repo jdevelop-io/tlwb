@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/jdevelop-io/tlwb/security/policy
+    about: >
+      Report it privately through the security policy, never through a
+      public issue.
+  - name: Contributing guide
+    url: https://github.com/jdevelop-io/tlwb/blob/main/CONTRIBUTING.md
+    about: How to set up the project, run the checks, and open a pull request.
