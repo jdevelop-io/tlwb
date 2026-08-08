@@ -1,7 +1,7 @@
 # tlwb (The Little WhiteBoard): product and UI design
 
 Date: 2026-08-07
-Status: validated through brainstorming, pending written review
+Status: complete; Paper artboards delivered and approved on 2026-08-08
 Deliverable of this phase: this specification plus Paper artboards
 
 ## 1. Concept and positioning
