@@ -1,5 +1,7 @@
 # tlwb
 
+[![CI](https://github.com/jdevelop-io/tlwb/actions/workflows/ci.yml/badge.svg)](https://github.com/jdevelop-io/tlwb/actions/workflows/ci.yml)
+
 The little whiteboard: instant, collaborative, agent-friendly.
 
 Monorepo packages:
