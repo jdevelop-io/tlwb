@@ -19,18 +19,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The minimum the workspace declares, and the current LTS line.
+        # The minimum the workspace declares, and the current Active LTS.
         node: [22, 24]
     steps:
       - uses: actions/checkout@v7
 
-      # Reads the pnpm version pinned by the root package.json "packageManager".
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
+      # Installs pnpm (version taken from the root package.json
+      # "packageManager") and the runtime in a single step.
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ matrix.node }}
-          cache: pnpm
+          runtime: node@${{ matrix.node }}
+          cache: true
+          # Installing explicitly below keeps the frozen-lockfile guarantee
+          # visible instead of relying on pnpm's CI default.
+          install: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
