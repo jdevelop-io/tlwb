@@ -43,9 +43,26 @@ describe('fractional ordering', () => {
   })
 
   it('sorts items by index without mutating the input', () => {
-    const items = [{ index: 'a2' }, { index: 'a0' }, { index: 'a1' }]
+    const items = [
+      { id: 'c', index: 'a2' },
+      { id: 'a', index: 'a0' },
+      { id: 'b', index: 'a1' },
+    ]
     const sorted = sortByIndex(items)
     expect(sorted.map((item) => item.index)).toEqual(['a0', 'a1', 'a2'])
     expect(items[0]?.index).toBe('a2')
+  })
+
+  it('breaks an index tie by id, whatever the input order', () => {
+    const first = sortByIndex([
+      { id: 'b', index: 'a1' },
+      { id: 'a', index: 'a1' },
+    ])
+    const second = sortByIndex([
+      { id: 'a', index: 'a1' },
+      { id: 'b', index: 'a1' },
+    ])
+    expect(first.map((item) => item.id)).toEqual(['a', 'b'])
+    expect(second.map((item) => item.id)).toEqual(['a', 'b'])
   })
 })
