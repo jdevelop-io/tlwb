@@ -16,11 +16,12 @@ export class InMemoryBoardStore implements BoardStore {
   private redoStack: BoardChange[][] = []
 
   getElement(id: ElementId): BoardElement | undefined {
-    return this.elements.get(id)
+    const element = this.elements.get(id)
+    return element ? { ...element } : undefined
   }
 
   listElements(): BoardElement[] {
-    return sortByIndex([...this.elements.values()])
+    return sortByIndex([...this.elements.values()].map((element) => ({ ...element })))
   }
 
   getMeta(): BoardMeta {

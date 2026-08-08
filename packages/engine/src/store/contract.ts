@@ -163,5 +163,19 @@ export function describeBoardStoreContract(
       store.redo()
       expect(store.listElements()).toEqual([])
     })
+
+    it('does not expose its internal element state to callers', () => {
+      const store = createStore()
+      const element = createElement('rectangle', { index: 'a0', x: 5 })
+      store.applyChanges([{ kind: 'create', element }])
+
+      const fromGetElement = store.getElement(element.id)
+      ;(fromGetElement as unknown as Record<string, unknown>).x = 999
+      expect(store.getElement(element.id)?.x).toBe(5)
+
+      const fromListElements = store.listElements()[0]
+      ;(fromListElements as unknown as Record<string, unknown>).x = 999
+      expect(store.getElement(element.id)?.x).toBe(5)
+    })
   })
 }
