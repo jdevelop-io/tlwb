@@ -34,6 +34,16 @@ export {
 export { createElement } from './model/create'
 export * from './model/element'
 export {
+  bringForward,
+  bringToFront,
+  deleteElements,
+  duplicateElements,
+  groupElements,
+  sendBackward,
+  sendToBack,
+  ungroupElements,
+} from './model/operations'
+export {
   firstIndex,
   indexAfter,
   indexBetween,
