@@ -1,3 +1,15 @@
+export type { Camera, Viewport } from './camera'
+export {
+  clampZoom,
+  createCamera,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  panCamera,
+  screenToWorld,
+  visibleRect,
+  worldToScreen,
+  zoomCamera,
+} from './camera'
 export type { Rect } from './geometry/bounds'
 export {
   expandRect,
