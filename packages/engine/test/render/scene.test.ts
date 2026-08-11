@@ -135,6 +135,29 @@ describe('renderScene', () => {
     expect(rgbaAt(canvas, 50, 50)).toEqual([0, 0, 255, 255])
   })
 
+  it('clears stale pixels before painting a non-opaque background', () => {
+    const canvas = createCanvas(100, 100)
+    renderScene(canvas as unknown as HTMLCanvasElement, {
+      elements: [redSquare()],
+      camera: createCamera(),
+      viewport: VIEWPORT,
+    })
+    expect(rgbaAt(canvas, 50, 50)).toEqual([255, 0, 0, 255])
+    renderScene(canvas as unknown as HTMLCanvasElement, {
+      elements: [],
+      camera: createCamera(),
+      viewport: VIEWPORT,
+      background: 'rgba(0,0,0,0)',
+    })
+    expect(rgbaAt(canvas, 50, 50)).toEqual([0, 0, 0, 0])
+  })
+
+  it('paints a custom opaque background', () => {
+    expect(rgbaAt(render([], { background: '#0000FF' }), 50, 50)).toEqual([
+      0, 0, 255, 255,
+    ])
+  })
+
   it('fills free drawing strokes', () => {
     const draw = createElement('draw', {
       id: 'draw-1',

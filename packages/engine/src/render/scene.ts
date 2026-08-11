@@ -63,6 +63,7 @@ export function renderScene(
   }
   const rough = new RoughCanvas(canvas)
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0)
+  ctx.clearRect(0, 0, viewport.width, viewport.height)
   ctx.fillStyle = background
   ctx.fillRect(0, 0, viewport.width, viewport.height)
   ctx.scale(camera.zoom, camera.zoom)
