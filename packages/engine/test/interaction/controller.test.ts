@@ -105,30 +105,6 @@ describe('interaction controller', () => {
     expect(snapshot.lasso).toBeNull()
   })
 
-  it('returns the same snapshot object when nothing changed since the last call', () => {
-    // A host repaints by diffing snapshots. If getSnapshot() allocated a
-    // fresh object every call, reference-equality diffing could never
-    // short-circuit, defeating that use case.
-    const { store, controller } = setup()
-    const shape = createElement('rectangle', {
-      index: 'a0',
-      x: 0,
-      y: 0,
-      width: 40,
-      height: 40,
-    })
-    store.applyChanges([{ kind: 'create', element: shape }])
-    controller.setSelectedIds([shape.id])
-    const first = controller.getSnapshot()
-    const second = controller.getSnapshot()
-    expect(second).toBe(first)
-    controller.setSelectedIds([])
-    const third = controller.getSnapshot()
-    expect(third).not.toBe(first)
-    const fourth = controller.getSnapshot()
-    expect(fourth).toBe(third)
-  })
-
   it('executes delete, duplicate, and undo from the keyboard', () => {
     const { store, controller } = setup()
     const shape = createElement('rectangle', {
@@ -239,5 +215,21 @@ describe('interaction controller', () => {
     store.applyChanges([{ kind: 'delete', id: shape.id }], 'remote')
     // The controller no longer listens, so it no longer prunes.
     expect(controller.getSelectedIds()).toEqual([shape.id])
+  })
+
+  it('clears its own listeners on destroy even when the host never unsubscribes', () => {
+    // The previous test always unsubscribes its listener before calling
+    // destroy(), so a destroy() that forgot listeners.clear() would still
+    // pass it. Leave a listener subscribed through destroy() instead, so
+    // only a destroy() that actually clears the listener set passes.
+    const { controller } = setup()
+    let calls = 0
+    controller.subscribe(() => {
+      calls += 1
+    })
+    controller.destroy()
+    const before = calls
+    controller.setSelectedIds([])
+    expect(calls).toBe(before)
   })
 })

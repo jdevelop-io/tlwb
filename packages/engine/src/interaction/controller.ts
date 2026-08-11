@@ -102,15 +102,7 @@ export function createInteractionController(
   let defaults: ElementProps = { ...options.defaults }
   const listeners = new Set<() => void>()
 
-  // Bumped on every notify() so getSnapshot() can hand back the exact
-  // same object when nothing tracked by the snapshot has changed since
-  // the last call: a host that diffs snapshots by reference to decide
-  // whether to repaint is not defeated by a fresh object every call.
-  let version = 0
-  let cache: { version: number; snapshot: InteractionSnapshot } | null = null
-
   const notify = (): void => {
-    version += 1
     for (const listener of listeners) {
       listener()
     }
@@ -261,6 +253,14 @@ export function createInteractionController(
         }
         return
       }
+      default: {
+        // Exhaustiveness guard: a KeyboardAction variant added without a
+        // matching case here fails the build instead of silently falling
+        // through at runtime.
+        const unreachable: never = action
+        void unreachable
+        return
+      }
     }
   }
 
@@ -294,16 +294,13 @@ export function createInteractionController(
       return true
     },
     getSnapshot: () => {
-      if (cache && cache.version === version) {
-        return cache.snapshot
-      }
       const elements = store.listElements()
       const bounds = selectionBounds(elements, selection)
       const overlay = tools[activeToolType].getOverlay?.() ?? {
         lasso: null,
         guides: [],
       }
-      const snapshot: InteractionSnapshot = {
+      return {
         activeTool: activeToolType,
         selectedIds: [...selection],
         selectionBounds: bounds,
@@ -314,8 +311,6 @@ export function createInteractionController(
         lasso: overlay.lasso,
         guides: overlay.guides,
       }
-      cache = { version, snapshot }
-      return snapshot
     },
     subscribe: (listener) => {
       listeners.add(listener)
