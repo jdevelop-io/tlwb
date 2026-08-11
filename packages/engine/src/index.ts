@@ -98,3 +98,14 @@ export type {
   BoardStoreEvent,
   ChangeOrigin,
 } from './store/types'
+export { createHandTool } from './tools/hand'
+export { createShapeTool } from './tools/shape'
+export type {
+  PendingImage,
+  PointerInput,
+  Tool,
+  ToolContext,
+  ToolOverlay,
+  ToolType,
+} from './tools/types'
+export { DRAG_THRESHOLD, HIT_TOLERANCE, topIndex } from './tools/types'
