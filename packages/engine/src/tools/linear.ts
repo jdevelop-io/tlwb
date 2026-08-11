@@ -110,9 +110,13 @@ export function createLinearTool(type: 'line' | 'arrow'): Tool {
         context.store.applyChanges([{ kind: 'update', id: created, props }])
       }
       reset()
+      // Close the capture before the host callbacks, not after:
+      // setActiveTool notifies host listeners synchronously, and a host
+      // that writes to the store from that notification would otherwise
+      // coalesce its write into this element's undo entry.
+      context.store.stopCapturing()
       context.setSelection([created])
       context.setActiveTool('select')
-      context.store.stopCapturing()
     },
     onCancel(context) {
       if (id) {

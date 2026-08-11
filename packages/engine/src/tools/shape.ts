@@ -75,9 +75,13 @@ export function createShapeTool(
       const created = id
       reset()
       if (created) {
+        // Close the capture before the host callbacks, not after:
+        // setActiveTool notifies host listeners synchronously, and a
+        // host that writes to the store from that notification would
+        // otherwise coalesce its write into this shape's undo entry.
+        context.store.stopCapturing()
         context.setSelection([created])
         context.setActiveTool('select')
-        context.store.stopCapturing()
       }
     },
     onCancel(context: ToolContext) {
