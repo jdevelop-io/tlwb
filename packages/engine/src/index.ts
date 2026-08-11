@@ -25,6 +25,8 @@ export {
   sortByIndex,
 } from './model/ordering'
 export { getFreehandPath } from './render/freehand'
+export type { ImageResolver, RenderSceneOptions } from './render/scene'
+export { renderScene } from './render/scene'
 export type { SketchyElement } from './render/shapes'
 export { getShapeDrawables } from './render/shapes'
 export type { FontConfig } from './render/text'
