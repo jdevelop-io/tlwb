@@ -103,6 +103,7 @@ export { createEraserTool } from './tools/eraser'
 export { createHandTool } from './tools/hand'
 export { createImageTool } from './tools/image'
 export { createLinearTool } from './tools/linear'
+export { createSelectTool } from './tools/select'
 export { createShapeTool } from './tools/shape'
 export { createTextTool } from './tools/text'
 export type {
