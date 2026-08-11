@@ -31,6 +31,8 @@ export {
   pointInPolygon,
   segmentsIntersection,
 } from './geometry/points'
+export type { SnapGuide, SnapResult } from './geometry/snap'
+export { SNAP_THRESHOLD, snapMovedBounds } from './geometry/snap'
 export type {
   Handle,
   HandleKind,
