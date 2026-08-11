@@ -7,7 +7,7 @@ import {
   type KeyInput,
   resolveKeyboardAction,
 } from '../keyboard'
-import { boundArrowUpdates } from '../model/bindings'
+import { applyWithArrows } from '../model/bindings'
 import type { ElementId, ElementProps } from '../model/element'
 import {
   bringForward,
@@ -246,11 +246,7 @@ export function createInteractionController(
             id: element.id,
             props: { x: element.x + action.dx, y: element.y + action.dy },
           }))
-        store.applyChanges(changes)
-        const arrows = boundArrowUpdates(store.listElements(), wanted)
-        if (arrows.length > 0) {
-          store.applyChanges(arrows)
-        }
+        applyWithArrows(store, changes, wanted)
         return
       }
       default: {

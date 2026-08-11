@@ -14,11 +14,11 @@ import {
   rotationAngle,
   scaleElement,
 } from '../geometry/transform'
-import { boundArrowUpdates } from '../model/bindings'
+import { applyWithArrows } from '../model/bindings'
 import type { BoardElement, ElementId, Point } from '../model/element'
 import { duplicateElements } from '../model/operations'
 import { elementsInRect, expandToGroups, selectionBounds } from '../selection'
-import type { BoardChange, BoardStore } from '../store/types'
+import type { BoardChange } from '../store/types'
 import type { PointerInput, Tool, ToolContext, ToolOverlay } from './types'
 import { DRAG_THRESHOLD, HIT_TOLERANCE } from './types'
 
@@ -83,19 +83,6 @@ function unionRect(a: Rect, b: Rect): Rect {
     y,
     width: Math.max(a.x + a.width, b.x + b.width) - x,
     height: Math.max(a.y + a.height, b.y + b.height) - y,
-  }
-}
-
-/** Applies a batch, then re-anchors arrows bound to the touched ids. */
-function applyWithArrows(
-  store: BoardStore,
-  changes: BoardChange[],
-  touchedIds: ReadonlySet<ElementId>,
-): void {
-  store.applyChanges(changes)
-  const arrows = boundArrowUpdates(store.listElements(), touchedIds)
-  if (arrows.length > 0) {
-    store.applyChanges(arrows)
   }
 }
 

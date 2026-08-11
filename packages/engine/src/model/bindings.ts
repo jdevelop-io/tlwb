@@ -5,7 +5,7 @@ import {
   toWorldPoint,
 } from '../geometry/hit'
 import { normalizeLinearPoints, segmentsIntersection } from '../geometry/points'
-import type { BoardChange } from '../store/types'
+import type { BoardChange, BoardStore } from '../store/types'
 import type {
   BoardElement,
   DiamondElement,
@@ -150,4 +150,23 @@ export function boundArrowUpdates(
     })
   }
   return changes
+}
+
+/**
+ * Applies a batch, then re-anchors the arrows bound to the touched ids.
+ * This is the whole re-anchor policy in one place: any change to an
+ * element's position must re-anchor its bound arrows, so every caller
+ * that moves elements goes through here rather than pairing
+ * `applyChanges` with `boundArrowUpdates` on its own.
+ */
+export function applyWithArrows(
+  store: BoardStore,
+  changes: BoardChange[],
+  touchedIds: ReadonlySet<ElementId>,
+): void {
+  store.applyChanges(changes)
+  const arrows = boundArrowUpdates(store.listElements(), touchedIds)
+  if (arrows.length > 0) {
+    store.applyChanges(arrows)
+  }
 }
