@@ -1,7 +1,7 @@
 import { normalizeLinearPoints } from '../geometry/points'
 import { createElement } from '../model/create'
 import type { ElementId, Point } from '../model/element'
-import type { Tool } from './types'
+import type { Tool, ToolOverlay } from './types'
 import { topIndex } from './types'
 
 /**
@@ -52,6 +52,9 @@ export function createDrawTool(): Tool {
         context.store.undo()
       }
       reset()
+    },
+    getOverlay(): ToolOverlay {
+      return { gesture: id ? 'creating' : 'idle', lasso: null, guides: [] }
     },
   }
 }

@@ -427,6 +427,9 @@ export function createSelectTool(): Tool {
 
     getOverlay(): ToolOverlay {
       return {
+        // The session kinds are named after the gestures themselves, so
+        // they are the reported states one for one.
+        gesture: session.kind,
         lasso: session.kind === 'lasso' ? session.rect : null,
         guides: session.kind === 'moving' ? session.guides : [],
       }

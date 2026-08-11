@@ -30,10 +30,12 @@ import { createSelectTool } from '../tools/select'
 import { createShapeTool } from '../tools/shape'
 import { createTextTool } from '../tools/text'
 import type {
+  GestureKind,
   PendingImage,
   PointerInput,
   Tool,
   ToolContext,
+  ToolOverlay,
   ToolType,
 } from '../tools/types'
 
@@ -43,6 +45,8 @@ export interface InteractionSnapshot {
   selectionBounds: Rect | null
   /** Present only for the select tool with a non-empty selection. */
   handles: Handle[]
+  /** What the user is doing right now; 'idle' between gestures. */
+  gesture: GestureKind
   lasso: Rect | null
   guides: SnapGuide[]
 }
@@ -77,6 +81,14 @@ export interface InteractionController {
   pointerDown(input: PointerInput): void
   pointerMove(input: PointerInput): void
   pointerUp(input: PointerInput): void
+  /**
+   * Abandons the gesture in flight without committing it and leaves the
+   * selection alone. This is where a host routes the browser's
+   * pointercancel (palm rejection, a system gesture stealing the
+   * pointer, the pointer leaving the window mid-drag): routing it to
+   * pointerUp would commit the half-drawn element instead.
+   */
+  cancelGesture(): void
   /** True when the key was consumed; the host preventDefaults then. */
   handleKey(input: KeyInput): boolean
   getSnapshot(): InteractionSnapshot
@@ -114,7 +126,10 @@ export function createInteractionController(
     setCamera: (camera) => options.setCamera(camera),
     getSelection: () => selection,
     setSelection: (ids) => {
-      selection = ids
+      // Copied in, as getSelectedIds and getSnapshot copy out: the
+      // controller owns its selection array, and a caller that keeps
+      // writing to the array it handed over changes nothing here.
+      selection = [...ids]
       notify()
     },
     getDefaults: () => defaults,
@@ -263,7 +278,7 @@ export function createInteractionController(
   return {
     getActiveTool: () => activeToolType,
     setActiveTool,
-    getSelectedIds: () => selection,
+    getSelectedIds: () => [...selection],
     setSelectedIds: (ids) => context.setSelection(ids),
     setDefaults: (patch) => {
       defaults = { ...defaults, ...patch }
@@ -280,6 +295,10 @@ export function createInteractionController(
       tools[activeToolType].onPointerUp(input, context)
       notify()
     },
+    cancelGesture: () => {
+      tools[activeToolType].onCancel(context)
+      notify()
+    },
     handleKey: (input) => {
       const action = resolveKeyboardAction(input)
       if (!action) {
@@ -292,7 +311,8 @@ export function createInteractionController(
     getSnapshot: () => {
       const elements = store.listElements()
       const bounds = selectionBounds(elements, selection)
-      const overlay = tools[activeToolType].getOverlay?.() ?? {
+      const overlay: ToolOverlay = tools[activeToolType].getOverlay?.() ?? {
+        gesture: 'idle',
         lasso: null,
         guides: [],
       }
@@ -304,6 +324,7 @@ export function createInteractionController(
           activeToolType === 'select' && bounds
             ? getHandles(bounds, options.getCamera().zoom)
             : [],
+        gesture: overlay.gesture,
         lasso: overlay.lasso,
         guides: overlay.guides,
       }

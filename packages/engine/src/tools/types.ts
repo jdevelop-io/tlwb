@@ -53,8 +53,28 @@ export interface ToolContext {
   getPendingImage(): PendingImage | null
 }
 
-/** Ephemeral per-gesture state the overlay rendering needs. */
+/**
+ * What the user is doing right now, named after the gesture rather than
+ * after the tool running it. Overlay painters key off this: hiding the
+ * resize handles while the selection moves, or showing a rotation
+ * affordance, cannot be inferred from the snap guides, which stay empty
+ * whenever a move happens to snap to nothing.
+ */
+export type GestureKind =
+  | 'idle'
+  | 'moving'
+  | 'resizing'
+  | 'rotating'
+  | 'lasso'
+  | 'creating'
+
+/**
+ * Ephemeral per-gesture state the overlay rendering needs. Tools whose
+ * gesture has nothing to paint (hand, text, image, eraser) implement no
+ * overlay at all and read as idle.
+ */
 export interface ToolOverlay {
+  gesture: GestureKind
   lasso: Rect | null
   guides: SnapGuide[]
 }

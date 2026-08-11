@@ -115,6 +115,7 @@ export { createSelectTool } from './tools/select'
 export { createShapeTool } from './tools/shape'
 export { createTextTool } from './tools/text'
 export type {
+  GestureKind,
   PendingImage,
   PointerInput,
   Tool,

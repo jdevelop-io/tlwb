@@ -217,6 +217,95 @@ describe('interaction controller', () => {
     expect(controller.getSelectedIds()).toEqual([shape.id])
   })
 
+  it('owns its selection array on both sides of the accessor pair', () => {
+    const { store, controller } = setup()
+    const shape = createElement('rectangle', { index: 'a0' })
+    store.applyChanges([{ kind: 'create', element: shape }])
+    const given = [shape.id]
+    controller.setSelectedIds(given)
+    // The host keeps writing to the array it handed over.
+    given.push('intruder')
+    expect(controller.getSelectedIds()).toEqual([shape.id])
+    // And to the array it got back.
+    const taken = controller.getSelectedIds()
+    taken.push('intruder')
+    expect(controller.getSelectedIds()).toEqual([shape.id])
+    expect(controller.getSnapshot().selectedIds).toEqual([shape.id])
+  })
+
+  it('cancels a gesture in flight without touching the selection', () => {
+    const { store, controller } = setup()
+    const shape = createElement('rectangle', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+      fillColor: '#FFD8CF',
+    })
+    store.applyChanges([{ kind: 'create', element: shape }])
+    store.stopCapturing()
+    controller.setSelectedIds([shape.id])
+    controller.handleKey(key({ key: '3' }))
+    down(controller, 200, 200)
+    controller.pointerMove(input(300, 300))
+    expect(store.listElements()).toHaveLength(2)
+    // What the host routes a browser pointercancel to: the half-drawn
+    // rectangle goes away, the selection does not.
+    controller.cancelGesture()
+    expect(store.listElements()).toHaveLength(1)
+    expect(controller.getSelectedIds()).toEqual([shape.id])
+  })
+
+  it('reports the gesture in flight in the snapshot', () => {
+    const { store, controller } = setup()
+    const shape = createElement('rectangle', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      fillColor: '#FFD8CF',
+    })
+    store.applyChanges([{ kind: 'create', element: shape }])
+    store.stopCapturing()
+    expect(controller.getSnapshot().gesture).toBe('idle')
+
+    controller.setSelectedIds([shape.id])
+    down(controller, 50, 50)
+    controller.pointerMove(input(300, 300))
+    expect(controller.getSnapshot().gesture).toBe('moving')
+    controller.pointerUp(input(300, 300))
+    expect(controller.getSnapshot().gesture).toBe('idle')
+
+    // Resize and rotate report themselves even when no snap guide
+    // exists, which is what a host cannot infer from `guides` alone.
+    down(controller, 350, 350)
+    controller.pointerMove(input(400, 400))
+    expect(controller.getSnapshot().gesture).toBe('resizing')
+    controller.pointerUp(input(400, 400))
+
+    // The box now spans 250 to 400 on both axes, putting its rotate
+    // handle at (325, 226).
+    down(controller, 325, 226)
+    controller.pointerMove(input(450, 250))
+    expect(controller.getSnapshot().gesture).toBe('rotating')
+    controller.pointerUp(input(450, 250))
+
+    controller.setSelectedIds([])
+    down(controller, 700, 700)
+    controller.pointerMove(input(800, 800))
+    expect(controller.getSnapshot().gesture).toBe('lasso')
+    controller.pointerUp(input(800, 800))
+
+    controller.handleKey(key({ key: '3' }))
+    down(controller, 900, 900)
+    controller.pointerMove(input(950, 950))
+    expect(controller.getSnapshot().gesture).toBe('creating')
+    controller.pointerUp(input(950, 950))
+    expect(controller.getSnapshot().gesture).toBe('idle')
+  })
+
   it('clears its own listeners on destroy even when the host never unsubscribes', () => {
     // The previous test always unsubscribes its listener before calling
     // destroy(), so a destroy() that forgot listeners.clear() would still

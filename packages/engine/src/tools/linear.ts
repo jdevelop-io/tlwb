@@ -2,7 +2,7 @@ import { distance, normalizeLinearPoints } from '../geometry/points'
 import { attachmentPoint, findBindTarget } from '../model/bindings'
 import { createElement } from '../model/create'
 import type { ElementId, ElementProps, Point } from '../model/element'
-import type { Tool } from './types'
+import type { Tool, ToolOverlay } from './types'
 import { DRAG_THRESHOLD, HIT_TOLERANCE, topIndex } from './types'
 
 const DIRECTION_STEP = Math.PI / 12
@@ -124,6 +124,9 @@ export function createLinearTool(type: 'line' | 'arrow'): Tool {
         context.store.undo()
       }
       reset()
+    },
+    getOverlay(): ToolOverlay {
+      return { gesture: id ? 'creating' : 'idle', lasso: null, guides: [] }
     },
   }
 }

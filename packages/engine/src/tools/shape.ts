@@ -1,7 +1,7 @@
 import { distance } from '../geometry/points'
 import { createElement } from '../model/create'
 import type { ElementId, ElementProps, Point } from '../model/element'
-import type { Tool, ToolContext } from './types'
+import type { Tool, ToolContext, ToolOverlay } from './types'
 import { DRAG_THRESHOLD, topIndex } from './types'
 
 function frameProps(
@@ -90,6 +90,11 @@ export function createShapeTool(
         context.store.undo()
       }
       reset()
+    },
+    getOverlay(): ToolOverlay {
+      // Creating starts at the press, before the drag threshold turns
+      // the gesture into an element.
+      return { gesture: origin ? 'creating' : 'idle', lasso: null, guides: [] }
     },
   }
 }
