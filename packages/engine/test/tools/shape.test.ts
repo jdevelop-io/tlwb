@@ -69,4 +69,23 @@ describe('shape tool', () => {
     tool.onCancel(context)
     expect(context.store.listElements()).toEqual([])
   })
+
+  it('survives a controller whose setActiveTool re-enters onCancel', () => {
+    const context = createTestContext()
+    const tool = createShapeTool('rectangle')
+    // The real interaction controller calls onCancel on the outgoing
+    // tool from inside setActiveTool. Reproduce that re-entrancy here so
+    // the gesture-state-before-handoff ordering in onPointerUp is
+    // pinned by a test, not just by inspection.
+    context.setActiveTool = (type) => {
+      context.activeTool = type
+      tool.onCancel(context)
+    }
+    tool.onPointerDown(pointer(0, 0), context)
+    tool.onPointerMove(pointer(50, 50), context)
+    tool.onPointerUp(pointer(50, 50), context)
+    const [element] = context.store.listElements()
+    expect(element).toBeDefined()
+    expect(context.selection).toEqual([element?.id])
+  })
 })
