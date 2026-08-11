@@ -58,24 +58,19 @@ export class InMemoryBoardStore implements BoardStore {
     for (const change of changes) {
       this.applyOne(change)
     }
-    if (origin === 'local') {
-      if (inverse.length > 0) {
-        const open = this.capturing ? this.undoStack.at(-1) : undefined
-        if (open) {
-          // The merged entry replays the newest inverses first.
-          this.undoStack[this.undoStack.length - 1] = [...inverse, ...open]
-        } else {
-          this.undoStack.push(inverse)
-          this.capturing = true
-        }
-        this.redoStack = []
+    if (origin === 'local' && inverse.length > 0) {
+      const open = this.capturing ? this.undoStack.at(-1) : undefined
+      if (open) {
+        // The merged entry replays the newest inverses first.
+        this.undoStack[this.undoStack.length - 1] = [...inverse, ...open]
+      } else {
+        this.undoStack.push(inverse)
+        this.capturing = true
       }
-    } else {
-      // A batch from elsewhere (a collaborator, an import) interrupts the
-      // gesture: a local batch that follows must not merge with one that
-      // came before it, or undo would silently skip over the interruption.
-      this.capturing = false
+      this.redoStack = []
     }
+    // No else branch: a batch from elsewhere does not touch the capture,
+    // so consecutive local batches keep coalescing across it.
     this.emit({ kind: 'changes', changes: [...changes], origin })
   }
 

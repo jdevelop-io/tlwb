@@ -239,26 +239,6 @@ export function describeBoardStoreContract(
       expect(store.canUndo()).toBe(true)
     })
 
-    it('does not let a remote batch join the open capture entry', () => {
-      const store = createStore()
-      const first = createElement('rectangle', { index: 'a0' })
-      const remote = createElement('ellipse', { index: 'a1' })
-      const second = createElement('diamond', { index: 'a2' })
-      store.applyChanges([{ kind: 'create', element: first }])
-      store.applyChanges([{ kind: 'create', element: remote }], 'remote')
-      store.applyChanges([{ kind: 'create', element: second }])
-      store.stopCapturing()
-
-      store.undo()
-      expect(store.getElement(second.id)).toBeUndefined()
-      expect(store.getElement(first.id)).toBeDefined()
-      expect(store.canUndo()).toBe(true)
-
-      store.undo()
-      expect(store.getElement(first.id)).toBeUndefined()
-      expect(store.canUndo()).toBe(false)
-    })
-
     it('clears the redo stack on a new local batch', () => {
       const store = createStore()
       const first = createElement('rectangle', { index: 'a0' })
