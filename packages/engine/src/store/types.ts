@@ -25,6 +25,14 @@ export type BoardStoreEvent =
   | { kind: 'changes'; changes: BoardChange[]; origin: ChangeOrigin }
   | { kind: 'meta'; meta: BoardMeta }
 
+/**
+ * Object-identity contract every implementation must uphold: repeated
+ * reads of an unchanged element (via `getElement` or `listElements`)
+ * return the very same object, and an update replaces that object
+ * rather than mutating it in place. Callers, including the renderer,
+ * rely on this to key caches off element identity instead of a value
+ * comparison or a version counter.
+ */
 export interface BoardStore {
   getElement(id: ElementId): BoardElement | undefined
   /** All elements, sorted by fractional index (back to front). */

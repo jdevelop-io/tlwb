@@ -290,6 +290,24 @@ export function describeBoardStoreContract(
       expect((store.getElement(element.id) as LineElement).points[0]?.x).toBe(0)
     })
 
+    it('returns the identical element object across repeated reads', () => {
+      const store = createStore()
+      const element = createElement('rectangle', { index: 'a0', x: 5 })
+      store.applyChanges([{ kind: 'create', element }])
+      expect(store.getElement(element.id)).toBe(store.getElement(element.id))
+    })
+
+    it('replaces the element object rather than mutating it on update', () => {
+      const store = createStore()
+      const element = createElement('rectangle', { index: 'a0', x: 5 })
+      store.applyChanges([{ kind: 'create', element }])
+      const before = store.getElement(element.id)
+      store.applyChanges([{ kind: 'update', id: element.id, props: { x: 42 } }])
+      const after = store.getElement(element.id)
+      expect(after).not.toBe(before)
+      expect(after?.x).toBe(42)
+    })
+
     it('does not let the caller mutate an element after applying it', () => {
       const store = createStore()
       const element = createElement('rectangle', { index: 'a0', x: 5 })

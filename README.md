@@ -7,9 +7,11 @@ The little whiteboard: instant, collaborative, agent-friendly.
 
 Monorepo packages:
 
-- `packages/engine`: framework-agnostic whiteboard engine data layer
-  (element model, fractional z-ordering, board store with per-origin
-  undo and redo, versioned JSON snapshots).
+- `packages/engine`: framework-agnostic whiteboard engine, data layer
+  and rendering (element model, fractional z-ordering, board store with
+  per-origin undo and redo, versioned JSON snapshots, camera and
+  viewport math, sketchy shape and free-drawing rendering, canvas text
+  and images, an invalidation-driven render loop).
 
 ## Getting started
 
