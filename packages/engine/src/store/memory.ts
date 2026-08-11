@@ -34,6 +34,7 @@ export class InMemoryBoardStore implements BoardStore {
   private listeners = new Set<(event: BoardStoreEvent) => void>()
   private undoStack: BoardChange[][] = []
   private redoStack: BoardChange[][] = []
+  private capturing = false
 
   getElement(id: ElementId): BoardElement | undefined {
     return this.elements.get(id)
@@ -57,11 +58,29 @@ export class InMemoryBoardStore implements BoardStore {
     for (const change of changes) {
       this.applyOne(change)
     }
-    if (origin === 'local' && inverse.length > 0) {
-      this.undoStack.push(inverse)
-      this.redoStack = []
+    if (origin === 'local') {
+      if (inverse.length > 0) {
+        const open = this.capturing ? this.undoStack.at(-1) : undefined
+        if (open) {
+          // The merged entry replays the newest inverses first.
+          this.undoStack[this.undoStack.length - 1] = [...inverse, ...open]
+        } else {
+          this.undoStack.push(inverse)
+          this.capturing = true
+        }
+        this.redoStack = []
+      }
+    } else {
+      // A batch from elsewhere (a collaborator, an import) interrupts the
+      // gesture: a local batch that follows must not merge with one that
+      // came before it, or undo would silently skip over the interruption.
+      this.capturing = false
     }
     this.emit({ kind: 'changes', changes: [...changes], origin })
+  }
+
+  stopCapturing(): void {
+    this.capturing = false
   }
 
   subscribe(listener: (event: BoardStoreEvent) => void): () => void {
@@ -70,6 +89,7 @@ export class InMemoryBoardStore implements BoardStore {
   }
 
   undo(): void {
+    this.capturing = false
     const batch = this.undoStack.pop()
     if (!batch) return
     const redo = this.invertBatch(batch)
@@ -81,6 +101,7 @@ export class InMemoryBoardStore implements BoardStore {
   }
 
   redo(): void {
+    this.capturing = false
     const batch = this.redoStack.pop()
     if (!batch) return
     const undo = this.invertBatch(batch)
@@ -100,6 +121,7 @@ export class InMemoryBoardStore implements BoardStore {
   }
 
   clearHistory(): void {
+    this.capturing = false
     this.undoStack = []
     this.redoStack = []
   }

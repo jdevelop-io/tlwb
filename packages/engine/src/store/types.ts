@@ -48,6 +48,16 @@ export interface BoardStore {
    * batch still apply.
    */
   applyChanges(changes: BoardChange[], origin?: ChangeOrigin): void
+  /**
+   * Closes the current undo capture: the next local batch starts a new
+   * undo entry instead of coalescing into the current one. Consecutive
+   * local batches otherwise merge into a single entry, which lets a
+   * gesture stream one batch per pointer move while undo reverts the
+   * whole gesture. Undo, redo, and clearHistory close the capture
+   * implicitly. Mirrors Y.UndoManager.stopCapturing, which the Yjs
+   * implementation delegates to.
+   */
+  stopCapturing(): void
   subscribe(listener: (event: BoardStoreEvent) => void): () => void
   /**
    * Reverts the newest local batch. No-op when nothing is undoable.
