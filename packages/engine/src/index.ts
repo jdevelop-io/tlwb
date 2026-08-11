@@ -31,6 +31,20 @@ export {
   pointInPolygon,
   segmentsIntersection,
 } from './geometry/points'
+export type {
+  Handle,
+  HandleKind,
+  ResizeHandleKind,
+} from './geometry/transform'
+export {
+  getHandles,
+  HANDLE_SIZE,
+  hitTestHandles,
+  ROTATE_HANDLE_OFFSET,
+  resizeRect,
+  rotationAngle,
+  scaleElement,
+} from './geometry/transform'
 export { createElement } from './model/create'
 export * from './model/element'
 export {
