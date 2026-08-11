@@ -27,6 +27,14 @@ export {
 export { getFreehandPath } from './render/freehand'
 export type { SketchyElement } from './render/shapes'
 export { getShapeDrawables } from './render/shapes'
+export type { FontConfig } from './render/text'
+export {
+  DEFAULT_FONTS,
+  fontString,
+  LINE_HEIGHT,
+  textAnchorX,
+  textLines,
+} from './render/text'
 export type { BoardSnapshot } from './snapshot'
 export { exportSnapshot, importSnapshot, parseSnapshot } from './snapshot'
 export { InMemoryBoardStore } from './store/memory'
