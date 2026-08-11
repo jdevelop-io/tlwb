@@ -24,6 +24,7 @@ export {
   indexBetween,
   sortByIndex,
 } from './model/ordering'
+export { getFreehandPath } from './render/freehand'
 export type { SketchyElement } from './render/shapes'
 export { getShapeDrawables } from './render/shapes'
 export type { BoardSnapshot } from './snapshot'
