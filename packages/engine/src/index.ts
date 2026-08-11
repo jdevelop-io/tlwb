@@ -47,6 +47,12 @@ export {
   rotationAngle,
   scaleElement,
 } from './geometry/transform'
+export type {
+  InteractionController,
+  InteractionControllerOptions,
+  InteractionSnapshot,
+} from './interaction/controller'
+export { createInteractionController } from './interaction/controller'
 export type { KeyboardAction, KeyInput } from './keyboard'
 export { resolveKeyboardAction } from './keyboard'
 export type { BindableElement } from './model/bindings'
