@@ -22,6 +22,10 @@ export function createDrawTool(): Tool {
     type: 'draw',
     onPointerDown(input, context) {
       context.store.stopCapturing()
+      // No drag threshold here, unlike the shape and linear tools: a
+      // plain click is meant to leave a one-point, zero-size element on
+      // the board. That is a dot, which perfect-freehand renders as a
+      // blob, and dotting the canvas is what a drawing tool is for.
       worldPoints = [input.world]
       const element = createElement('draw', {
         index: topIndex(context.store),
