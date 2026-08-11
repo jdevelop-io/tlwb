@@ -16,6 +16,21 @@ export {
   getElementBounds,
   rectsIntersect,
 } from './geometry/bounds'
+export {
+  hitTestElement,
+  hitTestElementInterior,
+  hitTestScene,
+  toLocalPoint,
+  toWorldPoint,
+} from './geometry/hit'
+export type { LinearFrame } from './geometry/points'
+export {
+  distance,
+  distanceToSegment,
+  normalizeLinearPoints,
+  pointInPolygon,
+  segmentsIntersection,
+} from './geometry/points'
 export { createElement } from './model/create'
 export * from './model/element'
 export {
