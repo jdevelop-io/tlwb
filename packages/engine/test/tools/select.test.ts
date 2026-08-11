@@ -379,4 +379,99 @@ describe('select tool', () => {
     context.store.undo()
     expect(context.store.listElements()).toHaveLength(1)
   })
+
+  it('does not let a moving selection snap to its own trailing bound arrow', () => {
+    const dragged = createElement('rectangle', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      fillColor: '#FFD8CF',
+    })
+    // The tail touches `dragged`'s right edge; the head is a free,
+    // unbound point, so only the tail follows as `dragged` moves.
+    const arrow = createElement('arrow', {
+      index: 'a1',
+      x: 100,
+      y: 50,
+      width: 150,
+      height: 0,
+      points: [
+        { x: 0, y: 0 },
+        { x: 150, y: 0 },
+      ],
+      startBinding: { elementId: dragged.id },
+      endBinding: null,
+    })
+    seed(dragged, arrow)
+    tool.onPointerDown(pointer(50, 50), context)
+    // A slow, ten-frame drag with small per-frame increments: if the
+    // snap targets were rebuilt from live state each frame, the arrow
+    // re-anchored onto `dragged` by the previous frame's batch would
+    // read back as a target sitting almost exactly where `dragged`
+    // already is, snapping the selection to itself and dragging it
+    // behind the pointer in small increments instead of tracking it
+    // exactly.
+    let x = 50
+    for (let i = 0; i < 10; i += 1) {
+      x += 4
+      tool.onPointerMove(pointer(x, 50), context)
+    }
+    tool.onPointerUp(pointer(x, 50), context)
+    // Raw pointer travel is 40; the frozen pre-gesture snap targets do
+    // not include the arrow's drifting position, so nothing captures
+    // the drag short of that.
+    expect(context.store.getElement(dragged.id)).toMatchObject({ x: 40 })
+  })
+
+  it('does not write an empty undo entry for a sub-threshold click', () => {
+    const shape = createElement('rectangle', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+      fillColor: '#FFD8CF',
+    })
+    seed(shape)
+    context.store.clearHistory()
+    tool.onPointerDown(pointer(25, 25), context)
+    // One world unit, under DRAG_THRESHOLD (2 CSS pixels at zoom 1).
+    tool.onPointerMove(pointer(26, 25), context)
+    tool.onPointerUp(pointer(26, 25), context)
+    expect(context.store.getElement(shape.id)).toMatchObject({ x: 0, y: 0 })
+    expect(context.store.canUndo()).toBe(false)
+  })
+
+  it('resizes a horizontal line via a corner handle with no vertical delta', () => {
+    const line = createElement('line', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 0,
+      points: [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ],
+    })
+    seed(line)
+    context.selection = [line.id]
+    // A flat line's selection box has zero height, so at each endpoint
+    // its corner and side handles coincide; the corner handle wins the
+    // hit test (corners are listed first in `getHandles`). Dragging it
+    // with no vertical delta only changes width, so height stays
+    // exactly 0 throughout: the degenerate-rect guard must not treat
+    // that as a rejected resize.
+    tool.onPointerDown(pointer(100, 0), context)
+    tool.onPointerMove(pointer(150, 0), context)
+    tool.onPointerUp(pointer(150, 0), context)
+    expect(context.store.getElement(line.id)).toMatchObject({
+      x: 0,
+      y: 0,
+      width: 150,
+      height: 0,
+    })
+  })
 })
