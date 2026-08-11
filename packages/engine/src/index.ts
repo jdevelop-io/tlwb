@@ -16,8 +16,64 @@ export {
   getElementBounds,
   rectsIntersect,
 } from './geometry/bounds'
+export {
+  hitTestElement,
+  hitTestElementInterior,
+  hitTestScene,
+  toLocalPoint,
+  toWorldPoint,
+} from './geometry/hit'
+export type { LinearFrame } from './geometry/points'
+export {
+  distance,
+  distanceToSegment,
+  normalizeLinearPoints,
+  pointInPolygon,
+  segmentsIntersection,
+} from './geometry/points'
+export type { SnapGuide, SnapResult } from './geometry/snap'
+export { SNAP_THRESHOLD, snapMovedBounds } from './geometry/snap'
+export type {
+  Handle,
+  HandleKind,
+  ResizeHandleKind,
+} from './geometry/transform'
+export {
+  getHandles,
+  HANDLE_SIZE,
+  hitTestHandles,
+  ROTATE_HANDLE_OFFSET,
+  resizeRect,
+  rotationAngle,
+  scaleElement,
+} from './geometry/transform'
+export type {
+  InteractionController,
+  InteractionControllerOptions,
+  InteractionSnapshot,
+} from './interaction/controller'
+export { createInteractionController } from './interaction/controller'
+export type { KeyboardAction, KeyInput } from './keyboard'
+export { resolveKeyboardAction } from './keyboard'
+export type { BindableElement } from './model/bindings'
+export {
+  attachmentPoint,
+  boundArrowUpdates,
+  findBindTarget,
+  isBindable,
+} from './model/bindings'
 export { createElement } from './model/create'
 export * from './model/element'
+export {
+  bringForward,
+  bringToFront,
+  deleteElements,
+  duplicateElements,
+  groupElements,
+  sendBackward,
+  sendToBack,
+  ungroupElements,
+} from './model/operations'
 export {
   firstIndex,
   indexAfter,
@@ -39,6 +95,7 @@ export {
   textAnchorX,
   textLines,
 } from './render/text'
+export { elementsInRect, expandToGroups, selectionBounds } from './selection'
 export type { BoardSnapshot } from './snapshot'
 export { exportSnapshot, importSnapshot, parseSnapshot } from './snapshot'
 export { InMemoryBoardStore } from './store/memory'
@@ -49,3 +106,21 @@ export type {
   BoardStoreEvent,
   ChangeOrigin,
 } from './store/types'
+export { createDrawTool } from './tools/draw'
+export { createEraserTool } from './tools/eraser'
+export { createHandTool } from './tools/hand'
+export { createImageTool } from './tools/image'
+export { createLinearTool } from './tools/linear'
+export { createSelectTool } from './tools/select'
+export { createShapeTool } from './tools/shape'
+export { createTextTool } from './tools/text'
+export type {
+  GestureKind,
+  PendingImage,
+  PointerInput,
+  Tool,
+  ToolContext,
+  ToolOverlay,
+  ToolType,
+} from './tools/types'
+export { DRAG_THRESHOLD, HIT_TOLERANCE, topIndex } from './tools/types'

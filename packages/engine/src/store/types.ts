@@ -45,9 +45,24 @@ export interface BoardStore {
    * event for the whole batch. Nothing is validated and nothing is
    * rolled back: an update or a delete naming an element the board does
    * not hold is ignored without throwing, and the other changes in the
-   * batch still apply.
+   * batch still apply. Only a 'local' batch feeds the undo stack; see
+   * stopCapturing for how consecutive local batches relate to each
+   * other and to batches from other origins.
    */
   applyChanges(changes: BoardChange[], origin?: ChangeOrigin): void
+  /**
+   * Closes the current undo capture: the next local batch starts a new
+   * undo entry instead of coalescing into the current one. Consecutive
+   * local batches otherwise merge into a single entry, which lets a
+   * gesture stream one batch per pointer move while undo reverts the
+   * whole gesture. Undo, redo, and clearHistory close the capture
+   * implicitly. A batch from a non-local origin leaves the capture as
+   * it is: it neither closes it nor joins it, so local batches on
+   * either side of it still coalesce into the same entry. Mirrors
+   * Y.UndoManager.stopCapturing, which the Yjs implementation delegates
+   * to.
+   */
+  stopCapturing(): void
   subscribe(listener: (event: BoardStoreEvent) => void): () => void
   /**
    * Reverts the newest local batch. No-op when nothing is undoable.
