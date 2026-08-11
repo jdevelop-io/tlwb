@@ -79,6 +79,17 @@ describe('createRenderer', () => {
     expect(rgbaAt(canvas, 80, 80)).toEqual([255, 0, 0, 255])
   })
 
+  it('resizes the canvas backing store on the next flush', () => {
+    const { canvas, flush, renderer } = harness()
+    flush()
+    expect(canvas.width).toBe(100)
+    expect(canvas.height).toBe(100)
+    renderer.resize(200, 200)
+    flush()
+    expect(canvas.width).toBe(200)
+    expect(canvas.height).toBe(200)
+  })
+
   it('stops scheduling after destroy', () => {
     const { frames, flush, renderer, store } = harness()
     flush()
