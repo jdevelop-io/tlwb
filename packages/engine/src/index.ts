@@ -54,6 +54,7 @@ export {
   textAnchorX,
   textLines,
 } from './render/text'
+export { elementsInRect, expandToGroups, selectionBounds } from './selection'
 export type { BoardSnapshot } from './snapshot'
 export { exportSnapshot, importSnapshot, parseSnapshot } from './snapshot'
 export { InMemoryBoardStore } from './store/memory'
