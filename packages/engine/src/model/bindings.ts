@@ -101,6 +101,12 @@ export function attachmentPoint(shape: BindableElement, from: Point): Point {
  * the current element positions (call it after the move batch has been
  * applied). Arrows that moved themselves are skipped: moving an arrow
  * keeps its bindings, and the next shape move re-anchors it.
+ *
+ * An arrow bound at both ends is resolved in a single order-dependent
+ * pass, by rule: the tail is aimed at the old head, then the head is
+ * aimed at the new tail. Solving both against each other would need an
+ * iteration whose extra precision no one can see at arrow width, so the
+ * order is fixed rather than converged on.
  */
 export function boundArrowUpdates(
   elements: readonly BoardElement[],

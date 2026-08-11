@@ -7,6 +7,11 @@ import { HIT_TOLERANCE } from './types'
 /**
  * Collects everything touched during the drag and deletes it as one
  * batch on release, so the whole sweep undoes in one step.
+ *
+ * Known limitation: hit-testing runs at the discrete pointer samples
+ * only and never interpolates along the path between two moves, so a
+ * fast sweep can jump over a small element that sat between them. Fixing
+ * it means hit-testing the segment rather than its endpoints.
  */
 export function createEraserTool(): Tool {
   let hitIds: Set<ElementId> | null = null

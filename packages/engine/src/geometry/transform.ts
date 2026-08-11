@@ -46,6 +46,12 @@ export function getHandles(bounds: Rect, zoom: number): Handle[] {
   ]
 }
 
+/**
+ * Handle under the point, or null. `HANDLE_SIZE` is used here as a
+ * Chebyshev half-size, so the hit target is a square of twice the side
+ * the painted handle has: handles are deliberately easier to hit than
+ * to see, and the doubling is the affordance, not an arithmetic slip.
+ */
 export function hitTestHandles(
   handles: readonly Handle[],
   point: Point,
