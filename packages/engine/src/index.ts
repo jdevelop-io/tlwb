@@ -47,6 +47,8 @@ export {
   rotationAngle,
   scaleElement,
 } from './geometry/transform'
+export type { KeyboardAction, KeyInput } from './keyboard'
+export { resolveKeyboardAction } from './keyboard'
 export type { BindableElement } from './model/bindings'
 export {
   attachmentPoint,
