@@ -98,7 +98,10 @@ export type {
   BoardStoreEvent,
   ChangeOrigin,
 } from './store/types'
+export { createDrawTool } from './tools/draw'
+export { createEraserTool } from './tools/eraser'
 export { createHandTool } from './tools/hand'
+export { createLinearTool } from './tools/linear'
 export { createShapeTool } from './tools/shape'
 export type {
   PendingImage,
