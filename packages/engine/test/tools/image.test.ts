@@ -30,6 +30,8 @@ describe('image tool', () => {
     tool.onPointerUp(pointer(300, 300), context)
     expect(context.store.listElements()).toEqual([])
     expect(context.activeTool).toBeNull()
+    // No element was created, so there is no capture left open either.
+    expect(context.store.canUndo()).toBe(false)
   })
 
   it('creates its own undo entry', () => {
@@ -43,14 +45,18 @@ describe('image tool', () => {
     expect(context.store.canUndo()).toBe(false)
   })
 
-  it('survives a controller whose setActiveTool re-enters onCancel', () => {
+  it('has nothing left to lose from a controller whose setActiveTool re-enters onCancel', () => {
     const context = createTestContext()
     context.pendingImage = { assetHash: 'abc123', width: 200, height: 100 }
     const tool = createImageTool()
-    // The real interaction controller calls onCancel on the outgoing
-    // tool from inside setActiveTool. Reproduce that re-entrancy here so
-    // that, if the tool ever grows gesture state, a handoff ordering bug
-    // would be caught here rather than only by inspection.
+    // This tool keeps no gesture state across calls (onPointerDown is a
+    // no-op) and its onCancel is unconditionally empty, so this test
+    // cannot currently fail: the assertions below hold whether onCancel
+    // runs or not. It exists as a tripwire for the day this tool grows
+    // closure state that onCancel acts on (the way shape.ts's `id`
+    // does) - at that point a misordered handoff would start deleting
+    // the element this gesture just created, and this test would start
+    // catching it.
     context.setActiveTool = (type) => {
       context.activeTool = type
       tool.onCancel(context)
