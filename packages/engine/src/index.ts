@@ -24,6 +24,8 @@ export {
   indexBetween,
   sortByIndex,
 } from './model/ordering'
+export type { SketchyElement } from './render/shapes'
+export { getShapeDrawables } from './render/shapes'
 export type { BoardSnapshot } from './snapshot'
 export { exportSnapshot, importSnapshot, parseSnapshot } from './snapshot'
 export { InMemoryBoardStore } from './store/memory'

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "fractional-indexing": "^4.0.0",
+    "roughjs": "^4.6.6",
     "zod": "^4.4.3"
   },
   "devDependencies": {
