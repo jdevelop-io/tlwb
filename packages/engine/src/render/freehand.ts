@@ -1,4 +1,4 @@
-import { getStroke } from 'perfect-freehand'
+import { getStroke, type Vec2 } from 'perfect-freehand'
 import type { DrawElement } from '../model/element'
 
 const cache = new WeakMap<DrawElement, string>()
@@ -29,7 +29,7 @@ export function getFreehandPath(element: DrawElement): string {
   return path
 }
 
-function svgPathFromOutline(outline: number[][]): string {
+function svgPathFromOutline(outline: Vec2[]): string {
   if (outline.length < 3) {
     return ''
   }
