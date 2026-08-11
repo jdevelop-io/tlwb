@@ -339,10 +339,10 @@ export function createSelectTool(): Tool {
             distance(session.origin, input.world) < DRAG_THRESHOLD / zoom
           ) {
             // Same guard as the moving branch: a handle press that never
-            // travels must write nothing. `resizeRect` would return the
-            // start bounds and `scaleElement` a scale of 1, but the
-            // inverse batch is built from the written keys rather than
-            // from their values, so the entry would not be empty.
+            // travels must write nothing. Without it, a sub-threshold
+            // twitch still produces a small but real resize, and it opens
+            // an undo entry whose undo appears to do nothing because the
+            // visible change it reverts is so small.
             return
           }
           const delta = {

@@ -45,7 +45,12 @@ export interface InteractionSnapshot {
   selectionBounds: Rect | null
   /** Present only for the select tool with a non-empty selection. */
   handles: Handle[]
-  /** What the user is doing right now; 'idle' between gestures. */
+  /**
+   * What the user is doing right now. Covers only the states an overlay
+   * painter needs to distinguish, not every gesture in progress: see
+   * `GestureKind` for the full rule, including which in-progress gestures
+   * still report 'idle'.
+   */
   gesture: GestureKind
   lasso: Rect | null
   guides: SnapGuide[]

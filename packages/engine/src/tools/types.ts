@@ -41,7 +41,8 @@ export interface ToolContext {
   store: BoardStore
   getCamera(): Camera
   setCamera(camera: Camera): void
-  getSelection(): ElementId[]
+  /** Owned by the controller; callers must not mutate the returned array. */
+  getSelection(): readonly ElementId[]
   setSelection(ids: ElementId[]): void
   /** Style defaults applied to newly created elements. */
   getDefaults(): ElementProps
