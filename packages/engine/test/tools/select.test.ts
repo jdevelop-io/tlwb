@@ -444,6 +444,53 @@ describe('select tool', () => {
     expect(context.store.canUndo()).toBe(false)
   })
 
+  it('does not write an empty undo entry for a sub-threshold resize handle press', () => {
+    const shape = createElement('rectangle', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      fillColor: '#FFD8CF',
+    })
+    seed(shape)
+    context.store.clearHistory()
+    context.selection = [shape.id]
+    // Press the se handle and twitch under DRAG_THRESHOLD. Without the
+    // guard this writes a batch whose props barely differ from the
+    // stored ones, and since the inverse batch is built from the written
+    // keys rather than from their values, it opens a full undo entry the
+    // user cannot see the effect of.
+    tool.onPointerDown(pointer(100, 100), context)
+    tool.onPointerMove(pointer(101, 100), context)
+    tool.onPointerUp(pointer(101, 100), context)
+    expect(context.store.getElement(shape.id)).toMatchObject({
+      width: 100,
+      height: 100,
+    })
+    expect(context.store.canUndo()).toBe(false)
+  })
+
+  it('does not write an empty undo entry for a sub-threshold rotate handle press', () => {
+    const shape = createElement('rectangle', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      fillColor: '#FFD8CF',
+    })
+    seed(shape)
+    context.store.clearHistory()
+    context.selection = [shape.id]
+    // Rotate handle sits at (50, -24) for zoom 1.
+    tool.onPointerDown(pointer(50, -24), context)
+    tool.onPointerMove(pointer(51, -24), context)
+    tool.onPointerUp(pointer(51, -24), context)
+    expect(context.store.getElement(shape.id)).toMatchObject({ angle: 0 })
+    expect(context.store.canUndo()).toBe(false)
+  })
+
   it('resizes a horizontal line via a corner handle with no vertical delta', () => {
     const line = createElement('line', {
       index: 'a0',

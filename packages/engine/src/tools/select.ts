@@ -49,7 +49,13 @@ type Session =
       start: Map<ElementId, BoardElement>
       wrote: boolean
     }
-  | { kind: 'rotating'; id: ElementId; center: Point; wrote: boolean }
+  | {
+      kind: 'rotating'
+      id: ElementId
+      origin: Point
+      center: Point
+      wrote: boolean
+    }
 
 function rectFromCorners(a: Point, b: Point): Rect {
   return {
@@ -144,6 +150,7 @@ export function createSelectTool(): Tool {
               session = {
                 kind: 'rotating',
                 id,
+                origin: input.world,
                 center: {
                   x: element.x + element.width / 2,
                   y: element.y + element.height / 2,
@@ -320,6 +327,18 @@ export function createSelectTool(): Tool {
           return
         }
         case 'resizing': {
+          const zoom = context.getCamera().zoom
+          if (
+            !session.wrote &&
+            distance(session.origin, input.world) < DRAG_THRESHOLD / zoom
+          ) {
+            // Same guard as the moving branch: a handle press that never
+            // travels must write nothing. `resizeRect` would return the
+            // start bounds and `scaleElement` a scale of 1, but the
+            // inverse batch is built from the written keys rather than
+            // from their values, so the entry would not be empty.
+            return
+          }
           const delta = {
             x: input.world.x - session.origin.x,
             y: input.world.y - session.origin.y,
@@ -353,6 +372,16 @@ export function createSelectTool(): Tool {
           return
         }
         case 'rotating': {
+          const zoom = context.getCamera().zoom
+          if (
+            !session.wrote &&
+            distance(session.origin, input.world) < DRAG_THRESHOLD / zoom
+          ) {
+            // Same guard as the moving branch: pressing the rotate
+            // handle without travelling must not write the sliver of
+            // angle the pointer jitter would otherwise produce.
+            return
+          }
           const angle = rotationAngle(
             session.center,
             input.world,
