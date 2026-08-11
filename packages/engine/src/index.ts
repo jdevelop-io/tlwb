@@ -47,6 +47,13 @@ export {
   rotationAngle,
   scaleElement,
 } from './geometry/transform'
+export type { BindableElement } from './model/bindings'
+export {
+  attachmentPoint,
+  boundArrowUpdates,
+  findBindTarget,
+  isBindable,
+} from './model/bindings'
 export { createElement } from './model/create'
 export * from './model/element'
 export {
