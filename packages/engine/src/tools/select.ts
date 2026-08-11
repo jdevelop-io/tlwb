@@ -40,7 +40,16 @@ type Session =
       /** True once the gesture applied a batch; cancel undoes it then. */
       wrote: boolean
     }
-  | { kind: 'lasso'; origin: Point; rect: Rect }
+  | {
+      kind: 'lasso'
+      origin: Point
+      rect: Rect
+      /**
+       * Selection the gesture started from, preserved when the lasso is
+       * drawn with shift held so it extends instead of replacing.
+       */
+      base: readonly ElementId[]
+    }
   | {
       kind: 'resizing'
       handle: ResizeHandleKind
@@ -260,6 +269,7 @@ export function createSelectTool(): Tool {
         kind: 'lasso',
         origin: input.world,
         rect: rectFromCorners(input.world, input.world),
+        base: input.shiftKey ? [...selected] : [],
       }
     },
 
@@ -321,8 +331,17 @@ export function createSelectTool(): Tool {
         case 'lasso': {
           session.rect = rectFromCorners(session.origin, input.world)
           const elements = store.listElements()
-          context.setSelection(
+          const inside = new Set(
             expandToGroups(elements, elementsInRect(elements, session.rect)),
+          )
+          for (const id of session.base) {
+            inside.add(id)
+          }
+          // Ordered by z-index, like the shift-click branch above.
+          context.setSelection(
+            elements
+              .filter((element) => inside.has(element.id))
+              .map((element) => element.id),
           )
           return
         }

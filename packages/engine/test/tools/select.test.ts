@@ -491,6 +491,31 @@ describe('select tool', () => {
     expect(context.store.canUndo()).toBe(false)
   })
 
+  it('extends the existing selection when the lasso is drawn with shift', () => {
+    const kept = createElement('rectangle', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+      fillColor: '#FFD8CF',
+    })
+    const lassoed = createElement('rectangle', {
+      index: 'a1',
+      x: 200,
+      y: 200,
+      width: 50,
+      height: 50,
+      fillColor: '#FFD8CF',
+    })
+    seed(kept, lassoed)
+    context.selection = [kept.id]
+    tool.onPointerDown(pointer(150, 150, { shiftKey: true }), context)
+    tool.onPointerMove(pointer(300, 300, { shiftKey: true }), context)
+    tool.onPointerUp(pointer(300, 300, { shiftKey: true }), context)
+    expect(context.selection).toEqual([kept.id, lassoed.id])
+  })
+
   it('resizes a horizontal line via a corner handle with no vertical delta', () => {
     const line = createElement('line', {
       index: 'a0',
