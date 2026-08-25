@@ -90,6 +90,18 @@ describe('createRenderer', () => {
     expect(canvas.height).toBe(200)
   })
 
+  it('rescales the backing store when the pixel ratio changes', () => {
+    const { canvas, flush, renderer } = harness()
+    flush()
+    renderer.resize(100, 100, 2)
+    flush()
+    expect(canvas.width).toBe(200)
+    expect(canvas.height).toBe(200)
+    renderer.resize(50, 50)
+    flush()
+    expect(canvas.width).toBe(100)
+  })
+
   it('stops scheduling after destroy', () => {
     const { frames, flush, renderer, store } = harness()
     flush()
