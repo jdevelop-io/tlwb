@@ -1,5 +1,9 @@
+import { getHandles } from '../../src/geometry/transform'
+import type { InteractionSnapshot } from '../../src/interaction/controller'
 import { createElement } from '../../src/model/create'
 import type { BoardElement, Point } from '../../src/model/element'
+import type { Peer } from '../../src/presence'
+import { selectionBounds } from '../../src/selection'
 
 /** Every id, index, and seed is fixed: these scenes must never vary. */
 export function shapesScene(): BoardElement[] {
@@ -133,4 +137,70 @@ export function textScene(): BoardElement[] {
       textAlign: 'center',
     }),
   ]
+}
+
+export interface OverlayScene {
+  elements: BoardElement[]
+  snapshot: InteractionSnapshot
+  peers: Peer[]
+}
+
+/** A rotated rectangle selected, with its handles and two snap guides. */
+export function overlaySelectionScene(): OverlayScene {
+  const elements = shapesScene()
+  const selectedIds = ['rect-3']
+  const bounds = selectionBounds(elements, selectedIds)
+  return {
+    elements,
+    snapshot: {
+      activeTool: 'select',
+      selectedIds,
+      selectionBounds: bounds,
+      handles: bounds ? getHandles(bounds, 1) : [],
+      gesture: 'idle',
+      lasso: null,
+      guides: [
+        { orientation: 'vertical', position: 280 },
+        { orientation: 'horizontal', position: 400 },
+      ],
+    },
+    peers: [],
+  }
+}
+
+/** A lasso in progress over a multiple selection, watched by two peers. */
+export function overlayPresenceScene(): OverlayScene {
+  const elements = shapesScene()
+  const selectedIds = ['rect-1', 'rect-2']
+  const bounds = selectionBounds(elements, selectedIds)
+  return {
+    elements,
+    snapshot: {
+      activeTool: 'select',
+      selectedIds,
+      selectionBounds: bounds,
+      handles: bounds ? getHandles(bounds, 1) : [],
+      gesture: 'lasso',
+      lasso: { x: 20, y: 20, width: 440, height: 160 },
+      guides: [],
+    },
+    peers: [
+      {
+        id: 'ada',
+        name: 'Ada',
+        color: '#2E86DE',
+        cursor: { x: 540, y: 120 },
+        selectedIds: ['ellipse-1'],
+        isAgent: false,
+      },
+      {
+        id: 'bot',
+        name: 'Claude',
+        color: '#8B7CF6',
+        cursor: { x: 120, y: 300 },
+        selectedIds: ['diamond-1'],
+        isAgent: true,
+      },
+    ],
+  }
 }

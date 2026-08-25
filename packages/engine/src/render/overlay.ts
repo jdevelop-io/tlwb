@@ -76,7 +76,7 @@ export function renderOverlay(
   ctx.clearRect(0, 0, viewport.width, viewport.height)
   const byId = new Map(elements.map((element) => [element.id, element]))
   const project: Project = (point) => worldToScreen(camera, point)
-  const zoom = project({ x: 1, y: 0 }).x - project({ x: 0, y: 0 }).x
+  const zoom = camera.zoom
 
   paintSelection(ctx, byId, snapshot, project, zoom, theme)
   if (snapshot.lasso) {
@@ -225,12 +225,92 @@ function paintGuides(
   ctx.restore()
 }
 
+/** Cursor arrow outline, in CSS pixels from the hot spot. */
+const CURSOR_ARROW: readonly Point[] = [
+  { x: 0, y: 0 },
+  { x: 0, y: 16 },
+  { x: 4, y: 12 },
+  { x: 7, y: 19 },
+  { x: 9, y: 18 },
+  { x: 6, y: 11 },
+  { x: 11, y: 11 },
+]
+const LABEL_OFFSET = { x: 12, y: 16 }
+const LABEL_HEIGHT = 18
+const LABEL_PADDING = 6
+
 function paintPeers(
-  _ctx: CanvasRenderingContext2D,
-  _byId: ReadonlyMap<ElementId, BoardElement>,
-  _peers: readonly Peer[],
-  _project: Project,
-  _theme: OverlayTheme,
+  ctx: CanvasRenderingContext2D,
+  byId: ReadonlyMap<ElementId, BoardElement>,
+  peers: readonly Peer[],
+  project: Project,
+  theme: OverlayTheme,
 ): void {
-  // Painted in the next task.
+  for (const peer of peers) {
+    for (const id of peer.selectedIds) {
+      const element = byId.get(id)
+      if (element) {
+        strokePolygon(ctx, elementCorners(element, project), peer.color, 1.5)
+      }
+    }
+    if (!peer.cursor) {
+      continue
+    }
+    const at = project(peer.cursor)
+    ctx.save()
+    ctx.translate(at.x, at.y)
+    ctx.beginPath()
+    for (const [i, point] of CURSOR_ARROW.entries()) {
+      if (i === 0) {
+        ctx.moveTo(point.x, point.y)
+      } else {
+        ctx.lineTo(point.x, point.y)
+      }
+    }
+    ctx.closePath()
+    ctx.fillStyle = peer.color
+    ctx.fill()
+    ctx.strokeStyle = '#FFFFFF'
+    ctx.lineWidth = 1
+    ctx.stroke()
+    paintPill(ctx, LABEL_OFFSET.x, LABEL_OFFSET.y, peer.name, peer.color, theme)
+    if (peer.isAgent) {
+      const nameWidth = pillWidth(ctx, peer.name, theme)
+      paintPill(
+        ctx,
+        LABEL_OFFSET.x + nameWidth + 4,
+        LABEL_OFFSET.y,
+        'AI',
+        theme.agent,
+        theme,
+      )
+    }
+    ctx.restore()
+  }
+}
+
+function pillWidth(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  theme: OverlayTheme,
+): number {
+  ctx.font = theme.labelFont
+  return ctx.measureText(text).width + LABEL_PADDING * 2
+}
+
+function paintPill(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  text: string,
+  color: string,
+  theme: OverlayTheme,
+): void {
+  const width = pillWidth(ctx, text, theme)
+  ctx.fillStyle = color
+  ctx.fillRect(x, y, width, LABEL_HEIGHT)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'left'
+  ctx.fillText(text, x + LABEL_PADDING, y + LABEL_HEIGHT / 2)
 }

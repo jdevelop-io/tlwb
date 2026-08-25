@@ -5,8 +5,16 @@ import pixelmatch from 'pixelmatch'
 import { describe, expect, it } from 'vitest'
 import { createCamera } from '../../src/camera'
 import type { BoardElement } from '../../src/model/element'
+import { renderOverlay } from '../../src/render/overlay'
 import { renderScene } from '../../src/render/scene'
-import { freehandScene, shapesScene, textScene } from './scenes'
+import {
+  freehandScene,
+  type OverlayScene,
+  overlayPresenceScene,
+  overlaySelectionScene,
+  shapesScene,
+  textScene,
+} from './scenes'
 
 const WIDTH = 720
 const HEIGHT = 560
@@ -25,6 +33,28 @@ function renderToCanvas(elements: BoardElement[]): Canvas {
     viewport: { width: WIDTH, height: HEIGHT },
     fonts: { hand: 'Caveat', ui: 'Caveat' },
   })
+  return canvas
+}
+
+/** Scene underneath, overlay on top, flattened onto one canvas. */
+function renderOverlayToCanvas(scene: OverlayScene): Canvas {
+  const canvas = renderToCanvas(scene.elements)
+  const overlay = createCanvas(WIDTH, HEIGHT)
+  renderOverlay(overlay as unknown as HTMLCanvasElement, {
+    elements: scene.elements,
+    snapshot: scene.snapshot,
+    camera: createCamera(),
+    viewport: { width: WIDTH, height: HEIGHT },
+    peers: scene.peers,
+    theme: {
+      selection: '#FF6B4A',
+      guide: '#FF6B4A',
+      lassoFill: 'rgba(255, 107, 74, 0.08)',
+      agent: '#8B7CF6',
+      labelFont: '12px Caveat',
+    },
+  })
+  canvas.getContext('2d').drawImage(overlay, 0, 0)
   return canvas
 }
 
@@ -84,5 +114,19 @@ describe('visual regression', () => {
 
   it('matches the text baseline', async () => {
     await expectMatchesBaseline('text', renderToCanvas(textScene()))
+  })
+
+  it('matches the overlay selection baseline', async () => {
+    await expectMatchesBaseline(
+      'overlay-selection',
+      renderOverlayToCanvas(overlaySelectionScene()),
+    )
+  })
+
+  it('matches the overlay presence baseline', async () => {
+    await expectMatchesBaseline(
+      'overlay-presence',
+      renderOverlayToCanvas(overlayPresenceScene()),
+    )
   })
 })
