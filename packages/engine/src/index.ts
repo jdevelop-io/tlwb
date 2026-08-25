@@ -57,10 +57,13 @@ export type { KeyboardAction, KeyInput } from './keyboard'
 export { resolveKeyboardAction } from './keyboard'
 export type { BindableElement } from './model/bindings'
 export {
+  applyWithBindings,
   attachmentPoint,
   boundArrowUpdates,
+  boundLabelUpdates,
   findBindTarget,
   isBindable,
+  labelFrame,
 } from './model/bindings'
 export { createElement } from './model/create'
 export * from './model/element'

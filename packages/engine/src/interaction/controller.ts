@@ -7,7 +7,7 @@ import {
   type KeyInput,
   resolveKeyboardAction,
 } from '../keyboard'
-import { applyWithArrows } from '../model/bindings'
+import { applyWithBindings } from '../model/bindings'
 import type { ElementId, ElementProps } from '../model/element'
 import {
   bringForward,
@@ -266,7 +266,7 @@ export function createInteractionController(
             id: element.id,
             props: { x: element.x + action.dx, y: element.y + action.dy },
           }))
-        applyWithArrows(store, changes, wanted)
+        applyWithBindings(store, changes, wanted)
         return
       }
       default: {
