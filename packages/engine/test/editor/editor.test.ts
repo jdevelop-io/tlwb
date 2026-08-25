@@ -43,6 +43,20 @@ describe('createEditor mounting', () => {
     expect(overlay.width).toBe(1600)
   })
 
+  it('positions the container only when it computes to static', () => {
+    expect(mountEditor().container.style.position).toBe('relative')
+
+    const env = fakeEnvironment()
+    env.getComputedPosition = () => 'absolute'
+    const container = new FakeContainer()
+    createEditor({
+      container: container as unknown as HTMLElement,
+      store: new InMemoryBoardStore(),
+      environment: env,
+    })
+    expect(container.style.position).toBeUndefined()
+  })
+
   it('throws when the canvas has no 2D context', () => {
     const env = fakeEnvironment()
     env.createCanvas = () => {
@@ -163,8 +177,10 @@ describe('editor camera', () => {
 
 describe('editor presence', () => {
   it('paints peers on the overlay only', () => {
-    const { editor, overlay, env, flush } = mountEditor()
+    const { editor, scene, overlay, env, flush } = mountEditor()
     flush()
+    const scenePaints = scene.paints
+    const overlayPaints = overlay.paints
     editor.setPresence([
       {
         id: 'p',
@@ -188,6 +204,10 @@ describe('editor presence', () => {
     ])
     expect(env.frames).toHaveLength(1)
     flush()
+    // Two updates, one overlay repaint, and the scene scheduler was
+    // never marked: a remote cursor costs nothing below the overlay.
+    expect(overlay.paints).toBeGreaterThan(overlayPaints)
+    expect(scene.paints).toBe(scenePaints)
     expect(overlay.rgbaAt(102, 108)).toEqual([0, 170, 0, 255])
   })
 })

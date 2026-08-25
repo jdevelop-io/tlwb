@@ -58,6 +58,14 @@ export class FakeCanvas extends FakeNode {
   readonly napi: Canvas = createCanvas(1, 1)
   readonly style: Record<string, string> = {}
   readonly captured: number[] = []
+  /**
+   * Bumped whenever something takes this canvas's 2D context, which a
+   * painter does at least once per paint (the scene painter twice, as
+   * roughjs takes its own). It attributes a frame to a canvas: compare
+   * the value across a flush, where unchanged means this canvas was not
+   * repainted. Never assert the absolute count.
+   */
+  paints = 0
 
   get width(): number {
     return this.napi.width
@@ -76,6 +84,7 @@ export class FakeCanvas extends FakeNode {
   }
 
   getContext(_type: '2d'): CanvasRenderingContext2D {
+    this.paints += 1
     return this.napi.getContext('2d') as unknown as CanvasRenderingContext2D
   }
 
@@ -157,6 +166,7 @@ export function fakeEnvironment(): FakeEnvironment {
       }
     },
     getPixelRatio: () => ratio,
+    getComputedPosition: () => 'static',
     keyboardTarget: keyboard as unknown as EventTarget,
     requestFrame: (callback) => {
       env.frames.push(callback)

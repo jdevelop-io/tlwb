@@ -66,9 +66,11 @@ export function createEditor(options: EditorOptions): Editor {
   for (const canvas of [sceneCanvas, overlayCanvas]) {
     contextOrThrow(canvas)
   }
-  // Inline style only: a host positioning the container from a
-  // stylesheet keeps its own value.
-  if (!container.style.position) {
+  // The canvases are absolutely positioned, so the container has to be
+  // a positioned ancestor. Only a static one is changed: a host that
+  // positions its container itself, from a stylesheet or inline, keeps
+  // its own value and its own layout.
+  if (env.getComputedPosition(container) === 'static') {
     container.style.position = 'relative'
   }
   for (const canvas of [sceneCanvas, overlayCanvas]) {

@@ -15,6 +15,8 @@ export interface EditorEnvironment {
   /** Reports each change of the device pixel ratio (monitor switch). */
   observePixelRatio(callback: (ratio: number) => void): () => void
   getPixelRatio(): number
+  /** The element's resolved `position`, stylesheets included. */
+  getComputedPosition(element: HTMLElement): string
   /** Where keyboard events are listened to; `window` in a browser. */
   keyboardTarget: EventTarget
   requestFrame: FrameRequester
@@ -28,6 +30,7 @@ export function resolveEnvironment(
     observeSize: observeSizeWithResizeObserver,
     observePixelRatio: observePixelRatioWithMatchMedia,
     getPixelRatio: () => window.devicePixelRatio || 1,
+    getComputedPosition: (element) => window.getComputedStyle(element).position,
     // `globalThis` is `window` in a browser; tests always override it.
     keyboardTarget: globalThis as unknown as EventTarget,
     requestFrame: defaultRequestFrame,
