@@ -10,6 +10,13 @@ export {
   worldToScreen,
   zoomCamera,
 } from './camera'
+export {
+  EXPORT_MARGIN,
+  exportBounds,
+  selectExportElements,
+} from './export/bounds'
+export type { SvgExportOptions } from './export/svg'
+export { exportSceneSvg } from './export/svg'
 export type { Rect } from './geometry/bounds'
 export {
   expandRect,
@@ -95,7 +102,7 @@ export { renderScene } from './render/scene'
 export type { FrameRequester, FrameScheduler } from './render/schedule'
 export { createFrameScheduler, defaultRequestFrame } from './render/schedule'
 export type { SketchyElement } from './render/shapes'
-export { getShapeDrawables } from './render/shapes'
+export { getShapeDrawables, getShapeSvgPaths } from './render/shapes'
 export type { FontConfig, TextSize, TextSpec } from './render/text'
 export {
   DEFAULT_FONTS,

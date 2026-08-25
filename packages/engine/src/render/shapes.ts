@@ -1,4 +1,4 @@
-import type { Drawable, Options } from 'roughjs/bin/core'
+import type { Drawable, Options, PathInfo } from 'roughjs/bin/core'
 import { RoughGenerator } from 'roughjs/bin/generator'
 import type {
   ArrowElement,
@@ -33,6 +33,17 @@ export function getShapeDrawables(element: SketchyElement): Drawable[] {
   const drawables = buildDrawables(element)
   cache.set(element, drawables)
   return drawables
+}
+
+/**
+ * The same drawables as SVG path data, for export. rough.js emits one
+ * path per operation set: a fill path (stroke 'none') and a stroke path
+ * (fill 'none'), so a consumer can address them separately.
+ */
+export function getShapeSvgPaths(element: SketchyElement): PathInfo[] {
+  return getShapeDrawables(element).flatMap((drawable) =>
+    generator.toPaths(drawable),
+  )
 }
 
 function buildDrawables(element: SketchyElement): Drawable[] {
@@ -80,6 +91,11 @@ function buildDrawables(element: SketchyElement): Drawable[] {
   }
 }
 
+/** The dashed-stroke pattern, shared by the canvas painter and the SVG exporter. */
+export function dashPattern(strokeWidth: number): [number, number] {
+  return [strokeWidth * 4, strokeWidth * 4]
+}
+
 function baseOptions(element: SketchyElement): Options {
   const options: Options = {
     seed: Math.max(1, element.seed),
@@ -88,7 +104,7 @@ function baseOptions(element: SketchyElement): Options {
     strokeWidth: element.strokeWidth,
   }
   if (element.strokeStyle === 'dashed') {
-    options.strokeLineDash = [element.strokeWidth * 4, element.strokeWidth * 4]
+    options.strokeLineDash = dashPattern(element.strokeWidth)
   }
   if (element.fillColor) {
     options.fill = element.fillColor
