@@ -15,17 +15,6 @@ export { cursorFor } from './editor/cursor'
 export { createEditor } from './editor/editor'
 export type { EditorEnvironment } from './editor/environment'
 export { resolveEnvironment } from './editor/environment'
-export type { InputHost } from './editor/input'
-export { bindInput } from './editor/input'
-export type {
-  DoubleClickTarget,
-  Measure,
-} from './editor/textEditing'
-export {
-  commitTextChanges,
-  createLabel,
-  resolveDoubleClick,
-} from './editor/textEditing'
 export type {
   Editor,
   EditorAction,
@@ -125,7 +114,7 @@ export { createRenderer } from './render/renderer'
 export type { ImageResolver, RenderSceneOptions } from './render/scene'
 export { renderScene } from './render/scene'
 export type { FrameRequester, FrameScheduler } from './render/schedule'
-export { createFrameScheduler, defaultRequestFrame } from './render/schedule'
+export { createFrameScheduler } from './render/schedule'
 export type { SketchyElement } from './render/shapes'
 export { getShapeDrawables, getShapeSvgPaths } from './render/shapes'
 export type { FontConfig, TextSize, TextSpec } from './render/text'
