@@ -90,11 +90,12 @@ export type { ImageResolver, RenderSceneOptions } from './render/scene'
 export { renderScene } from './render/scene'
 export type { SketchyElement } from './render/shapes'
 export { getShapeDrawables } from './render/shapes'
-export type { FontConfig } from './render/text'
+export type { FontConfig, TextSize, TextSpec } from './render/text'
 export {
   DEFAULT_FONTS,
   fontString,
   LINE_HEIGHT,
+  measureText,
   textAnchorX,
   textLines,
 } from './render/text'
