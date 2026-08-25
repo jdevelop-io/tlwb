@@ -99,7 +99,7 @@ export function createEditor(options: EditorOptions): Editor {
   let pixelRatio = env.getPixelRatio()
   let peers: Peer[] = []
   let destroyed = false
-  const readOnly = options.readOnly ?? false
+  let readOnly = options.readOnly ?? false
 
   const renderer = createRenderer({
     canvas: sceneCanvas,
@@ -131,6 +131,10 @@ export function createEditor(options: EditorOptions): Editor {
     getPendingImage: options.getPendingImage,
   })
 
+  if (readOnly) {
+    controller.setActiveTool('hand')
+  }
+
   const overlay = createFrameScheduler(() => {
     renderOverlay(overlayCanvas, {
       elements: store.listElements(),
@@ -152,13 +156,17 @@ export function createEditor(options: EditorOptions): Editor {
       camera: renderer.getCamera(),
       gesture: snapshot.gesture,
       readOnly,
-      canUndo: store.canUndo(),
-      canRedo: store.canRedo(),
+      // Read-only strips undo/redo from the host's UI too: neither call
+      // does anything there, so neither should ever read as available.
+      canUndo: !readOnly && store.canUndo(),
+      canRedo: !readOnly && store.canRedo(),
     }
   }
   let state = compute()
+  /** True while several controller calls form one state change. */
+  let batching = false
   const refresh = (): void => {
-    if (destroyed) {
+    if (destroyed || batching) {
       return
     }
     const next = compute()
@@ -282,17 +290,42 @@ export function createEditor(options: EditorOptions): Editor {
       }
     }
 
+  /** Mutators are also inert in read-only mode. */
+  const editable = <A extends unknown[]>(fn: (...args: A) => void) =>
+    alive((...args: A) => {
+      if (!readOnly) {
+        fn(...args)
+      }
+    })
+
   return {
     getState: () => state,
     subscribe: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    setActiveTool: alive((type: ToolType) => controller.setActiveTool(type)),
-    setSelectedIds: alive((ids: ElementId[]) => controller.setSelectedIds(ids)),
+    setActiveTool: editable((type: ToolType) => controller.setActiveTool(type)),
+    setSelectedIds: editable((ids: ElementId[]) =>
+      controller.setSelectedIds(ids),
+    ),
     setDefaults: alive((patch: ElementProps) => controller.setDefaults(patch)),
-    execute: alive((action: EditorAction) => controller.execute(action)),
-    updateSelection: alive((patch: ElementProps) => {
+    setReadOnly: alive((next: boolean) => {
+      if (readOnly === next) {
+        return
+      }
+      readOnly = next
+      batching = true
+      if (next) {
+        controller.setSelectedIds([])
+        controller.setActiveTool('hand')
+      } else {
+        controller.setActiveTool('select')
+      }
+      batching = false
+      invalidate()
+    }),
+    execute: editable((action: EditorAction) => controller.execute(action)),
+    updateSelection: editable((patch: ElementProps) => {
       const ids = controller.getSelectedIds()
       if (ids.length === 0) {
         // clearHistory() empties the undo/redo stacks without emitting
@@ -311,7 +344,7 @@ export function createEditor(options: EditorOptions): Editor {
       )
       store.stopCapturing()
     }),
-    commitText: alive((id: ElementId, text: string) => {
+    commitText: editable((id: ElementId, text: string) => {
       const changes = commitTextChanges(store.listElements(), id, text, measure)
       if (changes.length === 0) {
         return
@@ -320,8 +353,8 @@ export function createEditor(options: EditorOptions): Editor {
       store.applyChanges(changes)
       store.stopCapturing()
     }),
-    undo: alive(() => store.undo()),
-    redo: alive(() => store.redo()),
+    undo: editable(() => store.undo()),
+    redo: editable(() => store.redo()),
     setCamera,
     zoomTo: alive((zoom: number, anchor?: Point) =>
       setCamera(

@@ -55,6 +55,12 @@ export interface Editor {
   setSelectedIds(ids: ElementId[]): void
   /** Merged into the creation defaults (contextual panel writes here). */
   setDefaults(patch: ElementProps): void
+  /**
+   * Viewing mode: hand tool, no selection, every mutating call ignored.
+   * The client-side half of the enforcement; the server rejects updates
+   * on read-only connections regardless.
+   */
+  setReadOnly(readOnly: boolean): void
   /** Dispatches a chrome action (delete, duplicate, group, z-order...). */
   execute(action: EditorAction): void
   /** Applies a style or position patch to every selected element, one undo entry. */
