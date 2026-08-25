@@ -101,15 +101,16 @@ describe('read-only mode', () => {
     expect(onCursorMove).toHaveBeenLastCalledWith({ x: 5, y: 6 })
   })
 
-  it('still zooms and pans the camera via the wheel while read-only', () => {
+  it('still zooms via the wheel while read-only', () => {
     const { editor, pointer } = mountEditor({ readOnly: true })
     pointer('wheel', 0, 0, { ctrlKey: true, deltaY: -100 })
     expect(editor.getState().camera.zoom).toBeGreaterThan(1)
+  })
 
-    const before = editor.getState().camera
+  it('still pans via the wheel while read-only', () => {
+    const { editor, pointer } = mountEditor({ readOnly: true })
     pointer('wheel', 0, 0, { deltaX: -20, deltaY: -10 })
-    const after = editor.getState().camera
-    expect(after).not.toEqual(before)
+    expect(editor.getState().camera).toEqual({ x: -20, y: -10, zoom: 1 })
   })
 
   it('still pans with a space-held pointer drag while read-only', () => {

@@ -58,7 +58,9 @@ export interface Editor {
   /**
    * Viewing mode: hand tool, no selection, every mutating call ignored.
    * The client-side half of the enforcement; the server rejects updates
-   * on read-only connections regardless.
+   * on read-only connections regardless. Turning it on while the host
+   * has a text editor open abandons that edit: the following
+   * `commitText` is a no-op, so the typed text is lost.
    */
   setReadOnly(readOnly: boolean): void
   /** Dispatches a chrome action (delete, duplicate, group, z-order...). */

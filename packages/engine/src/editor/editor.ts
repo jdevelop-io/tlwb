@@ -315,13 +315,16 @@ export function createEditor(options: EditorOptions): Editor {
       }
       readOnly = next
       batching = true
-      if (next) {
-        controller.setSelectedIds([])
-        controller.setActiveTool('hand')
-      } else {
-        controller.setActiveTool('select')
+      try {
+        if (next) {
+          controller.setSelectedIds([])
+          controller.setActiveTool('hand')
+        } else {
+          controller.setActiveTool('select')
+        }
+      } finally {
+        batching = false
       }
-      batching = false
       invalidate()
     }),
     execute: editable((action: EditorAction) => controller.execute(action)),
