@@ -19,6 +19,7 @@ import { createFrameScheduler } from '../render/schedule'
 import { selectionBounds } from '../selection'
 import type { ToolType } from '../tools/types'
 import { resolveEnvironment } from './environment'
+import { bindInput } from './input'
 import type { Editor, EditorOptions, EditorState } from './types'
 
 /** CSS pixels kept around a fitted selection on each side. */
@@ -171,6 +172,22 @@ export function createEditor(options: EditorOptions): Editor {
     overlay.markDirty()
   })
 
+  const unbindInput = bindInput(overlayCanvas, env.keyboardTarget, {
+    store,
+    controller,
+    getCamera: () => renderer.getCamera(),
+    setCamera,
+    toScreen: (event) => {
+      const rect = container.getBoundingClientRect()
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top }
+    },
+    isReadOnly: () => readOnly,
+    // Text editing on double-click arrives with commitText; until then a
+    // double-click does nothing.
+    onDoubleClick: () => {},
+    onCursorMove: (point) => options.onCursorMove?.(point),
+  })
+
   const fitCamera = (ids?: ElementId[]): Camera => {
     const elements = store.listElements()
     const bounds = selectionBounds(
@@ -248,6 +265,7 @@ export function createEditor(options: EditorOptions): Editor {
         return
       }
       destroyed = true
+      unbindInput()
       stopSizing()
       stopRatio()
       unsubscribeController()

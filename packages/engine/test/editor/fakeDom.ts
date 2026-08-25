@@ -11,17 +11,23 @@ export interface FakeEvent {
   [key: string]: unknown
 }
 
+type ListenerOptions = AddEventListenerOptions | boolean | undefined
+
 /** The slice of EventTarget the editor binds to, with a dispatcher. */
 export class FakeNode {
-  readonly listeners = new Map<string, Set<Listener>>()
+  readonly listeners = new Map<string, Map<Listener, ListenerOptions>>()
 
-  addEventListener(type: string, listener: Listener): void {
-    let set = this.listeners.get(type)
-    if (!set) {
-      set = new Set()
-      this.listeners.set(type, set)
+  addEventListener(
+    type: string,
+    listener: Listener,
+    options?: ListenerOptions,
+  ): void {
+    let map = this.listeners.get(type)
+    if (!map) {
+      map = new Map()
+      this.listeners.set(type, map)
     }
-    set.add(listener)
+    map.set(listener, options)
   }
 
   removeEventListener(type: string, listener: Listener): void {
@@ -30,10 +36,18 @@ export class FakeNode {
 
   listenerCount(): number {
     let count = 0
-    for (const set of this.listeners.values()) {
-      count += set.size
+    for (const map of this.listeners.values()) {
+      count += map.size
     }
     return count
+  }
+
+  /**
+   * The options each listener of `type` was registered with, so a test
+   * can prove a listener is explicitly non-passive.
+   */
+  listenerOptions(type: string): ListenerOptions[] {
+    return [...(this.listeners.get(type)?.values() ?? [])]
   }
 
   dispatch(type: string, init: Record<string, unknown> = {}): FakeEvent {
@@ -46,7 +60,7 @@ export class FakeNode {
       },
       ...init,
     }
-    for (const listener of [...(this.listeners.get(type) ?? [])]) {
+    for (const listener of [...(this.listeners.get(type)?.keys() ?? [])]) {
       listener(event)
     }
     return event
