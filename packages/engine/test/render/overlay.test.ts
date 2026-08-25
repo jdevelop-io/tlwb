@@ -6,7 +6,7 @@ import type { InteractionSnapshot } from '../../src/interaction/controller'
 import { createElement } from '../../src/model/create'
 import type { BoardElement } from '../../src/model/element'
 import type { Peer } from '../../src/presence'
-import { renderOverlay } from '../../src/render/overlay'
+import { DEFAULT_OVERLAY_THEME, renderOverlay } from '../../src/render/overlay'
 import { selectionBounds } from '../../src/selection'
 
 const SIZE = 200
@@ -190,5 +190,20 @@ describe('renderOverlay presence', () => {
       return count
     }
     expect(painted(agent)).toBeGreaterThan(painted(human))
+  })
+})
+
+describe('default overlay theme', () => {
+  // The brand tokens the client is built against. They are a contract,
+  // not a preference: pin the whole object so a change to any one of
+  // them has to be deliberate.
+  it('paints with the brand tokens', () => {
+    expect(DEFAULT_OVERLAY_THEME).toEqual({
+      selection: '#FF6B4A',
+      guide: '#FF6B4A',
+      lassoFill: 'rgba(255, 107, 74, 0.08)',
+      agent: '#8B7CF6',
+      labelFont: '12px system-ui, sans-serif',
+    })
   })
 })
