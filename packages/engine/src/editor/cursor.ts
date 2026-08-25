@@ -39,12 +39,12 @@ const DIRECTIONS: readonly HandleKind[] = [
   'w',
   'nw',
 ]
-const RESIZE_CURSORS = [
+const RESIZE_CURSORS: readonly [string, string, string, string] = [
   'ns-resize',
   'nesw-resize',
   'ew-resize',
   'nwse-resize',
-] as const
+]
 
 /** CSS cursor for the pointer's situation; pure so the table is testable. */
 export function cursorFor(context: CursorContext): string {
@@ -76,5 +76,21 @@ function resizeCursor(handle: HandleKind, angle: number): string {
   const base = DIRECTIONS.indexOf(handle)
   const turns = Math.round(angle / (Math.PI / 4))
   const direction = (((base + turns) % 8) + 8) % 8
-  return RESIZE_CURSORS[direction % 4] as string
+  return RESIZE_CURSORS[resizeQuadrant(direction)]
+}
+
+/** Narrows a direction (0-7) to its opposing-axis quadrant (0-3), so the
+ * lookup above lands on a precise tuple element instead of `string |
+ * undefined`. */
+function resizeQuadrant(direction: number): 0 | 1 | 2 | 3 {
+  switch (direction % 4) {
+    case 0:
+      return 0
+    case 1:
+      return 1
+    case 2:
+      return 2
+    default:
+      return 3
+  }
 }

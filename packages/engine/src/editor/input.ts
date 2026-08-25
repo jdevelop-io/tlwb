@@ -36,20 +36,25 @@ export function bindInput(
   let pressed = false
   /** Last screen point of the temporary pan in progress, if any. */
   let pan: Point | null = null
+  /**
+   * Pointer driving the gesture (a press or a pan) in progress, if any.
+   * This is a single-pointer editor: once a pointer opens a gesture,
+   * every other pointer's down/move/up/cancel is ignored until it ends,
+   * so a second finger or an unrelated mouse button cannot steal or
+   * close it.
+   */
+  let activePointerId: number | null = null
   let lastWorld: Point = { x: 0, y: 0 }
 
   const worldOf = (event: { clientX: number; clientY: number }): Point =>
     screenToWorld(host.getCamera(), host.toScreen(event))
 
-  const toInput = (event: PointerEvent): PointerInput => {
-    const screen = host.toScreen(event)
-    return {
-      world: screenToWorld(host.getCamera(), screen),
-      screen,
-      shiftKey: event.shiftKey,
-      altKey: event.altKey,
-    }
-  }
+  const toInput = (event: PointerEvent, screen: Point): PointerInput => ({
+    world: screenToWorld(host.getCamera(), screen),
+    screen,
+    shiftKey: event.shiftKey,
+    altKey: event.altKey,
+  })
 
   const updateCursor = (): void => {
     const camera = host.getCamera()
@@ -65,9 +70,10 @@ export function bindInput(
             HIT_TOLERANCE / camera.zoom,
           )
         : null
+    const [singleId] = snapshot.selectedIds
     const single =
-      snapshot.selectedIds.length === 1
-        ? host.store.getElement(snapshot.selectedIds[0] as string)
+      singleId !== undefined && snapshot.selectedIds.length === 1
+        ? host.store.getElement(singleId)
         : undefined
     surface.style.cursor = cursorFor({
       tool: snapshot.activeTool,
@@ -81,13 +87,18 @@ export function bindInput(
     })
   }
 
+  /** True when `pointerId` isn't the one driving the gesture in progress. */
+  const isForeignPointer = (pointerId: number): boolean =>
+    activePointerId !== null && pointerId !== activePointerId
+
   const onPointerDown = (event: PointerEvent): void => {
-    if (event.button === 2) {
+    if (event.button === 2 || isForeignPointer(event.pointerId)) {
       return
     }
     const screen = host.toScreen(event)
     lastWorld = screenToWorld(host.getCamera(), screen)
     if (event.button === 1 || spaceHeld) {
+      activePointerId = event.pointerId
       surface.setPointerCapture(event.pointerId)
       pan = screen
       event.preventDefault()
@@ -97,13 +108,17 @@ export function bindInput(
     if (event.button !== 0) {
       return
     }
+    activePointerId = event.pointerId
     surface.setPointerCapture(event.pointerId)
     pressed = true
-    host.controller.pointerDown(toInput(event))
+    host.controller.pointerDown(toInput(event, screen))
     updateCursor()
   }
 
   const onPointerMove = (event: PointerEvent): void => {
+    if (isForeignPointer(event.pointerId)) {
+      return
+    }
     const screen = host.toScreen(event)
     lastWorld = screenToWorld(host.getCamera(), screen)
     host.onCursorMove(lastWorld)
@@ -115,15 +130,24 @@ export function bindInput(
       return
     }
     if (pressed) {
-      host.controller.pointerMove(toInput(event))
+      host.controller.pointerMove(toInput(event, screen))
     }
     updateCursor()
   }
 
   const onPointerUp = (event: PointerEvent): void => {
-    lastWorld = worldOf(event)
+    // The right button never opens a gesture, so it can never close one
+    // (a right-click during a left-button drag, same mouse, same pointer
+    // id); the pointer id check catches the other half, a second finger
+    // releasing while the first one is still down.
+    if (event.button === 2 || isForeignPointer(event.pointerId)) {
+      return
+    }
+    const screen = host.toScreen(event)
+    lastWorld = screenToWorld(host.getCamera(), screen)
     if (pan) {
       pan = null
+      activePointerId = null
       updateCursor()
       return
     }
@@ -131,12 +155,17 @@ export function bindInput(
       return
     }
     pressed = false
-    host.controller.pointerUp(toInput(event))
+    activePointerId = null
+    host.controller.pointerUp(toInput(event, screen))
     updateCursor()
   }
 
-  const onPointerCancel = (): void => {
+  const onPointerCancel = (event: PointerEvent): void => {
+    if (isForeignPointer(event.pointerId)) {
+      return
+    }
     pan = null
+    activePointerId = null
     if (pressed) {
       pressed = false
       host.controller.cancelGesture()
@@ -194,6 +223,7 @@ export function bindInput(
     if (consumed) {
       event.preventDefault()
     }
+    updateCursor()
   }
 
   const onKeyUp = (event: KeyboardEvent): void => {

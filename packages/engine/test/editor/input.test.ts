@@ -66,6 +66,25 @@ describe('pointer binding', () => {
     expect(store.listElements()).toHaveLength(0)
   })
 
+  it('keeps a left-button drag open through an unrelated right-button click', () => {
+    const { editor, store, pointer } = mountEditor()
+    editor.setActiveTool('rectangle')
+    pointer('pointerdown', 10, 10)
+    pointer('pointermove', 60, 60)
+    pointer('pointerdown', 60, 60, { button: 2, buttons: 3 })
+    pointer('pointerup', 60, 60, { button: 2, buttons: 1 })
+    // The right-click must not have closed the left-button gesture.
+    expect(editor.getState().activeTool).toBe('rectangle')
+    pointer('pointerup', 60, 60)
+    expect(editor.getState().activeTool).toBe('select')
+    expect(store.listElements()[0]).toMatchObject({
+      x: 10,
+      y: 10,
+      width: 50,
+      height: 50,
+    })
+  })
+
   it('pans with the middle button without changing the tool', () => {
     const { editor, pointer } = mountEditor()
     editor.setActiveTool('rectangle')
@@ -152,5 +171,13 @@ describe('cursor binding', () => {
     expect(overlay.style.cursor).toBe('move')
     pointer('pointermove', 20, 20, { buttons: 0 })
     expect(overlay.style.cursor).toBe('default')
+  })
+
+  it('refreshes immediately after a tool-switching key, without waiting for a pointer move', () => {
+    const { pointer, key, overlay } = mountEditor()
+    pointer('pointermove', 5, 5, { buttons: 0 })
+    expect(overlay.style.cursor).toBe('default')
+    key('keydown', '2')
+    expect(overlay.style.cursor).toBe('grab')
   })
 })
