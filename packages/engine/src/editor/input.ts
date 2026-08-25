@@ -233,9 +233,22 @@ export function bindInput(
     }
   }
 
-  /** A key held while the window loses focus never gets its keyup. */
+  /**
+   * A key held while the window loses focus never gets its keyup, and a
+   * gesture in flight may never get its pointerup either: the button can
+   * be released outside the window, and pointer capture does not survive
+   * a focus loss reliably across browsers. Blur is the only exit left,
+   * so it drops the same state `onPointerCancel` drops.
+   */
   const onBlur = (): void => {
     spaceHeld = false
+    pan = null
+    activePointerId = null
+    if (pressed) {
+      pressed = false
+      host.controller.cancelGesture()
+    }
+    updateCursor()
   }
 
   surface.addEventListener('pointerdown', onPointerDown)

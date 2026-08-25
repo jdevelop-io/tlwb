@@ -111,6 +111,34 @@ describe('pointer binding', () => {
     expect(store.listElements()).toHaveLength(1)
   })
 
+  it('drops a pan in flight when the window loses focus', () => {
+    const { editor, store, env, pointer } = mountEditor()
+    pointer('pointerdown', 0, 0, { button: 1, buttons: 4 })
+    pointer('pointermove', 30, 40, { buttons: 4 })
+    expect(editor.getState().camera).toEqual({ x: -30, y: -40, zoom: 1 })
+    // The button is released outside the window, so no pointerup and no
+    // pointercancel ever arrive: blur is the only exit.
+    env.keyboard.dispatch('blur')
+    pointer('pointermove', 200, 200, { buttons: 0 })
+    expect(editor.getState().camera).toEqual({ x: -30, y: -40, zoom: 1 })
+    // The pointer that opened the pan no longer holds the editor either.
+    editor.setActiveTool('rectangle')
+    pointer('pointerdown', 10, 10, { pointerId: 2 })
+    pointer('pointermove', 60, 60, { pointerId: 2 })
+    pointer('pointerup', 60, 60, { pointerId: 2 })
+    expect(store.listElements()).toHaveLength(1)
+  })
+
+  it('abandons a gesture in flight when the window loses focus', () => {
+    const { editor, store, env, pointer } = mountEditor()
+    editor.setActiveTool('rectangle')
+    pointer('pointerdown', 10, 10)
+    pointer('pointermove', 60, 60)
+    expect(store.listElements()).toHaveLength(1)
+    env.keyboard.dispatch('blur')
+    expect(store.listElements()).toHaveLength(0)
+  })
+
   it('reports the local cursor in world coordinates and null on leave', () => {
     const onCursorMove = vi.fn()
     const { editor, pointer } = mountEditor({ onCursorMove })
