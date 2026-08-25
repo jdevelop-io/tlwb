@@ -59,6 +59,11 @@ export interface Editor {
   execute(action: EditorAction): void
   /** Applies a style or position patch to every selected element, one undo entry. */
   updateSelection(patch: ElementProps): void
+  /**
+   * Ends a host text edit: sizes the element with the scene metrics,
+   * recenters a label in its container, deletes it when blank.
+   */
+  commitText(id: ElementId, text: string): void
   undo(): void
   redo(): void
 

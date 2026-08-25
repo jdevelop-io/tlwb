@@ -8,7 +8,13 @@ import {
 import { getElementBounds } from '../geometry/bounds'
 import { createInteractionController } from '../interaction/controller'
 import { applyWithBindings } from '../model/bindings'
-import type { ElementId, ElementProps, Point } from '../model/element'
+import { createElement } from '../model/create'
+import type {
+  BoardElement,
+  ElementId,
+  ElementProps,
+  Point,
+} from '../model/element'
 import { type Peer, sanitizePeers } from '../presence'
 import {
   DEFAULT_OVERLAY_THEME,
@@ -17,10 +23,16 @@ import {
 } from '../render/overlay'
 import { createRenderer } from '../render/renderer'
 import { createFrameScheduler } from '../render/schedule'
+import { DEFAULT_FONTS, measureText, type TextSpec } from '../render/text'
 import { selectionBounds } from '../selection'
-import type { ToolType } from '../tools/types'
+import { HIT_TOLERANCE, type ToolType, topIndex } from '../tools/types'
 import { resolveEnvironment } from './environment'
 import { bindInput } from './input'
+import {
+  commitTextChanges,
+  createLabel,
+  resolveDoubleClick,
+} from './textEditing'
 import type { Editor, EditorAction, EditorOptions, EditorState } from './types'
 
 /** CSS pixels kept around a fitted selection on each side. */
@@ -68,6 +80,9 @@ export function createEditor(options: EditorOptions): Editor {
   for (const canvas of [sceneCanvas, overlayCanvas]) {
     contextOrThrow(canvas)
   }
+  const fonts = options.fonts ?? DEFAULT_FONTS
+  const measuringContext = contextOrThrow(env.createCanvas())
+  const measure = (spec: TextSpec) => measureText(spec, fonts, measuringContext)
   // The canvases are absolutely positioned, so the container has to be
   // a positioned ancestor. Only a static one is changed: a host that
   // positions its container itself, from a stylesheet or inline, keeps
@@ -92,7 +107,7 @@ export function createEditor(options: EditorOptions): Editor {
     width: 0,
     height: 0,
     devicePixelRatio: pixelRatio,
-    fonts: options.fonts,
+    fonts,
     resolveImage: options.resolveImage,
     background: options.background,
     requestFrame: env.requestFrame,
@@ -173,6 +188,16 @@ export function createEditor(options: EditorOptions): Editor {
     overlay.markDirty()
   })
 
+  /** One undo entry, selected, handed to the host's editor. */
+  const placeText = (element: BoardElement): void => {
+    store.stopCapturing()
+    store.applyChanges([{ kind: 'create', element }])
+    store.stopCapturing()
+    controller.setActiveTool('select')
+    controller.setSelectedIds([element.id])
+    options.onTextEditRequest?.(element.id)
+  }
+
   const unbindInput = bindInput(overlayCanvas, env.keyboardTarget, {
     store,
     controller,
@@ -183,9 +208,46 @@ export function createEditor(options: EditorOptions): Editor {
       return { x: event.clientX - rect.left, y: event.clientY - rect.top }
     },
     isReadOnly: () => readOnly,
-    // Text editing on double-click arrives with commitText; until then a
-    // double-click does nothing.
-    onDoubleClick: () => {},
+    onDoubleClick: (world) => {
+      const elements = store.listElements()
+      const target = resolveDoubleClick(
+        elements,
+        world,
+        HIT_TOLERANCE / renderer.getCamera().zoom,
+      )
+      switch (target.kind) {
+        case 'none':
+          return
+        case 'edit':
+          controller.setSelectedIds([target.id])
+          options.onTextEditRequest?.(target.id)
+          return
+        case 'label': {
+          const shape = store.getElement(target.containerId)
+          if (shape) {
+            placeText(
+              createLabel(
+                shape,
+                topIndex(store),
+                controller.getDefaults(),
+                measure,
+              ),
+            )
+          }
+          return
+        }
+        case 'create':
+          placeText(
+            createElement('text', {
+              index: topIndex(store),
+              ...controller.getDefaults(),
+              x: world.x,
+              y: world.y,
+            }),
+          )
+          return
+      }
+    },
     onCursorMove: (point) => options.onCursorMove?.(point),
   })
 
@@ -247,6 +309,15 @@ export function createEditor(options: EditorOptions): Editor {
         ids.map((id) => ({ kind: 'update', id, props: patch })),
         new Set(ids),
       )
+      store.stopCapturing()
+    }),
+    commitText: alive((id: ElementId, text: string) => {
+      const changes = commitTextChanges(store.listElements(), id, text, measure)
+      if (changes.length === 0) {
+        return
+      }
+      store.stopCapturing()
+      store.applyChanges(changes)
       store.stopCapturing()
     }),
     undo: alive(() => store.undo()),
