@@ -16,6 +16,12 @@ import type { EditorEnvironment } from './environment'
  */
 export type EditorAction = KeyboardAction
 
+export interface ExportOptions {
+  /** Empty or absent exports the whole board. */
+  ids?: ElementId[]
+  background?: string
+}
+
 export interface EditorOptions {
   container: HTMLElement
   store: BoardStore
@@ -87,6 +93,10 @@ export interface Editor {
 
   /** Replaces the whole peer list; malformed peers are dropped. */
   setPresence(peers: Peer[]): void
+
+  /** The board as drawn, without overlay; the host triggers the download. */
+  exportPng(options?: ExportOptions & { scale?: number }): Promise<Blob>
+  exportSvg(options?: ExportOptions): string
 
   destroy(): void
 }

@@ -10,6 +10,29 @@ export {
   worldToScreen,
   zoomCamera,
 } from './camera'
+export type { CursorContext } from './editor/cursor'
+export { cursorFor } from './editor/cursor'
+export { createEditor } from './editor/editor'
+export type { EditorEnvironment } from './editor/environment'
+export { resolveEnvironment } from './editor/environment'
+export type { InputHost } from './editor/input'
+export { bindInput } from './editor/input'
+export type {
+  DoubleClickTarget,
+  Measure,
+} from './editor/textEditing'
+export {
+  commitTextChanges,
+  createLabel,
+  resolveDoubleClick,
+} from './editor/textEditing'
+export type {
+  Editor,
+  EditorAction,
+  EditorOptions,
+  EditorState,
+  ExportOptions,
+} from './editor/types'
 export {
   EXPORT_MARGIN,
   exportBounds,

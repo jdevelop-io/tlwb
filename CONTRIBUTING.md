@@ -28,7 +28,10 @@ pnpm test
 
 - `packages/engine`: the framework-agnostic whiteboard engine. Its data
   layer holds the element model, fractional z-ordering, the board store
-  with per-origin undo and redo, and the versioned JSON snapshot format.
+  with per-origin undo and redo, and the versioned JSON snapshot format;
+  rendering, tools, and the DOM-bound `createEditor` API sit on top.
+  Tests run in Node against `@napi-rs/canvas` and a small fake DOM
+  (`test/editor/fakeDom.ts`); the engine never needs jsdom or a browser.
 
 ## Checks
 

@@ -1,7 +1,7 @@
 # tlwb engine public API: design
 
 Date: 2026-08-25
-Status: validated through brainstorming, pending written review
+Status: implemented
 Parent specification: `2026-08-08-tlwb-canvas-engine-realtime-design.md`
 (section 4, "Public API")
 

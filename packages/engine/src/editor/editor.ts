@@ -5,6 +5,8 @@ import {
   worldToScreen,
   zoomCamera,
 } from '../camera'
+import { exportScenePng } from '../export/png'
+import { exportSceneSvg } from '../export/svg'
 import { getElementBounds } from '../geometry/bounds'
 import { createInteractionController } from '../interaction/controller'
 import { applyWithBindings } from '../model/bindings'
@@ -33,7 +35,13 @@ import {
   createLabel,
   resolveDoubleClick,
 } from './textEditing'
-import type { Editor, EditorAction, EditorOptions, EditorState } from './types'
+import type {
+  Editor,
+  EditorAction,
+  EditorOptions,
+  EditorState,
+  ExportOptions,
+} from './types'
 
 /** CSS pixels kept around a fitted selection on each side. */
 const FIT_PADDING = 48
@@ -390,6 +398,26 @@ export function createEditor(options: EditorOptions): Editor {
       peers = sanitizePeers(next)
       overlay.markDirty()
     }),
+    // Exports read the store only, so they keep working after destroy.
+    exportPng: (exportOptions: ExportOptions & { scale?: number } = {}) =>
+      exportScenePng(
+        store.listElements(),
+        {
+          ids: exportOptions.ids,
+          background: exportOptions.background ?? options.background,
+          scale: exportOptions.scale,
+          fonts,
+          resolveImage: options.resolveImage,
+        },
+        env.createCanvas,
+      ),
+    exportSvg: (exportOptions: ExportOptions = {}) =>
+      exportSceneSvg(store.listElements(), {
+        ids: exportOptions.ids,
+        background: exportOptions.background ?? options.background,
+        fonts,
+        resolveImageUrl: options.resolveImageUrl,
+      }),
     destroy: () => {
       if (destroyed) {
         return
