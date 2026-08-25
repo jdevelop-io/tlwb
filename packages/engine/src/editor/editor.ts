@@ -233,9 +233,11 @@ export function createEditor(options: EditorOptions): Editor {
     updateSelection: alive((patch: ElementProps) => {
       const ids = controller.getSelectedIds()
       if (ids.length === 0) {
-        // Nothing to touch, but the store's undo/redo stacks may have
-        // moved since the cached state was last computed (clearHistory
-        // does not emit): refresh so canUndo/canRedo stay accurate.
+        // clearHistory() empties the undo/redo stacks without emitting
+        // anything, so the memoized state can be stale here (a host that
+        // loads a document with applyChanges then clearHistory, for
+        // instance): refresh covers this one path, not clearHistory in
+        // general.
         refresh()
         return
       }

@@ -145,8 +145,8 @@ export function createInteractionController(
       action()
     } finally {
       dispatching = false
+      notify()
     }
-    notify()
   }
 
   const context: ToolContext = {
@@ -312,6 +312,9 @@ export function createInteractionController(
     setDefaults: (patch) => {
       defaults = { ...defaults, ...patch }
     },
+    // Copied out, as getSelectedIds and getSnapshot copy out: the
+    // caller gets a snapshot, not a handle onto the controller's own
+    // defaults object.
     getDefaults: () => ({ ...defaults }),
     pointerDown: (input) => {
       tools[activeToolType].onPointerDown(input, context)

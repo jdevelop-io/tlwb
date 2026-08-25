@@ -58,6 +58,7 @@ describe('editor actions', () => {
       { kind: 'create', element: box('b', 'a1', 200) },
     ])
     store.stopCapturing()
+    store.clearHistory()
     editor.setSelectedIds(['a', 'b'])
     const listener = vi.fn()
     editor.subscribe(listener)
@@ -71,6 +72,7 @@ describe('editor actions', () => {
     expect(store.getElement('a')?.strokeColor).toBe('#000000')
     expect(store.getElement('b')?.strokeColor).toBe('#000000')
     expect(editor.getState().canRedo).toBe(true)
+    expect(editor.getState().canUndo).toBe(false)
     editor.redo()
     expect(store.getElement('b')?.strokeColor).toBe('#FF0000')
     expect(listener).toHaveBeenCalled()
