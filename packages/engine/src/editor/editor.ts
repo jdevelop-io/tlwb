@@ -130,6 +130,14 @@ export function createEditor(options: EditorOptions): Editor {
     requestFrame: env.requestFrame,
   })
 
+  /**
+   * Closes over `overlay` and `refresh`, both bound further down, yet it
+   * is handed to the controller before either exists and the read-only
+   * tool switch runs there too. That holds only as long as no
+   * constructor and no tool's `onCancel` calls back into `setCamera`: a
+   * tool that panned on cancel would turn this into a ReferenceError at
+   * mount. Move the bindings above this point if that ever changes.
+   */
   const setCamera = (camera: Camera): void => {
     if (destroyed) {
       return
@@ -422,6 +430,10 @@ export function createEditor(options: EditorOptions): Editor {
       if (!joinsCreation) {
         store.stopCapturing()
       }
+      // A bare applyChanges, where every other frame-changing path goes
+      // through applyWithBindings: nothing can bind to a text element,
+      // so resizing one can never move a follower. Route this through
+      // applyWithBindings the day a text becomes a bind target.
       store.applyChanges(changes)
       store.stopCapturing()
     }),
