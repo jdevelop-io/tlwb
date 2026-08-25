@@ -83,7 +83,11 @@ export {
   indexBetween,
   sortByIndex,
 } from './model/ordering'
+export type { Peer } from './presence'
+export { sanitizePeers } from './presence'
 export { getFreehandPath } from './render/freehand'
+export type { OverlayTheme, RenderOverlayOptions } from './render/overlay'
+export { DEFAULT_OVERLAY_THEME, renderOverlay } from './render/overlay'
 export type { Renderer, RendererOptions } from './render/renderer'
 export { createRenderer } from './render/renderer'
 export type { ImageResolver, RenderSceneOptions } from './render/scene'
