@@ -15,6 +15,8 @@ export {
   exportBounds,
   selectExportElements,
 } from './export/bounds'
+export type { PngExportOptions } from './export/png'
+export { exportScenePng } from './export/png'
 export type { SvgExportOptions } from './export/svg'
 export { exportSceneSvg } from './export/svg'
 export type { Rect } from './geometry/bounds'
