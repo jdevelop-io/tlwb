@@ -70,6 +70,53 @@ describe('double-click text editing', () => {
   })
 })
 
+describe('text creation as one undo entry', () => {
+  it('removes a committed text with a single undo', () => {
+    const { editor, store, pointer } = mountEditor()
+    pointer('dblclick', 30, 40)
+    const [text] = store.listElements()
+    editor.commitText(text?.id ?? '', 'hello')
+    editor.undo()
+    expect(store.listElements()).toEqual([])
+  })
+
+  it('leaves no visible element behind when the edit is abandoned', () => {
+    const { editor, store, pointer } = mountEditor()
+    pointer('dblclick', 30, 40)
+    const [text] = store.listElements()
+    editor.commitText(text?.id ?? '', '')
+    expect(store.listElements()).toEqual([])
+    editor.undo()
+    expect(store.listElements()).toEqual([])
+  })
+
+  it('keeps a nudge out of the creation entry', () => {
+    const { editor, store, pointer, key } = mountEditor()
+    pointer('dblclick', 30, 40)
+    const [text] = store.listElements()
+    const id = text?.id ?? ''
+    key('keydown', 'ArrowRight')
+    expect(store.getElement(id)).toMatchObject({ x: 31 })
+    editor.undo()
+    expect(store.getElement(id)).toMatchObject({ x: 30 })
+  })
+
+  it('keeps an unrelated action out of an abandoned creation entry', () => {
+    const { editor, store, pointer } = mountEditor()
+    pointer('dblclick', 30, 40)
+    // No commit ever comes: the host's editor is closed another way.
+    editor.setActiveTool('rectangle')
+    pointer('pointerdown', 100, 100)
+    pointer('pointermove', 200, 160)
+    pointer('pointerup', 200, 160)
+    expect(store.listElements()).toHaveLength(2)
+    editor.undo()
+    expect(store.listElements().map((element) => element.type)).toEqual([
+      'text',
+    ])
+  })
+})
+
 describe('commitText', () => {
   it('sizes the text with the scene metrics, as one undo entry', () => {
     const { editor, store } = mountEditor()

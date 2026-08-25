@@ -8,7 +8,10 @@ import {
 import { exportScenePng } from '../export/png'
 import { exportSceneSvg } from '../export/svg'
 import { getElementBounds } from '../geometry/bounds'
-import { createInteractionController } from '../interaction/controller'
+import {
+  createInteractionController,
+  type InteractionController,
+} from '../interaction/controller'
 import { applyWithBindings } from '../model/bindings'
 import { createElement } from '../model/create'
 import type {
@@ -108,6 +111,12 @@ export function createEditor(options: EditorOptions): Editor {
   let peers: Peer[] = []
   let destroyed = false
   let readOnly = options.readOnly ?? false
+  /**
+   * The text `placeText` just created, until something settles it. Its
+   * undo capture is still open while it is set, so the first commit
+   * joins the creation entry instead of opening a second one.
+   */
+  let pendingTextId: ElementId | null = null
 
   const renderer = createRenderer({
     canvas: sceneCanvas,
@@ -204,19 +213,60 @@ export function createEditor(options: EditorOptions): Editor {
     overlay.markDirty()
   })
 
-  /** One undo entry, selected, handed to the host's editor. */
+  /**
+   * Creating a text and typing its first characters is one action from
+   * the user's seat, so it is one undo entry: the capture opened here
+   * stays open and the first `commitText` joins it. Closing it here
+   * instead would cost two undo entries, the first of which only empties
+   * the text back to an invisible zero-width frame.
+   *
+   * The open capture is the price. Every other route into the store
+   * closes it first (`settleTextCreation`), so an edit the user abandons
+   * cannot swallow a later unrelated action.
+   */
   const placeText = (element: BoardElement): void => {
     store.stopCapturing()
     store.applyChanges([{ kind: 'create', element }])
-    store.stopCapturing()
+    pendingTextId = element.id
     controller.setActiveTool('select')
     controller.setSelectedIds([element.id])
     options.onTextEditRequest?.(element.id)
   }
 
+  /** Closes the capture `placeText` left open, if one is still open. */
+  const settleTextCreation = (): void => {
+    if (pendingTextId === null) {
+      return
+    }
+    pendingTextId = null
+    store.stopCapturing()
+  }
+
+  /**
+   * The controller as input and the host reach it. Tools open their own
+   * capture boundary before writing, but `nudge` deliberately does not,
+   * so the three entry points that can write settle the pending text
+   * creation rather than relying on every tool's discipline.
+   */
+  const guarded: InteractionController = {
+    ...controller,
+    pointerDown: (input) => {
+      settleTextCreation()
+      controller.pointerDown(input)
+    },
+    handleKey: (input) => {
+      settleTextCreation()
+      return controller.handleKey(input)
+    },
+    execute: (action) => {
+      settleTextCreation()
+      controller.execute(action)
+    },
+  }
+
   const unbindInput = bindInput(overlayCanvas, env.keyboardTarget, {
     store,
-    controller,
+    controller: guarded,
     getCamera: () => renderer.getCamera(),
     setCamera,
     toScreen: (event) => {
@@ -322,6 +372,7 @@ export function createEditor(options: EditorOptions): Editor {
         return
       }
       readOnly = next
+      settleTextCreation()
       batching = true
       try {
         if (next) {
@@ -335,8 +386,9 @@ export function createEditor(options: EditorOptions): Editor {
       }
       invalidate()
     }),
-    execute: editable((action: EditorAction) => controller.execute(action)),
+    execute: editable((action: EditorAction) => guarded.execute(action)),
     updateSelection: editable((patch: ElementProps) => {
+      settleTextCreation()
       const ids = controller.getSelectedIds()
       if (ids.length === 0) {
         // clearHistory() empties the undo/redo stacks without emitting
@@ -358,14 +410,29 @@ export function createEditor(options: EditorOptions): Editor {
     commitText: editable((id: ElementId, text: string) => {
       const changes = commitTextChanges(store.listElements(), id, text, measure)
       if (changes.length === 0) {
+        settleTextCreation()
         return
       }
-      store.stopCapturing()
+      // The first commit on a freshly placed text joins its creation
+      // entry; see placeText. A blank one merges a create and a delete
+      // into that entry, which undoes to nothing: the abandoned text
+      // leaves no visible element behind either way.
+      const joinsCreation = id === pendingTextId
+      pendingTextId = null
+      if (!joinsCreation) {
+        store.stopCapturing()
+      }
       store.applyChanges(changes)
       store.stopCapturing()
     }),
-    undo: editable(() => store.undo()),
-    redo: editable(() => store.redo()),
+    undo: editable(() => {
+      settleTextCreation()
+      store.undo()
+    }),
+    redo: editable(() => {
+      settleTextCreation()
+      store.redo()
+    }),
     setCamera,
     zoomTo: alive((zoom: number, anchor?: Point) =>
       setCamera(
@@ -423,6 +490,9 @@ export function createEditor(options: EditorOptions): Editor {
         return
       }
       destroyed = true
+      // The store outlives the editor: never hand it back with a
+      // capture this editor opened still open.
+      settleTextCreation()
       unbindInput()
       stopSizing()
       stopRatio()
