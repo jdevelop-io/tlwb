@@ -55,8 +55,13 @@ function paint(
   return canvas
 }
 
-function rgbaAt(canvas: Canvas, x: number, y: number): number[] {
-  return Array.from(canvas.getContext('2d').getImageData(x, y, 1, 1).data)
+function rgbaAt(
+  canvas: Canvas,
+  x: number,
+  y: number,
+): readonly [number, number, number, number] {
+  const [r, g, b, a] = canvas.getContext('2d').getImageData(x, y, 1, 1).data
+  return [r, g, b, a] as [number, number, number, number]
 }
 
 describe('renderOverlay', () => {
@@ -168,7 +173,7 @@ describe('renderOverlay presence', () => {
     const canvas = paintPeers([square()], [peer({ selectedIds: ['sq'] })])
     const edge = rgbaAt(canvas, 50, 100)
     expect(edge[3]).toBeGreaterThan(0)
-    expect(edge[1] as number).toBeGreaterThan(edge[0] as number)
+    expect(edge[1]).toBeGreaterThan(edge[0])
   })
 
   it('paints a label wider for an agent, which carries the badge', () => {
