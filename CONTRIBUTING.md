@@ -52,6 +52,14 @@ Tests are written with Vitest and drive development: write the failing
 test first, then the code that makes it pass. Tests exercise real
 behavior through public interfaces rather than mocks.
 
+One file is the exception to that setup:
+`packages/engine/src/editor/environment.ts` is the only place the engine
+touches `window` and `document`. Its tests stand fake globals up around
+it, which pins the logic but not the browser itself, so its bindings
+(`ResizeObserver`, `matchMedia`, `getComputedStyle`, canvas creation) are
+also verified by hand in a real browser whenever a client mounts the
+editor. Do not read the coverage of that file as covering the browser.
+
 The board store has one behavioral contract, `describeBoardStoreContract`
 in `packages/engine/src/store/contract.ts`, exported from the package as
 `@tlwb/engine/testing`. Every store implementation must satisfy it. When
