@@ -96,6 +96,10 @@ export interface InteractionController {
   cancelGesture(): void
   /** True when the key was consumed; the host preventDefaults then. */
   handleKey(input: KeyInput): boolean
+  /** Runs an action as a consumed key would; the client chrome calls it. */
+  execute(action: KeyboardAction): void
+  /** Copy of the current creation defaults (contextual panel reads here). */
+  getDefaults(): ElementProps
   getSnapshot(): InteractionSnapshot
   /** Fires on any change of tool, selection, or gesture state. */
   subscribe(listener: () => void): () => void
@@ -118,11 +122,31 @@ export function createInteractionController(
   let activeToolType: ToolType = 'select'
   let defaults: ElementProps = { ...options.defaults }
   const listeners = new Set<() => void>()
+  // Some actions (a tool switch, clearing the selection) notify as a
+  // side effect of the helper they call, on top of the trailing notify
+  // every dispatch already does. Suppressing nested notifies while a
+  // dispatch runs keeps one key press or one `execute` call down to a
+  // single notification, matching what a subscriber actually cares
+  // about: the settled state after the action, not each step of it.
+  let dispatching = false
 
   const notify = (): void => {
+    if (dispatching) {
+      return
+    }
     for (const listener of listeners) {
       listener()
     }
+  }
+
+  function dispatch(action: () => void): void {
+    dispatching = true
+    try {
+      action()
+    } finally {
+      dispatching = false
+    }
+    notify()
   }
 
   const context: ToolContext = {
@@ -288,6 +312,7 @@ export function createInteractionController(
     setDefaults: (patch) => {
       defaults = { ...defaults, ...patch }
     },
+    getDefaults: () => ({ ...defaults }),
     pointerDown: (input) => {
       tools[activeToolType].onPointerDown(input, context)
       notify()
@@ -309,9 +334,11 @@ export function createInteractionController(
       if (!action) {
         return false
       }
-      execute(action)
-      notify()
+      dispatch(() => execute(action))
       return true
+    },
+    execute: (action) => {
+      dispatch(() => execute(action))
     },
     getSnapshot: () => {
       const elements = store.listElements()

@@ -7,6 +7,7 @@ import {
 } from '../camera'
 import { getElementBounds } from '../geometry/bounds'
 import { createInteractionController } from '../interaction/controller'
+import { applyWithBindings } from '../model/bindings'
 import type { ElementId, ElementProps, Point } from '../model/element'
 import { type Peer, sanitizePeers } from '../presence'
 import {
@@ -20,7 +21,7 @@ import { selectionBounds } from '../selection'
 import type { ToolType } from '../tools/types'
 import { resolveEnvironment } from './environment'
 import { bindInput } from './input'
-import type { Editor, EditorOptions, EditorState } from './types'
+import type { Editor, EditorAction, EditorOptions, EditorState } from './types'
 
 /** CSS pixels kept around a fitted selection on each side. */
 const FIT_PADDING = 48
@@ -228,6 +229,26 @@ export function createEditor(options: EditorOptions): Editor {
     setActiveTool: alive((type: ToolType) => controller.setActiveTool(type)),
     setSelectedIds: alive((ids: ElementId[]) => controller.setSelectedIds(ids)),
     setDefaults: alive((patch: ElementProps) => controller.setDefaults(patch)),
+    execute: alive((action: EditorAction) => controller.execute(action)),
+    updateSelection: alive((patch: ElementProps) => {
+      const ids = controller.getSelectedIds()
+      if (ids.length === 0) {
+        // Nothing to touch, but the store's undo/redo stacks may have
+        // moved since the cached state was last computed (clearHistory
+        // does not emit): refresh so canUndo/canRedo stay accurate.
+        refresh()
+        return
+      }
+      store.stopCapturing()
+      applyWithBindings(
+        store,
+        ids.map((id) => ({ kind: 'update', id, props: patch })),
+        new Set(ids),
+      )
+      store.stopCapturing()
+    }),
+    undo: alive(() => store.undo()),
+    redo: alive(() => store.redo()),
     setCamera,
     zoomTo: alive((zoom: number, anchor?: Point) =>
       setCamera(

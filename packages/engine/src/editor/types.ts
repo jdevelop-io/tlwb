@@ -55,6 +55,12 @@ export interface Editor {
   setSelectedIds(ids: ElementId[]): void
   /** Merged into the creation defaults (contextual panel writes here). */
   setDefaults(patch: ElementProps): void
+  /** Dispatches a chrome action (delete, duplicate, group, z-order...). */
+  execute(action: EditorAction): void
+  /** Applies a style or position patch to every selected element, one undo entry. */
+  updateSelection(patch: ElementProps): void
+  undo(): void
+  redo(): void
 
   setCamera(camera: Camera): void
   /** Zooms toward the anchor (CSS pixels), the viewport center by default. */
