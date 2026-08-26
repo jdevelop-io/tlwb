@@ -108,25 +108,66 @@ describe('shareBoard', () => {
     await session.destroy()
   })
 
-  it('rolls back the hosted databases when an upload fails', async () => {
-    const { session, hash } = await localBoard('loc3')
+  it('rolls back the hosted databases when an upload fails partway through', async () => {
+    const session = await openBoardSession({
+      boardId: 'loc3',
+      fresh: true,
+      identity,
+      connect,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    const hashA = await session
+      .assets()
+      .put(new Blob([new Uint8Array([1])], { type: 'image/png' }))
+    const hashB = await session
+      .assets()
+      .put(new Blob([new Uint8Array([2])], { type: 'image/png' }))
+    session.store.applyChanges([
+      {
+        kind: 'create',
+        element: createElement('image', { index: 'a0', assetHash: hashA }),
+      },
+      {
+        kind: 'create',
+        element: createElement('image', { index: 'a1', assetHash: hashB }),
+      },
+    ])
+
+    let uploadCount = 0
     await expect(
       shareBoard(session, {
         createHostedBoard: async () => ({ ...hosted, boardId: 'srv3' }),
         uploadAsset: async () => {
-          throw new Error('415')
+          uploadCount += 1
+          // The first asset is copied into the hosted store before the
+          // second one fails, so there is something real to roll back.
+          if (uploadCount === 2) {
+            throw new Error('415')
+          }
         },
         history: { replaceState: vi.fn() },
       }),
     ).rejects.toThrow('415')
+    expect(uploadCount).toBe(2)
+
     expect(session.getSnapshot()).toMatchObject({
       boardId: 'loc3',
       role: 'local',
     })
     expect(readKeys('srv3')).toBeNull()
-    const leftover = createAssetStore('srv3')
-    expect(await leftover.get(hash)).toBeUndefined()
-    await leftover.delete()
+
+    const leftoverAssets = createAssetStore('srv3')
+    expect(await leftoverAssets.get(hashA)).toBeUndefined()
+    expect(await leftoverAssets.get(hashB)).toBeUndefined()
+    await leftoverAssets.delete()
+
+    // The hosted persistence database was cleared too: reopening it
+    // finds no meta and no keys, so it comes back not-found rather than
+    // carrying the migrated document.
+    expect(
+      await openBoardSession({ boardId: 'srv3', fresh: false, identity }),
+    ).toBe('not-found')
+
     await session.destroy()
   })
 })
