@@ -72,13 +72,24 @@ export function createImageCache(deps: ImageCacheDeps): ImageCache {
       if (!remote) {
         return
       }
-      await assets.put(remote, hash)
+      // Content-addressed: only trust bytes whose own hash is the one we
+      // asked for. A mismatch (server bug, truncated response, a
+      // compromised server) leaves the hash unresolved instead of
+      // poisoning the local cache under a false address.
+      const stored = await assets.put(remote)
+      if (stored !== hash) {
+        return
+      }
       blob = remote
     }
     await remember(hash, blob)
-    if (!destroyed) {
-      deps.onLoaded()
+    if (destroyed) {
+      // Teardown landed while this load was in flight: undo the write,
+      // the renderer that requested it is gone.
+      entries.delete(hash)
+      return
     }
+    deps.onLoaded()
   }
 
   return {
