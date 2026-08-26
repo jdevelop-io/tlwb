@@ -8,6 +8,7 @@ import { getAsset, putAsset } from './db/assets'
 import { createBoard, findBoard } from './db/boards'
 import type { Db } from './db/client'
 import { generateKey, hashKey, type Role, resolveRole } from './keys'
+import { log } from './log'
 import { type BucketEntry, createTokenBucket, sweepStale } from './rate-limit'
 
 export interface HttpDeps {
@@ -23,17 +24,34 @@ const MAX_TRACKED_IPS = 10_000
 type Env = { Bindings: HttpBindings }
 
 /**
- * The container sits behind a reverse proxy that appends to (or
- * replaces) X-Forwarded-For, so only the LAST entry is proxy-supplied:
- * a client can prepend any forged address before it. Without a proxy,
- * the socket address is the client.
+ * Behind a reverse proxy that appends to (or replaces)
+ * X-Forwarded-For, only the LAST entry is proxy-supplied: a client can
+ * prepend any forged address before it. With no proxy in front, every
+ * entry is the client's own writing, so the header is ignored and the
+ * socket address is the only trustworthy key.
  */
-function clientIp(c: Context<Env>): string {
-  const parts = c.req.header('x-forwarded-for')?.split(',')
-  const last = parts?.[parts.length - 1]?.trim()
+function clientIp(c: Context<Env>, trustProxy: boolean): string {
+  if (trustProxy) {
+    const parts = c.req.header('x-forwarded-for')?.split(',')
+    const last = parts?.[parts.length - 1]?.trim()
+    if (last) {
+      return last
+    }
+  }
   // `env` is undefined when the app is driven by `app.request()` in tests.
-  return last || c.env?.incoming?.socket?.remoteAddress || 'unknown'
+  return c.env?.incoming?.socket?.remoteAddress || 'unknown'
 }
+
+// Raster types only, matched exactly: `image/svg+xml` is a document
+// that runs script when opened on this origin, and a prefix match
+// would admit it along with every future scriptable image format.
+const IMAGE_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+])
 
 export function createApp(deps: HttpDeps): Hono<Env> {
   const { db, config } = deps
@@ -43,6 +61,13 @@ export function createApp(deps: HttpDeps): Hono<Env> {
 
   app.use('/boards', cors({ origin: config.corsOrigin }))
   app.use('/boards/*', cors({ origin: config.corsOrigin }))
+
+  // Every route answers the JSON error shape, a failed query included,
+  // and every failure leaves one JSON log line rather than a stack.
+  app.onError((error, c) => {
+    log({ event: 'request failed', path: c.req.path, error: String(error) })
+    return c.json({ error: 'internal error' }, 500)
+  })
 
   app.get('/health', (c) => c.json({ ok: true }))
 
@@ -56,7 +81,7 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       // via a proper LRU is the upgrade if that shows up in practice.
       creationBuckets = sweepStale(creationBuckets, nowMs, CREATE_WINDOW_MS)
     }
-    const ip = clientIp(c)
+    const ip = clientIp(c, config.trustProxy)
     let entry = creationBuckets.get(ip)
     if (!entry) {
       entry = {
@@ -126,9 +151,14 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       if ((await roleFromBearer(c, boardId)) !== 'edit') {
         return c.json({ error: 'edit key required' }, 401)
       }
-      const mime = c.req.header('content-type') ?? ''
-      if (!mime.startsWith('image/')) {
-        return c.json({ error: 'only images are accepted' }, 415)
+      // Stored without the client's parameters, so nothing it wrote is
+      // ever echoed back in a response header.
+      const mime = (c.req.header('content-type') ?? '')
+        .split(';')[0]
+        ?.trim()
+        .toLowerCase()
+      if (!mime || !IMAGE_TYPES.has(mime)) {
+        return c.json({ error: 'only raster images are accepted' }, 415)
       }
       const bytes = new Uint8Array(await c.req.arrayBuffer())
       if (bytes.byteLength > config.maxAssetBytes) {
@@ -155,6 +185,10 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     return c.body(new Uint8Array(asset.bytes), 200, {
       'Content-Type': asset.mime,
       'Cache-Control': 'public, max-age=31536000, immutable',
+      // The stored type is an allowlisted raster one, but a cached
+      // response lives for a year: never let a sniffing browser
+      // reinterpret those bytes as something scriptable.
+      'X-Content-Type-Options': 'nosniff',
     })
   })
 

@@ -15,6 +15,8 @@ export interface WsDeps {
   db: Db
   config: Config
   rooms: RoomRegistry
+  /** Overridden by the tests only; production runs on PING_INTERVAL_MS. */
+  pingIntervalMs?: number
 }
 
 const PATH = /^\/ws\/([A-Za-z0-9_-]{8,64})$/
@@ -26,6 +28,14 @@ const PATH = /^\/ws\/([A-Za-z0-9_-]{8,64})$/
 // handful covers that window; a peer that floods it before authenticating
 // is rate limited rather than allowed to grow the buffer without bound.
 const MAX_PENDING_MESSAGES = 8
+
+// A connection that misses one ping is gone. Without this, a half-open
+// socket (a NAT timeout, a peer that vanished without a FIN) is never
+// detected: the room keeps a connection that will never speak again, so
+// its idle timer never arms and it holds its document for the lifetime
+// of the process. Also keeps the wire warm for clients that give up on
+// a silent server. Matches what y-websocket's own server does.
+const PING_INTERVAL_MS = 30_000
 
 interface Upgrade {
   boardId: string
@@ -64,9 +74,14 @@ export function attachWebSocket(
   deps: WsDeps,
 ): WebSocketServer {
   const { db, config, rooms } = deps
+  const pingIntervalMs = deps.pingIntervalMs ?? PING_INTERVAL_MS
   const wss = new WebSocketServer({
     noServer: true,
-    maxPayload: 16 * 1024 * 1024,
+    // The upgrade completes before the token is resolved, by design, so
+    // this is what an unauthenticated caller can make the process
+    // buffer: a backstop at the application's own limit rather than an
+    // amplifier above it.
+    maxPayload: config.maxMessageBytes,
   })
 
   async function resolve(upgrade: Upgrade): Promise<Role | number> {
@@ -192,7 +207,25 @@ export function attachWebSocket(
           }
           pending.push(toBytes(data))
         })
+        let alive = true
+        ws.on('pong', () => {
+          alive = true
+        })
+        const heartbeat = setInterval(() => {
+          if (!alive) {
+            ws.terminate()
+            return
+          }
+          alive = false
+          try {
+            ws.ping()
+          } catch {
+            ws.terminate()
+          }
+        }, pingIntervalMs)
+
         ws.on('close', (code) => {
+          clearInterval(heartbeat)
           closedCode = code
         })
         ws.on('error', (error) => {

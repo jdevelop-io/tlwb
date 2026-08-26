@@ -23,6 +23,9 @@ beforeAll(async () => {
       PORT: '0',
       ROOM_IDLE_MS: '50',
       COMPACT_AFTER_UPDATES: '2',
+      // Every board here is created from the same address: the default
+      // of 10 per minute would tip this file into 429 as it grows.
+      CREATE_LIMIT_PER_MIN: '1000',
     }),
   )
   base = `localhost:${server.port}`
@@ -283,37 +286,31 @@ describe('collaboration server', () => {
     expect(flooder.closeReason()).toBe('too many messages before ready')
   })
 
-  it('closes an oversized message sent before the room is ready, without ever joining the room', async () => {
-    // Pins the pre-ready byte budget specifically, without racing the
-    // database: with a valid token the buffered path and the room's own
-    // check both eventually produce the same CLOSE.tooLarge, so the
-    // close code alone cannot tell them apart. Whether `room.join` ever
-    // ran can: it only runs after both the board lookup and the room
-    // load resolve (the same two-round-trip margin the room-readiness
-    // test above relies on), so an oversized frame rejected before that
-    // never logs a 'connection open' line for this board, while one
-    // that slipped into the buffer and was only caught by the room's own
-    // check would have joined first.
+  it('closes an oversized message before the room is ready, without ever joining the room', async () => {
+    // The transport cap is the message limit itself, so an oversized
+    // frame never reaches the application at all: `ws` closes it with
+    // 1009 while the board lookup is still in flight. What this pins is
+    // that nothing oversized is buffered on the way in: whether
+    // `room.join` ever ran says so, since it only runs after both the
+    // board lookup and the room load resolve, so an early rejection
+    // never logs a 'connection open' line for this board.
     const { boardId, editKey } = await createBoard()
     const lines: string[] = []
     const spy = vi.spyOn(console, 'log').mockImplementation((line) => {
       lines.push(String(line))
     })
     let closeCode: number | null
-    let closeReason: string | null
     try {
       const client = rawClient(boardId, editKey)
       await client.open
-      const huge = new Uint8Array(2 * 1024 * 1024) // over the 1 MiB default maxMessageBytes, under the 16 MiB maxPayload
+      const huge = new Uint8Array(2 * 1024 * 1024) // over the 1 MiB default maxMessageBytes
       client.send(encodeUpdate(huge))
-      await waitFor(() => client.closeCode() === CLOSE.tooLarge)
+      await waitFor(() => client.closeCode() !== null)
       closeCode = client.closeCode()
-      closeReason = client.closeReason()
     } finally {
       spy.mockRestore()
     }
-    expect(closeCode).toBe(CLOSE.tooLarge)
-    expect(closeReason).toBe('message too large')
+    expect(closeCode).toBe(1009)
     const joined = lines.some((line) => {
       try {
         const parsed = JSON.parse(line) as { event?: string; boardId?: string }

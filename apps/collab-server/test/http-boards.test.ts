@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { loadConfig } from '../src/config'
 import { findBoard } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
@@ -74,7 +74,10 @@ describe('POST /boards', () => {
   })
 
   it('rate limits creations per IP', async () => {
-    const limited = app({ CREATE_LIMIT_PER_MIN: '2' }, () => 0)
+    const limited = app(
+      { CREATE_LIMIT_PER_MIN: '2', TRUST_PROXY: 'true' },
+      () => 0,
+    )
     expect(
       (await limited.request(post({ boardId: randomUUID() }, '1.1.1.1')))
         .status,
@@ -94,7 +97,10 @@ describe('POST /boards', () => {
   })
 
   it('is not bypassed by a forged X-Forwarded-For prefix', async () => {
-    const limited = app({ CREATE_LIMIT_PER_MIN: '1' }, () => 0)
+    const limited = app(
+      { CREATE_LIMIT_PER_MIN: '1', TRUST_PROXY: 'true' },
+      () => 0,
+    )
     expect(
       (await limited.request(post({ boardId: randomUUID() }, '1.1.1.1')))
         .status,
@@ -106,6 +112,53 @@ describe('POST /boards', () => {
         )
       ).status,
     ).toBe(429)
+  })
+
+  it('ignores X-Forwarded-For entirely without TRUST_PROXY', async () => {
+    // The shipped Compose file publishes the port directly, with no
+    // proxy in front: there the header is fully client-controlled, so
+    // honouring it would make the creation limit a formality.
+    const limited = app({ CREATE_LIMIT_PER_MIN: '1' }, () => 0)
+    expect(
+      (await limited.request(post({ boardId: randomUUID() }, '1.1.1.1')))
+        .status,
+    ).toBe(201)
+    expect(
+      (await limited.request(post({ boardId: randomUUID() }, '2.2.2.2')))
+        .status,
+    ).toBe(429)
+  })
+
+  it('answers a handler failure as JSON and logs one line', async () => {
+    const broken = createApp({
+      db: {
+        insert: () => {
+          throw new Error('database is down')
+        },
+      } as never,
+      config: loadConfig({ DATABASE_URL: url, CORS_ORIGIN: 'http://a' }),
+    })
+    const lines: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((line) => {
+      lines.push(String(line))
+    })
+    let response: Response
+    try {
+      response = await broken.request(post({ boardId: randomUUID() }))
+    } finally {
+      spy.mockRestore()
+    }
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'internal error' })
+    expect(
+      lines.some((line) => {
+        const parsed = JSON.parse(line) as { event?: string; error?: string }
+        return (
+          parsed.event === 'request failed' &&
+          String(parsed.error).includes('database is down')
+        )
+      }),
+    ).toBe(true)
   })
 
   it('serves health and CORS headers', async () => {

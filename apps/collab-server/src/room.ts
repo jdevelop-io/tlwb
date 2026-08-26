@@ -70,6 +70,13 @@ function metaProblem(meta: Y.Map<unknown>): string | null {
  * time per room so staging always equals the room document plus the
  * update under examination.
  */
+// A client announces its own clientID, and a second one after a local
+// reconnect on the same socket. Anything past this is a peer inflating
+// a set that lives as long as its connection; the ids beyond it are
+// simply not tracked, and awareness drops their states on its own
+// outdated-state timeout instead of on leave.
+const MAX_AWARENESS_IDS = 32
+
 export function createRoom(doc: Y.Doc, options: RoomOptions): Room {
   const connections = new Set<RoomConnection>()
   const awarenessIds = new Map<RoomConnection, Set<number>>()
@@ -197,12 +204,14 @@ export function createRoom(doc: Y.Doc, options: RoomOptions): Room {
     }
     // An update whose dependencies are missing is parked by Yjs instead
     // of throwing: a struct dependency goes to `pendingStructs`, a
-    // delete-set dependency to `pendingDs`, and either way staging
-    // neither changes nor fires `update`, yet the parked bytes stay
-    // queued and would silently merge into (or ride along with) a
-    // later message. A single ordered WebSocket, synced through step 1
-    // and step 2, can only reference structs the server already holds,
-    // because staging always equals the room document.
+    // delete-set dependency to `pendingDs`. The parked bytes stay
+    // queued and would silently merge into (or ride along with) a later
+    // message, so anything left pending rejects the whole message,
+    // whether or not this one also changed staging: a partly applicable
+    // delete set does change it and does fire `update` while still
+    // parking the rest. A single ordered WebSocket, synced through step
+    // 1 and step 2, can only reference structs the server already
+    // holds, because staging always equals the room document.
     if (
       staging.store.pendingStructs !== null ||
       staging.store.pendingDs !== null
@@ -258,6 +267,11 @@ export function createRoom(doc: Y.Doc, options: RoomOptions): Room {
       // Anything unexpected (a socket that throws on send, a doc that
       // fails to apply a diff it should accept) closes the offending
       // connection instead of wedging every other connection's queue.
+      // Staging is rebuilt first: a throw between a successful persist
+      // and the apply would otherwise leave it ahead of the room
+      // document, and every later update would be validated against a
+      // document nobody else has.
+      rebuildStaging()
       connection.close(CLOSE.invalid, 'internal error')
     }
   }
@@ -301,6 +315,9 @@ export function createRoom(doc: Y.Doc, options: RoomOptions): Room {
         }
         const owned = awarenessIds.get(connection) ?? new Set<number>()
         for (const id of ids) {
+          if (owned.size >= MAX_AWARENESS_IDS) {
+            break
+          }
           // A connection can announce any clientID (awareness content is
           // never validated), but only the connection that announced it
           // first may later remove it on leave: otherwise one peer could

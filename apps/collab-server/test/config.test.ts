@@ -18,6 +18,7 @@ describe('loadConfig', () => {
       compactAfterUpdates: 500,
       rateLimitPer10s: 200,
       createLimitPerMin: 10,
+      trustProxy: false,
     })
   })
 
@@ -34,11 +35,27 @@ describe('loadConfig', () => {
     )
   })
 
-  it('requires CORS_ORIGIN in production and allows any origin otherwise', () => {
-    expect(() =>
-      loadConfig({ DATABASE_URL: 'postgres://x', NODE_ENV: 'production' }),
-    ).toThrow(new ConfigError('CORS_ORIGIN is required'))
-    expect(loadConfig({ DATABASE_URL: 'postgres://x' }).corsOrigin).toBe('*')
+  it('requires CORS_ORIGIN everywhere, and takes an explicit wildcard', () => {
+    // A wide-open API is a deliberate act, never a default: a server
+    // started with bare tsx and no NODE_ENV must say so out loud.
+    expect(() => loadConfig({ DATABASE_URL: 'postgres://x' })).toThrow(
+      new ConfigError('CORS_ORIGIN is required'),
+    )
+    expect(
+      loadConfig({ DATABASE_URL: 'postgres://x', CORS_ORIGIN: '*' }).corsOrigin,
+    ).toBe('*')
+  })
+
+  it('reads TRUST_PROXY as a boolean', () => {
+    expect(loadConfig({ ...minimal, TRUST_PROXY: 'true' }).trustProxy).toBe(
+      true,
+    )
+    expect(loadConfig({ ...minimal, TRUST_PROXY: 'false' }).trustProxy).toBe(
+      false,
+    )
+    expect(() => loadConfig({ ...minimal, TRUST_PROXY: 'yes' })).toThrow(
+      new ConfigError('TRUST_PROXY must be true or false'),
+    )
   })
 
   it('fails naming a non-numeric limit', () => {

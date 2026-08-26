@@ -71,6 +71,7 @@ describe('assets', () => {
     expect(response.headers.get('cache-control')).toBe(
       'public, max-age=31536000, immutable',
     )
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes)
     expect((await get(boardId, editKey)).status).toBe(200)
   })
@@ -99,5 +100,30 @@ describe('assets', () => {
     ).toBe(413)
     expect((await get(boardId, editKey)).status).toBe(404)
     expect((await get(randomUUID(), editKey)).status).toBe(401)
+  })
+
+  it('refuses a scriptable image type', async () => {
+    const { boardId, editKey } = await board()
+    // An SVG served from the API origin executes script in the browser.
+    expect((await put(boardId, editKey, bytes, 'image/svg+xml')).status).toBe(
+      415,
+    )
+    expect(
+      (await put(boardId, editKey, bytes, 'image/svg+xml; charset=utf-8'))
+        .status,
+    ).toBe(415)
+    expect((await put(boardId, editKey, bytes, 'image/anything')).status).toBe(
+      415,
+    )
+  })
+
+  it('stores the media type without the parameters the client sent', async () => {
+    const { boardId, editKey, viewKey } = await board()
+    expect(
+      (await put(boardId, editKey, bytes, 'IMAGE/PNG; charset=binary')).status,
+    ).toBe(201)
+    expect((await get(boardId, viewKey)).headers.get('content-type')).toBe(
+      'image/png',
+    )
   })
 })
