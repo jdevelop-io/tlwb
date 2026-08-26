@@ -292,7 +292,8 @@ keeps `Content-Type` as the stored `mime`. Rules:
   a new one answers `201`.
 
 `GET /boards/:boardId/assets/:hash` returns the bytes with the stored
-`Content-Type` and `Cache-Control: public, max-age=31536000, immutable`,
+`Content-Type` normalized against the accepted raster types (falling back to
+`application/octet-stream`), and `Cache-Control: public, max-age=31536000, immutable`,
 since the content is addressed by hash. Unknown hash: `404`.
 
 No garbage collection of orphaned blobs; post-v1, like the client side.
@@ -488,3 +489,9 @@ left to contradict the code.
   section 2 (a few megabytes each, a few hundred per board) is not
   enforced by any quota or upload rate limit, matching what the package
   README already told an operator.
+- **Section 6's asset retrieval endpoint mime-type normalization.** The
+  `GET /boards/:boardId/assets/:hash` endpoint normalizes the stored
+  mime type against the accepted raster types, falling back to
+  `application/octet-stream`. This defensive check ensures rows written
+  before this normalization existed are never served with a type the
+  server would refuse on upload.
