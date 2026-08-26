@@ -225,9 +225,7 @@ describe('idle eviction while an update is in flight', () => {
         if (property === 'transaction') {
           return (...args: unknown[]) => {
             order.push('compact-start')
-            return (
-              target.transaction as (...a: unknown[]) => unknown
-            )(...args)
+            return (target.transaction as (...a: unknown[]) => unknown)(...args)
           }
         }
         if (property !== 'insert') {
