@@ -6,3 +6,9 @@ export { persistBoard } from './persistence'
 export type { LocalPresence, Presence } from './presence'
 export { createLocalAwareness, createPresence } from './presence'
 export { createYjsBoardStore } from './store'
+export type {
+  BoardConnection,
+  ConnectionStatus,
+  ConnectOptions,
+} from './sync'
+export { connectBoard } from './sync'
