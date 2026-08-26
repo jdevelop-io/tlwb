@@ -54,8 +54,10 @@ port directly writes that header itself.
   `connectBoard` from `@tlwb/store-yjs` speaks it.
 
 WebSocket close codes: `4401` bad token, `4403` write on a view link,
-`4404` unknown board, `4409` too large, `4422` malformed element, `4429`
-rate limit, `1011` storage failure, `1001` shutdown.
+`4404` unknown board, `4409` document or awareness state over its size
+limit, `4422` malformed element, `4429` rate limit, `1009` message over
+`MAX_MESSAGE_BYTES`, closed by the transport before the application sees
+it, `1011` storage failure, `1001` shutdown.
 
 ## Deployment
 

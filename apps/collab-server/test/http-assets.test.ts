@@ -16,6 +16,10 @@ beforeAll(async () => {
       DATABASE_URL: url,
       CORS_ORIGIN: 'http://a',
       MAX_ASSET_BYTES: '64',
+      // Every board here is created without a forwarded-for header, so
+      // they all key on the same bucket: the default of 10 per minute
+      // would tip this file into 429 as it grows.
+      CREATE_LIMIT_PER_MIN: '1000',
     }),
   })
 })

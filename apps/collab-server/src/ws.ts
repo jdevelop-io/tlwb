@@ -189,14 +189,20 @@ export function attachWebSocket(
             return
           }
           // Bounded by bytes as well as count: without this, a peer can
-          // park up to MAX_PENDING_MESSAGES frames at the WebSocket
-          // server's hard maxPayload (16 MiB) each, before the board
-          // lookup even resolves. The room applies this same check (same
-          // code, same reason) to every live message once ready; this is
-          // that check run early, against what would otherwise sit
-          // unchecked in memory for the resolve window. Checked against
-          // the raw data before `toBytes` copies it, so an oversized
-          // frame is rejected without a second allocation.
+          // park up to MAX_PENDING_MESSAGES frames each, before the board
+          // lookup even resolves. The WebSocket server's own `maxPayload`
+          // is set to `config.maxMessageBytes` above, so a real socket
+          // cannot actually reach this branch with an oversized frame:
+          // `ws` refuses the frame itself and closes with 1009 before
+          // `message` ever fires, and this check becomes a backstop. It
+          // stays in place for the day the transport cap and this limit
+          // diverge again.
+          // The room applies this same check (same code, same reason) to
+          // every live message once ready; this is that check run early,
+          // against what would otherwise sit unchecked in memory for the
+          // resolve window. Checked against the raw data before `toBytes`
+          // copies it, so an oversized frame is rejected without a second
+          // allocation.
           if (rawByteLength(data) > config.maxMessageBytes) {
             ws.close(CLOSE.tooLarge, 'message too large')
             return

@@ -97,4 +97,38 @@ describe('boards', () => {
     doc.destroy()
     rebuilt.destroy()
   })
+
+  it('ignores a stale compaction instead of losing updates', async () => {
+    const id = randomUUID()
+    await createBoard(database.db, id, hashes())
+    const doc = new Y.Doc()
+    const seqs: number[] = []
+    for (const key of ['a', 'b', 'c']) {
+      const before = Y.encodeStateVector(doc)
+      doc.getMap('elements').set(key, key)
+      seqs.push(
+        await appendUpdate(database.db, id, Y.encodeStateAsUpdate(doc, before)),
+      )
+    }
+    await compactBoard(
+      database.db,
+      id,
+      Y.encodeStateAsUpdate(doc),
+      seqs[1] as number,
+    )
+    // A compaction that started before this one finished, covering only
+    // the first update, arrives after it: it must not rewind the
+    // snapshot or delete the update its own stale snapshot never
+    // covered.
+    await compactBoard(
+      database.db,
+      id,
+      Y.encodeStateAsUpdate(doc),
+      seqs[0] as number,
+    )
+    const loaded = await loadBoard(database.db, id)
+    expect(loaded?.snapshotSeq).toBe(seqs[1])
+    expect(loaded?.updates.map((row) => row.seq)).toEqual([seqs[2]])
+    doc.destroy()
+  })
 })
