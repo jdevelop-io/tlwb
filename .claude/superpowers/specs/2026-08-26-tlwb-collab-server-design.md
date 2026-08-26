@@ -138,15 +138,12 @@ wires them and nothing else.
 
 ### Creation
 
-`POST /boards` with body `{ "boardId": string }`. The client supplies the
-identifier it already uses locally (the IndexedDB database name is
-derived from it), so a board keeps its identity when it becomes hosted.
-The identifier must match `^[A-Za-z0-9_-]{8,64}$`.
+`POST /boards` takes no body. The server issues the identifier (16
+random bytes, base64url, 22 characters within `^[A-Za-z0-9_-]{8,64}$`),
+so a client never chooses an id and a local id never leaves the
+browser.
 
 - `201 { boardId, editKey, viewKey }` on success.
-- `409` when the board exists. No key is returned, so guessing an
-  identifier never yields access.
-- `400` on a malformed identifier or body.
 - `429` from the per-IP rate limit (default 10 creations per minute per
   IP). The IP is the socket address unless `TRUST_PROXY` is on; turning
   it on without a proxy the operator controls hands every client a free
@@ -495,3 +492,6 @@ left to contradict the code.
   `application/octet-stream`. This defensive check ensures rows written
   before this normalization existed are never served with a type the
   server would refuse on upload.
+- Board ids moved from client-chosen to server-issued when the web
+  application was designed; see `2026-08-26-tlwb-web-app-design.md`
+  section 2.

@@ -36,15 +36,13 @@ afterAll(async () => {
 })
 
 async function createBoard() {
-  const boardId = randomUUID()
-  const response = await fetch(`http://${base}/boards`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ boardId }),
-  })
+  const response = await fetch(`http://${base}/boards`, { method: 'POST' })
   expect(response.status).toBe(201)
-  const keys = (await response.json()) as { editKey: string; viewKey: string }
-  return { boardId, ...keys }
+  return (await response.json()) as {
+    boardId: string
+    editKey: string
+    viewKey: string
+  }
 }
 
 function waitFor(check: () => boolean, timeoutMs = 5_000): Promise<void> {
@@ -341,13 +339,13 @@ describe('collaboration server', () => {
       }),
     )
     const isolatedBase = `localhost:${isolated.port}`
-    const boardId = randomUUID()
     const response = await fetch(`http://${isolatedBase}/boards`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ boardId }),
     })
-    const { editKey } = (await response.json()) as { editKey: string }
+    const { boardId, editKey } = (await response.json()) as {
+      boardId: string
+      editKey: string
+    }
     const writer = rawClient(boardId, editKey, isolatedBase)
     await writer.open
     // Waiting only for the handshake is not enough: the room itself is

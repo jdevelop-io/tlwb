@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { loadConfig } from '../src/config'
 import { findBoard } from '../src/db/boards'
@@ -29,48 +28,37 @@ function app(overrides: Record<string, string> = {}, now?: () => number) {
   })
 }
 
-function post(body: unknown, ip = '10.0.0.1') {
+function post(ip = '10.0.0.1') {
   return new Request('http://server/boards', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
-    body: JSON.stringify(body),
+    headers: { 'x-forwarded-for': ip },
   })
 }
 
 describe('POST /boards', () => {
-  it('creates a board and returns two distinct keys stored hashed', async () => {
-    const boardId = randomUUID()
-    const response = await app().request(post({ boardId }))
+  it('creates a board under a server-issued id and returns two distinct keys stored hashed', async () => {
+    const response = await app().request(post())
     expect(response.status).toBe(201)
     const body = await response.json()
-    expect(body.boardId).toBe(boardId)
+    expect(body.boardId).toMatch(/^[A-Za-z0-9_-]{22}$/)
     expect(body.editKey).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(body.viewKey).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(body.editKey).not.toBe(body.viewKey)
-    const stored = await findBoard(database.db, boardId)
+    const stored = await findBoard(database.db, body.boardId)
     expect(stored?.editKeyHash.equals(hashKey(body.editKey))).toBe(true)
     expect(stored?.viewKeyHash.equals(hashKey(body.viewKey))).toBe(true)
   })
 
-  it('answers 409 without keys on an existing board', async () => {
-    const boardId = randomUUID()
-    await app().request(post({ boardId }))
-    const response = await app().request(post({ boardId }))
-    expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({ error: 'board already exists' })
-  })
-
-  it('answers 400 on a malformed identifier or body', async () => {
-    expect((await app().request(post({ boardId: 'short' }))).status).toBe(400)
-    expect(
-      (await app().request(post({ boardId: 'has space in it' }))).status,
-    ).toBe(400)
-    expect((await app().request(post({}))).status).toBe(400)
-    const notJson = new Request('http://server/boards', {
+  it('issues a different id on every call and ignores any body', async () => {
+    const first = await (await app().request(post())).json()
+    const withBody = new Request('http://server/boards', {
       method: 'POST',
-      body: 'nope',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ boardId: first.boardId }),
     })
-    expect((await app().request(notJson)).status).toBe(400)
+    const second = await app().request(withBody)
+    expect(second.status).toBe(201)
+    expect((await second.json()).boardId).not.toBe(first.boardId)
   })
 
   it('rate limits creations per IP', async () => {
@@ -78,22 +66,10 @@ describe('POST /boards', () => {
       { CREATE_LIMIT_PER_MIN: '2', TRUST_PROXY: 'true' },
       () => 0,
     )
-    expect(
-      (await limited.request(post({ boardId: randomUUID() }, '1.1.1.1')))
-        .status,
-    ).toBe(201)
-    expect(
-      (await limited.request(post({ boardId: randomUUID() }, '1.1.1.1')))
-        .status,
-    ).toBe(201)
-    expect(
-      (await limited.request(post({ boardId: randomUUID() }, '1.1.1.1')))
-        .status,
-    ).toBe(429)
-    expect(
-      (await limited.request(post({ boardId: randomUUID() }, '2.2.2.2')))
-        .status,
-    ).toBe(201)
+    expect((await limited.request(post('1.1.1.1'))).status).toBe(201)
+    expect((await limited.request(post('1.1.1.1'))).status).toBe(201)
+    expect((await limited.request(post('1.1.1.1'))).status).toBe(429)
+    expect((await limited.request(post('2.2.2.2'))).status).toBe(201)
   })
 
   it('is not bypassed by a forged X-Forwarded-For prefix', async () => {
@@ -101,17 +77,8 @@ describe('POST /boards', () => {
       { CREATE_LIMIT_PER_MIN: '1', TRUST_PROXY: 'true' },
       () => 0,
     )
-    expect(
-      (await limited.request(post({ boardId: randomUUID() }, '1.1.1.1')))
-        .status,
-    ).toBe(201)
-    expect(
-      (
-        await limited.request(
-          post({ boardId: randomUUID() }, '9.9.9.9, 1.1.1.1'),
-        )
-      ).status,
-    ).toBe(429)
+    expect((await limited.request(post('1.1.1.1'))).status).toBe(201)
+    expect((await limited.request(post('9.9.9.9, 1.1.1.1'))).status).toBe(429)
   })
 
   it('ignores X-Forwarded-For entirely without TRUST_PROXY', async () => {
@@ -119,14 +86,8 @@ describe('POST /boards', () => {
     // proxy in front: there the header is fully client-controlled, so
     // honouring it would make the creation limit a formality.
     const limited = app({ CREATE_LIMIT_PER_MIN: '1' }, () => 0)
-    expect(
-      (await limited.request(post({ boardId: randomUUID() }, '1.1.1.1')))
-        .status,
-    ).toBe(201)
-    expect(
-      (await limited.request(post({ boardId: randomUUID() }, '2.2.2.2')))
-        .status,
-    ).toBe(429)
+    expect((await limited.request(post('1.1.1.1'))).status).toBe(201)
+    expect((await limited.request(post('2.2.2.2'))).status).toBe(429)
   })
 
   it('answers a handler failure as JSON and logs one line', async () => {
@@ -144,7 +105,7 @@ describe('POST /boards', () => {
     })
     let response: Response
     try {
-      response = await broken.request(post({ boardId: randomUUID() }))
+      response = await broken.request(post())
     } finally {
       spy.mockRestore()
     }

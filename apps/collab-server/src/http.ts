@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import type { HttpBindings } from '@hono/node-server'
 import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -17,7 +17,6 @@ export interface HttpDeps {
   now?: () => number
 }
 
-const BOARD_ID = /^[A-Za-z0-9_-]{8,64}$/
 const CREATE_WINDOW_MS = 60_000
 const MAX_TRACKED_IPS = 10_000
 
@@ -110,20 +109,9 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       return c.json({ error: 'too many boards created' }, 429)
     }
 
-    let body: unknown
-    try {
-      body = await c.req.json()
-    } catch {
-      return c.json({ error: 'body must be JSON' }, 400)
-    }
-    const boardId =
-      typeof body === 'object' && body !== null && 'boardId' in body
-        ? body.boardId
-        : undefined
-    if (typeof boardId !== 'string' || !BOARD_ID.test(boardId)) {
-      return c.json({ error: 'boardId must match ^[A-Za-z0-9_-]{8,64}$' }, 400)
-    }
-
+    // 16 random bytes in base64url: 22 characters inside BOARD_ID's
+    // alphabet, unguessable, and never chosen by a client.
+    const boardId = randomBytes(16).toString('base64url')
     const editKey = generateKey()
     const viewKey = generateKey()
     const outcome = await createBoard(db, boardId, {
@@ -131,7 +119,8 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       viewKeyHash: hashKey(viewKey),
     })
     if (outcome === 'exists') {
-      return c.json({ error: 'board already exists' }, 409)
+      // 128 random bits colliding is not a case worth a retry loop.
+      return c.json({ error: 'internal error' }, 500)
     }
     return c.json({ boardId, editKey, viewKey }, 201)
   })
