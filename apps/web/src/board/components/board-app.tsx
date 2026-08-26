@@ -8,6 +8,7 @@ import { FONTS } from '../session/palette'
 import '../board.css'
 import { Notice } from './notice'
 import { Toolbar } from './toolbar'
+import { TopBar } from './top-bar'
 import { ZoomControls } from './zoom-controls'
 
 export interface EditorContextValue {
@@ -77,6 +78,7 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
       <div ref={containerRef} className="board-canvas" />
       {editor ? (
         <EditorContext.Provider value={{ editor, session }}>
+          <TopBar session={session} />
           <Toolbar editor={editor} onPickImage={() => undefined} />
           <ZoomControls editor={editor} />
           {snapshot.role === 'view' ? (
