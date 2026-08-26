@@ -6,6 +6,7 @@ import type { BoardSession } from '../session/board-session'
 import type { Identity } from '../session/identity'
 import { FONTS } from '../session/palette'
 import '../board.css'
+import { ContextPanel } from './context-panel'
 import { Notice } from './notice'
 import { Toolbar } from './toolbar'
 import { TopBar } from './top-bar'
@@ -80,6 +81,7 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
         <EditorContext.Provider value={{ editor, session }}>
           <TopBar session={session} />
           <Toolbar editor={editor} onPickImage={() => undefined} />
+          <ContextPanel editor={editor} store={session.store} />
           <ZoomControls editor={editor} />
           {snapshot.role === 'view' ? (
             <Notice kind="banner">View only</Notice>
