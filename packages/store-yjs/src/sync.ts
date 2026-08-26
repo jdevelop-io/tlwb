@@ -55,6 +55,8 @@ export function connectBoard(
       return () => listeners.delete(listener)
     },
     destroy() {
+      // Cleared before the transition below on purpose: the caller asked
+      // for the teardown and does not need to hear about its own effect.
       listeners.clear()
       provider.destroy()
       status = 'disconnected'
