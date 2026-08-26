@@ -8,6 +8,7 @@ import { FONTS } from '../session/palette'
 import '../board.css'
 import { ContextPanel } from './context-panel'
 import { Notice } from './notice'
+import { TextEditor } from './text-editor'
 import { Toolbar } from './toolbar'
 import { TopBar } from './top-bar'
 import { ZoomControls } from './zoom-controls'
@@ -31,6 +32,7 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
   const { session } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const snapshot = useSession(session)
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
       resolveImage: (hash) => session.images.resolve(hash),
       resolveImageUrl: (hash) => session.images.resolveUrl(hash),
       onCursorMove: (point) => session.presence().setCursor(point),
+      onTextEditRequest: (id) => setEditingId(id),
     })
     setEditor(created)
     return () => {
@@ -83,6 +86,14 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
           <Toolbar editor={editor} onPickImage={() => undefined} />
           <ContextPanel editor={editor} store={session.store} />
           <ZoomControls editor={editor} />
+          {editingId ? (
+            <TextEditor
+              editor={editor}
+              store={session.store}
+              id={editingId}
+              onDone={() => setEditingId(null)}
+            />
+          ) : null}
           {snapshot.role === 'view' ? (
             <Notice kind="banner">View only</Notice>
           ) : null}

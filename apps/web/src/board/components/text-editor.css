@@ -1,0 +1,12 @@
+.text-editor {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 1px dashed var(--accent);
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  z-index: 5;
+}
