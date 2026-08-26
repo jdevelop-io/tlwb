@@ -42,6 +42,12 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
     }
     let lastSeq = loaded.updates.at(-1)?.seq ?? loaded.snapshotSeq
     let residual = loaded.updates.length
+    // Gates the threshold-triggered retry in `applied` below: a failed
+    // compaction sets this to residual + compactAfterUpdates, so the
+    // next attempt waits for another full window of updates instead of
+    // retrying on every message that arrives while the database is
+    // still unhappy.
+    let retryAfter = 0
 
     const compact = async () => {
       if (residual === 0) {
@@ -50,6 +56,7 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
       const upToSeq = lastSeq
       await compactBoard(db, boardId, Y.encodeStateAsUpdate(doc), upToSeq)
       residual = 0
+      retryAfter = 0
       log({ event: 'compacted', boardId, upToSeq })
     }
 
@@ -66,13 +73,17 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
       applied: async (seq) => {
         lastSeq = seq
         residual += 1
-        if (residual >= config.compactAfterUpdates) {
+        if (residual >= config.compactAfterUpdates && residual >= retryAfter) {
           try {
             await compact()
           } catch (error) {
             // The update is durable and applied; a failed compaction
             // only leaves more residual rows behind, and eviction
-            // retries. It is not the sender's problem.
+            // retries. It is not the sender's problem. Retrying on
+            // every later message would pay for a failed encode and a
+            // failed transaction on the hot message path for no
+            // reason: wait for another full window before trying again.
+            retryAfter = residual + config.compactAfterUpdates
             log({ event: 'compaction failed', boardId, error: String(error) })
           }
         }

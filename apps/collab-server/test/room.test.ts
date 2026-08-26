@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import {
+  awarenessClientIds,
   CLOSE,
   decodeMessage,
   encodeAwareness,
@@ -63,6 +64,21 @@ function malformedAwarenessMessage(): Uint8Array {
   encoding.writeVarUint(inner, 12345)
   encoding.writeVarUint(inner, 1)
   encoding.writeVarString(inner, 'not json')
+  const outer = encoding.createEncoder()
+  encoding.writeVarUint(outer, 1) // MESSAGE_AWARENESS
+  encoding.writeVarUint8Array(outer, encoding.toUint8Array(inner))
+  return encoding.toUint8Array(outer)
+}
+
+/** A single awareness message announcing `count` distinct client ids. */
+function manyAwarenessIds(count: number): Uint8Array {
+  const inner = encoding.createEncoder()
+  encoding.writeVarUint(inner, count)
+  for (let i = 0; i < count; i += 1) {
+    encoding.writeVarUint(inner, 90_000 + i) // clientID
+    encoding.writeVarUint(inner, 1) // clock
+    encoding.writeVarString(inner, JSON.stringify({ name: `peer-${i}` }))
+  }
   const outer = encoding.createEncoder()
   encoding.writeVarUint(outer, 1) // MESSAGE_AWARENESS
   encoding.writeVarUint8Array(outer, encoding.toUint8Array(inner))
@@ -492,6 +508,31 @@ describe('createRoom', () => {
     doc.destroy()
   })
 
+  it('caps the awareness ids one connection may claim, observable through its leave relay', async () => {
+    const { room, doc } = setup()
+    const alice = connection('edit')
+    const bob = connection('view')
+    room.join(alice)
+    room.join(bob)
+
+    // Alice announces more identifiers than MAX_AWARENESS_IDS (32) in a
+    // single message; only the first 32 are hers to remove on leave.
+    await room.handleMessage(alice, manyAwarenessIds(40))
+
+    const before = bob.received.length
+    room.leave(alice)
+    const removals = bob.received
+      .slice(before)
+      .map(decodeMessage)
+      .filter((m) => m.kind === 'awareness')
+    expect(removals).toHaveLength(1)
+    const removal = removals[0] as { kind: 'awareness'; update: Uint8Array }
+    expect(awarenessClientIds(removal.update)).toHaveLength(32)
+
+    room.destroy()
+    doc.destroy()
+  })
+
   it('rejects a parked delete set instead of laundering it into a later accepted update', async () => {
     const { room, persisted, doc } = setup()
     const alice = connection('edit')
@@ -598,6 +639,32 @@ describe('createRoom', () => {
     }
     const lastPersisted = persisted[0] as Uint8Array
     expect(lastPersisted.byteLength).toBeLessThan(relayed.update.byteLength * 3)
+
+    room.destroy()
+    doc.destroy()
+  })
+
+  it("calls applied with persist's own seq, only once the room document holds the update", async () => {
+    const calls: { seq: number; hadElement: boolean }[] = []
+    const { room, doc } = setup({
+      // A sentinel unrelated to any counter: proves `applied` is handed
+      // exactly what `persist` resolved with, not merely a call count
+      // that happens to line up.
+      persist: async () => 777,
+      applied: async (seq) => {
+        calls.push({ seq, hadElement: doc.getMap('elements').has('r1') })
+      },
+    })
+    const alice = connection('edit')
+    room.join(alice)
+
+    await room.handleMessage(
+      alice,
+      encodeUpdate(
+        clientUpdate((elements) => elements.set('r1', elementMap())),
+      ),
+    )
+    expect(calls).toEqual([{ seq: 777, hadElement: true }])
 
     room.destroy()
     doc.destroy()
