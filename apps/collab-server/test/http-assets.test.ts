@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadConfig } from '../src/config'
+import { putAsset } from '../src/db/assets'
 import { connectDatabase } from '../src/db/client'
 import { createApp } from '../src/http'
 
@@ -128,6 +129,24 @@ describe('assets', () => {
     ).toBe(201)
     expect((await get(boardId, viewKey)).headers.get('content-type')).toBe(
       'image/png',
+    )
+  })
+
+  it('never serves a stored type outside the raster allowlist', async () => {
+    const { boardId, editKey } = await board()
+    // Bypasses the PUT handler's own normalisation entirely, as a row
+    // written before it existed would have been: a scriptable type
+    // stored directly through the DB layer.
+    await putAsset(database.db, {
+      boardId,
+      hash,
+      mime: 'text/html',
+      bytes,
+    })
+    const response = await get(boardId, editKey)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe(
+      'application/octet-stream',
     )
   })
 })

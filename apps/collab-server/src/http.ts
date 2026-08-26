@@ -53,6 +53,16 @@ const IMAGE_TYPES = new Set([
   'image/avif',
 ])
 
+/** Parameters stripped and lowercased, then checked against the raster
+ * allowlist. Applied on write and, defensively, on read again: a row
+ * written before this normalisation existed (or by any other path than
+ * this module's own `PUT`) must never be served back with whatever type
+ * it happens to carry. */
+function normalizeMime(mime: string): string | null {
+  const cleaned = mime.split(';')[0]?.trim().toLowerCase()
+  return cleaned && IMAGE_TYPES.has(cleaned) ? cleaned : null
+}
+
 export function createApp(deps: HttpDeps): Hono<Env> {
   const { db, config } = deps
   const now = deps.now ?? Date.now
@@ -153,11 +163,8 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       }
       // Stored without the client's parameters, so nothing it wrote is
       // ever echoed back in a response header.
-      const mime = (c.req.header('content-type') ?? '')
-        .split(';')[0]
-        ?.trim()
-        .toLowerCase()
-      if (!mime || !IMAGE_TYPES.has(mime)) {
+      const mime = normalizeMime(c.req.header('content-type') ?? '')
+      if (!mime) {
         return c.json({ error: 'only raster images are accepted' }, 415)
       }
       const bytes = new Uint8Array(await c.req.arrayBuffer())
@@ -183,7 +190,7 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       return c.json({ error: 'unknown asset' }, 404)
     }
     return c.body(new Uint8Array(asset.bytes), 200, {
-      'Content-Type': asset.mime,
+      'Content-Type': normalizeMime(asset.mime) ?? 'application/octet-stream',
       'Cache-Control': 'public, max-age=31536000, immutable',
       // The stored type is an allowlisted raster one, but a cached
       // response lives for a year: never let a sniffing browser
