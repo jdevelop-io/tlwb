@@ -1,10 +1,13 @@
+import { createHash } from 'node:crypto'
 import type { HttpBindings } from '@hono/node-server'
 import { type Context, Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import type { Config } from './config'
-import { createBoard } from './db/boards'
+import { getAsset, putAsset } from './db/assets'
+import { createBoard, findBoard } from './db/boards'
 import type { Db } from './db/client'
-import { generateKey, hashKey } from './keys'
+import { generateKey, hashKey, type Role, resolveRole } from './keys'
 import { type BucketEntry, createTokenBucket, sweepStale } from './rate-limit'
 
 export interface HttpDeps {
@@ -96,6 +99,63 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       return c.json({ error: 'board already exists' }, 409)
     }
     return c.json({ boardId, editKey, viewKey }, 201)
+  })
+
+  const HASH = /^[a-f0-9]{64}$/
+
+  async function roleFromBearer(
+    c: Context<Env>,
+    boardId: string,
+  ): Promise<Role | null> {
+    const token = c.req.header('authorization')?.match(/^Bearer (.+)$/)?.[1]
+    if (!token) {
+      return null
+    }
+    const board = await findBoard(db, boardId)
+    return board ? resolveRole(token, board) : null
+  }
+
+  app.put(
+    '/boards/:boardId/assets/:hash',
+    bodyLimit({
+      maxSize: config.maxAssetBytes,
+      onError: (c) => c.json({ error: 'asset too large' }, 413),
+    }),
+    async (c) => {
+      const { boardId, hash } = c.req.param()
+      if ((await roleFromBearer(c, boardId)) !== 'edit') {
+        return c.json({ error: 'edit key required' }, 401)
+      }
+      const mime = c.req.header('content-type') ?? ''
+      if (!mime.startsWith('image/')) {
+        return c.json({ error: 'only images are accepted' }, 415)
+      }
+      const bytes = new Uint8Array(await c.req.arrayBuffer())
+      if (bytes.byteLength > config.maxAssetBytes) {
+        return c.json({ error: 'asset too large' }, 413)
+      }
+      const actual = createHash('sha256').update(bytes).digest('hex')
+      if (!HASH.test(hash) || actual !== hash) {
+        return c.json({ error: 'hash does not match the content' }, 400)
+      }
+      const outcome = await putAsset(db, { boardId, hash, mime, bytes })
+      return c.json({ hash }, outcome === 'created' ? 201 : 200)
+    },
+  )
+
+  app.get('/boards/:boardId/assets/:hash', async (c) => {
+    const { boardId, hash } = c.req.param()
+    if ((await roleFromBearer(c, boardId)) === null) {
+      return c.json({ error: 'a board key is required' }, 401)
+    }
+    const asset = await getAsset(db, boardId, hash)
+    if (!asset) {
+      return c.json({ error: 'unknown asset' }, 404)
+    }
+    return c.body(new Uint8Array(asset.bytes), 200, {
+      'Content-Type': asset.mime,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    })
   })
 
   return app
