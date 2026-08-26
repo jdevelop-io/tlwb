@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import * as http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { createElement } from '@tlwb/engine'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -10,7 +11,8 @@ import { createBoard } from '../src/db/boards'
 import { connectDatabase, type Db } from '../src/db/client'
 import * as schema from '../src/db/schema'
 import { generateKey, hashKey } from '../src/keys'
-import { CLOSE } from '../src/protocol'
+import { CLOSE, encodeUpdate } from '../src/protocol'
+import type { RoomConnection } from '../src/room'
 import { createRooms, type RoomRegistry } from '../src/rooms'
 import { attachWebSocket } from '../src/ws'
 
@@ -233,6 +235,84 @@ describe('room registry resilience', () => {
     expect(loadGoodCalled).toBe(true)
     expect(compactedGood).toBe(true)
     await expect(badAcquire).rejects.toThrow('boom')
+  })
+})
+
+function editor(): RoomConnection & { closed: number | null } {
+  return {
+    role: 'edit',
+    closed: null,
+    send: () => {},
+    close(code) {
+      this.closed = code
+    },
+  }
+}
+
+/** An update creating one rectangle under its own id, from its own client. */
+function elementUpdate(id: string): Uint8Array {
+  const doc = new Y.Doc()
+  const element = createElement('rectangle', { index: 'a0', id })
+  doc.getMap('elements').set(id, new Y.Map(Object.entries(element)))
+  const update = Y.encodeStateAsUpdate(doc)
+  doc.destroy()
+  return update
+}
+
+describe('compaction retry after a failure', () => {
+  it('does not retry on every later message; waits for another full window', async () => {
+    // Call 1 is the room load. Call 2 is the first compaction attempt,
+    // at residual 2 (the threshold): it fails. Call 3 is the second
+    // attempt: it must not happen until residual reaches 4 (another
+    // full COMPACT_AFTER_UPDATES window), and it succeeds.
+    let currentMessage = 0
+    const compactAttempts: number[] = []
+    let transactionCall = 0
+    let seq = 0
+    const db = {
+      insert: () => ({
+        values: () => ({
+          returning: async () => {
+            seq += 1
+            return [{ seq }]
+          },
+        }),
+      }),
+      transaction: async () => {
+        transactionCall += 1
+        if (transactionCall === 1) {
+          return { snapshot: null, snapshotSeq: 0, updates: [] }
+        }
+        compactAttempts.push(currentMessage)
+        if (transactionCall === 2) {
+          throw new Error('lock timeout')
+        }
+        return undefined
+      },
+    } as unknown as Db
+
+    const rooms = createRooms({
+      db,
+      config: config({ COMPACT_AFTER_UPDATES: '2' }),
+    })
+    const room = await rooms.acquire('board-1')
+    if (!room) {
+      throw new Error('expected a room')
+    }
+    const alice = editor()
+    room.join(alice)
+
+    for (let i = 1; i <= 4; i += 1) {
+      currentMessage = i
+      await room.handleMessage(alice, encodeUpdate(elementUpdate(`r${i}`)))
+    }
+    expect(alice.closed).toBeNull()
+    // A compaction attempt at message 2 (fails) and message 4 (a full
+    // window later, succeeds) -- never at message 3, which the bug
+    // retried immediately.
+    expect(compactAttempts).toEqual([2, 4])
+
+    await rooms.shutdown()
   })
 })
 
