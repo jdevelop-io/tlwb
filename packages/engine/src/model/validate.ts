@@ -21,6 +21,11 @@ const base = {
   groupId: z.string().nullable(),
 }
 
+// The hash addresses the asset over HTTP, where it is a path segment
+// the server matches against this exact shape. An element still under
+// construction carries an empty placeholder until its upload lands.
+const assetHash = z.union([z.literal(''), z.string().regex(/^[a-f0-9]{64}$/)])
+
 const point = z.object({ x: z.number(), y: z.number() })
 const binding = z.object({ elementId: z.string() }).nullable()
 
@@ -46,7 +51,7 @@ const elementSchema = z.discriminatedUnion('type', [
     textAlign: z.enum(['left', 'center', 'right']),
     containerId: z.string().nullable(),
   }),
-  z.object({ ...base, type: z.literal('image'), assetHash: z.string() }),
+  z.object({ ...base, type: z.literal('image'), assetHash }),
 ])
 
 /**

@@ -68,6 +68,17 @@ describe('validateElement', () => {
     expect(validateElement(undefined)).toBe(false)
   })
 
+  it('accepts an asset hash only in the shape the asset route serves', () => {
+    const image = createElement('image', { index: 'a0' })
+    // The hash becomes a URL path segment in every collaborator's
+    // browser, so the model must not admit what the route refuses.
+    expect(validateElement(image)).toBe(true) // empty until the upload lands
+    expect(validateElement({ ...image, assetHash: 'a'.repeat(64) })).toBe(true)
+    expect(validateElement({ ...image, assetHash: 'A'.repeat(64) })).toBe(false)
+    expect(validateElement({ ...image, assetHash: '../../boards' })).toBe(false)
+    expect(validateElement({ ...image, assetHash: 'abc123' })).toBe(false)
+  })
+
   it('rejects a non-finite point inside a stroke', () => {
     const line = createElement('line', {
       index: 'a0',
