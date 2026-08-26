@@ -23,6 +23,12 @@ Monorepo packages:
 - `packages/store-yjs`: Yjs implementation of the engine's store,
   local-first persistence, synchronization client, presence, and image
   assets. The only package that imports Yjs.
+- `apps/collab-server`: the collaboration server. Creates hosted boards
+  and their share keys, relays Yjs updates and awareness between the
+  collaborators of a board, enforces read-only links, validates every
+  incoming element on a staging document, persists boards in Postgres
+  as a snapshot plus residual updates, and stores image assets. One
+  Docker image plus Postgres (`docker compose up`).
 
 ## Getting started
 

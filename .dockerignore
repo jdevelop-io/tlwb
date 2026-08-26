@@ -1,0 +1,9 @@
+.git
+.claude
+.superpowers
+.github
+node_modules
+**/node_modules
+**/dist
+**/coverage
+**/__diffs__
