@@ -104,7 +104,12 @@ export async function loadBoard(
   )
 }
 
-/** Replaces the snapshot and drops every update it covers, atomically. */
+/**
+ * Replaces the snapshot and drops every update it covers, atomically.
+ * The write only moves `snapshot_seq` forward: a caller offering an
+ * older snapshot than the stored one is a no-op rather than a rollback
+ * that would delete updates the new snapshot does not contain.
+ */
 export async function compactBoard(
   db: Db,
   boardId: string,
@@ -112,14 +117,18 @@ export async function compactBoard(
   upToSeq: number,
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx
+    const updated = await tx
       .update(boards)
       .set({
         snapshot: Buffer.from(snapshot),
         snapshotSeq: upToSeq,
         updatedAt: new Date(),
       })
-      .where(eq(boards.id, boardId))
+      .where(and(eq(boards.id, boardId), lte(boards.snapshotSeq, upToSeq)))
+      .returning({ id: boards.id })
+    if (updated.length === 0) {
+      return
+    }
     await tx
       .delete(boardUpdates)
       .where(

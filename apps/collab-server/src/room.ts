@@ -26,8 +26,17 @@ export interface RoomOptions {
   maxMessageBytes: number
   maxDocBytes: number
   maxAwarenessBytes: number
-  /** Resolves once the update is durable; rejects on a storage failure. */
-  persist(update: Uint8Array): Promise<void>
+  /**
+   * Resolves with the sequence number the update was stored under;
+   * rejects on a storage failure.
+   */
+  persist(update: Uint8Array): Promise<number>
+  /**
+   * The document now contains the update stored under `seq`. Awaited, so
+   * anything it triggers (a compaction, say) runs inside the room queue
+   * and can never observe a document missing an update it covers.
+   */
+  applied(seq: number): Promise<void>
 }
 
 export interface Room {
@@ -35,6 +44,8 @@ export interface Room {
   join(connection: RoomConnection): void
   leave(connection: RoomConnection): void
   handleMessage(connection: RoomConnection, data: Uint8Array): Promise<void>
+  /** Resolves once every message accepted so far has been processed. */
+  drain(): Promise<void>
   connectionCount(): number
   closeAll(code: number, reason: string): void
   destroy(): void
@@ -221,13 +232,17 @@ export function createRoom(doc: Y.Doc, options: RoomOptions): Room {
     // update log grow as O(updates x deletions) instead of O(this
     // update). `changed` is true here, so `emitted` is never empty.
     const diff = Y.mergeUpdates(emitted)
+    let seq: number
     try {
-      await options.persist(diff)
+      seq = await options.persist(diff)
     } catch {
       reject(connection, CLOSE.storage, 'storage failure')
       return
     }
     Y.applyUpdate(doc, diff, connection)
+    // Only now does the document contain what `seq` numbers, so only now
+    // may anything snapshot it as covering `seq`.
+    await options.applied(seq)
   }
 
   async function process(
@@ -344,6 +359,7 @@ export function createRoom(doc: Y.Doc, options: RoomOptions): Room {
       queue = next.catch(() => {})
       return next
     },
+    drain: () => queue,
     connectionCount: () => connections.size,
     closeAll(code, reason) {
       for (const connection of [...connections]) {

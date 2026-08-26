@@ -57,11 +57,24 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
       maxMessageBytes: config.maxMessageBytes,
       maxDocBytes: config.maxDocBytes,
       maxAwarenessBytes: config.maxAwarenessBytes,
-      persist: async (update) => {
-        lastSeq = await appendUpdate(db, boardId, update)
+      persist: (update) => appendUpdate(db, boardId, update),
+      // `lastSeq` means "the last sequence number the document
+      // contains", so it is assigned here rather than in `persist`: a
+      // compaction triggered from `persist` would snapshot a document
+      // that does not yet hold the very update its `snapshot_seq`
+      // covers, and then delete that update's row.
+      applied: async (seq) => {
+        lastSeq = seq
         residual += 1
         if (residual >= config.compactAfterUpdates) {
-          await compact()
+          try {
+            await compact()
+          } catch (error) {
+            // The update is durable and applied; a failed compaction
+            // only leaves more residual rows behind, and eviction
+            // retries. It is not the sender's problem.
+            log({ event: 'compaction failed', boardId, error: String(error) })
+          }
         }
       },
     })
@@ -75,6 +88,11 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
     // run inside loadBoard's own transaction, so it cannot observe this
     // compaction's write half-committed.
     entries.delete(boardId)
+    // A message accepted just before the room went idle may still be
+    // between its INSERT and its apply: compacting now would snapshot a
+    // document without it, and destroying the room would apply it to a
+    // destroyed document.
+    await entry.room.drain()
     try {
       await entry.compact()
     } catch (error) {
@@ -167,6 +185,12 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
           clearTimeout(entry.idleTimer)
         }
         entry.room.closeAll(CLOSE.shuttingDown, 'server shutting down')
+        // `closeAll` empties the connection set synchronously, so the
+        // room can look idle while a message is still mid-flight:
+        // draining makes "every accepted update is persisted and
+        // applied before we snapshot" an ordering invariant instead of
+        // a timing accident.
+        await entry.room.drain()
         try {
           await entry.compact()
         } catch (error) {

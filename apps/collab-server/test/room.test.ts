@@ -71,6 +71,7 @@ function malformedAwarenessMessage(): Uint8Array {
 
 function setup(overrides: Partial<Parameters<typeof createRoom>[1]> = {}) {
   const persisted: Uint8Array[] = []
+  const applied: number[] = []
   const doc = new Y.Doc()
   const room = createRoom(doc, {
     maxMessageBytes: 1_000_000,
@@ -78,10 +79,14 @@ function setup(overrides: Partial<Parameters<typeof createRoom>[1]> = {}) {
     maxAwarenessBytes: 16_384,
     persist: async (update) => {
       persisted.push(update)
+      return persisted.length
+    },
+    applied: async (seq) => {
+      applied.push(seq)
     },
     ...overrides,
   })
-  return { doc, room, persisted }
+  return { doc, room, persisted, applied }
 }
 
 describe('createRoom', () => {
