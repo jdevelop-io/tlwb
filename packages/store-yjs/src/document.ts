@@ -24,6 +24,16 @@ export function getMetaMap(doc: Y.Doc): Y.Map<unknown> {
   return doc.getMap<unknown>('meta')
 }
 
+/**
+ * A peer can write anything under an element id. The observer and the
+ * readers below assume a Y.Map, so anything else is skipped rather than
+ * crashing the transaction it arrived in. This is not element
+ * validation: the properties inside the map stay unchecked.
+ */
+export function isElementMap(value: unknown): value is ElementMap {
+  return value instanceof Y.Map
+}
+
 export function elementToMap(element: BoardElement): ElementMap {
   return new Y.Map(Object.entries(element))
 }

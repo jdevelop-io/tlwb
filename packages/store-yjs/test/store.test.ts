@@ -101,6 +101,33 @@ describe('createYjsBoardStore', () => {
     expect(events).toHaveLength(0)
   })
 
+  it('ignores a value written under an element id that is not a map', () => {
+    const doc = new Y.Doc()
+    const store = createYjsBoardStore(doc)
+    const element = createElement('rectangle', { index: 'a0', x: 5 })
+    store.applyChanges([{ kind: 'create', element }])
+
+    const peer = new Y.Doc()
+    const malformed = new Y.Array<number>()
+    peer.getMap<unknown>('elements').set('malformed', malformed)
+    malformed.push([1])
+    expect(() => {
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate(peer))
+    }).not.toThrow()
+
+    // The same value changing again must not crash the observer either.
+    const received = doc.getMap<unknown>('elements').get('malformed')
+    expect(() => {
+      doc.transact(() => {
+        ;(received as Y.Array<number>).push([2])
+      })
+    }).not.toThrow()
+
+    expect(store.getElement('malformed')).toBeUndefined()
+    expect(store.getElement(element.id)).toEqual(element)
+    expect(store.listElements()).toEqual([element])
+  })
+
   it('reads default meta from an empty document', () => {
     const store = createYjsBoardStore(new Y.Doc())
     expect(store.getMeta()).toEqual({ name: 'Untitled', createdAt: 0 })

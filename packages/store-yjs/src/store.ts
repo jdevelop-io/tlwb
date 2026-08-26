@@ -12,10 +12,10 @@ import { sortByIndex } from '@tlwb/engine'
 import type * as Y from 'yjs'
 import {
   deepFreeze,
-  type ElementMap,
   elementToMap,
   getElementsMap,
   getMetaMap,
+  isElementMap,
   LOCAL_ORIGIN,
   REMOTE_ORIGIN,
   readElement,
@@ -39,7 +39,9 @@ export function createYjsBoardStore(doc: Y.Doc): BoardStore {
   const listeners = new Set<(event: BoardStoreEvent) => void>()
 
   for (const [id, map] of elements) {
-    cache.set(id, readElement(map))
+    if (isElementMap(map)) {
+      cache.set(id, readElement(map))
+    }
   }
 
   function emit(event: BoardStoreEvent): void {
@@ -69,7 +71,7 @@ export function createYjsBoardStore(doc: Y.Doc): BoardStore {
             changes.push({ kind: 'delete', id })
           } else {
             const map = elements.get(id)
-            if (map) {
+            if (isElementMap(map)) {
               const element = readElement(map)
               cache.set(id, element)
               changes.push({ kind: 'create', element })
@@ -77,11 +79,16 @@ export function createYjsBoardStore(doc: Y.Doc): BoardStore {
           }
         }
       } else {
-        const mapEvent = event as Y.YMapEvent<unknown>
-        const id = String(mapEvent.path[0])
-        const map = mapEvent.target as ElementMap
+        const id = String(event.path[0])
+        const map = elements.get(id)
+        // Anything the handler cannot read as one element's map is
+        // skipped: an exception here would escape through applyUpdate
+        // and take the client's synchronization loop down with it.
+        if (!isElementMap(map) || event.target !== map) {
+          continue
+        }
         const props: Record<string, unknown> = {}
-        for (const key of mapEvent.keysChanged) {
+        for (const key of (event as Y.YMapEvent<unknown>).keysChanged) {
           props[key] = map.get(key)
         }
         cache.set(id, readElement(map))
