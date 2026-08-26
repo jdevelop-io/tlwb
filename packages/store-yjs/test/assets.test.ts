@@ -37,4 +37,13 @@ describe('createAssetStore', () => {
     expect(await reopened.get(hash)).toBeUndefined()
     await reopened.delete()
   })
+
+  it('stores a blob under a caller-supplied hash without recomputing it', async () => {
+    const assets = createAssetStore('assets-known-hash')
+    const blob = new Blob(['irrelevant'], { type: 'image/png' })
+    const stored = await assets.put(blob, 'already-known-hash')
+    expect(stored).toBe('already-known-hash')
+    expect(await assets.get('already-known-hash')).toBeDefined()
+    await assets.destroy()
+  })
 })

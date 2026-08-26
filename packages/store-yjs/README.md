@@ -90,7 +90,10 @@ property. Batches from the network, from the IndexedDB load, and from
 
 Image blobs never enter the document. `createAssetStore(boardId)` keys
 them by SHA-256 content hash in IndexedDB; an image element carries the
-hash. Upload to the server for hosted boards is not implemented yet.
+hash. `put` accepts an optional known hash to store under it directly,
+skipping recomputation, for content already addressed by that hash (for
+example a remote fetch by hash). Upload to the server for hosted boards
+is not implemented yet.
 
 ## Testing
 
