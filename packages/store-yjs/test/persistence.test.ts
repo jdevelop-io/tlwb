@@ -15,6 +15,8 @@ describe('persistBoard', () => {
     const element = createElement('rectangle', { index: 'a0', x: 5 })
     firstStore.applyChanges([{ kind: 'create', element }])
     firstStore.setMeta({ name: 'kept' })
+    // The writes above are still in flight: destroy() closes the
+    // database, and IDBDatabase.close() lets open transactions finish.
     await persistence.destroy()
 
     const second = new Y.Doc()
@@ -49,5 +51,44 @@ describe('persistBoard', () => {
     await otherPersistence.whenLoaded
     expect(otherStore.listElements()).toEqual([])
     await otherPersistence.destroy()
+  })
+
+  it('rejects whenLoaded when the database cannot be opened', async () => {
+    const available = globalThis.indexedDB
+    // fake-indexeddb always opens, so private browsing is simulated by a
+    // factory whose open request fails.
+    globalThis.indexedDB = {
+      open: () => {
+        const request: Record<string, unknown> = {}
+        queueMicrotask(() => {
+          const onerror = request.onerror as
+            | ((event: unknown) => void)
+            | undefined
+          onerror?.({ target: { error: 'IndexedDB is unavailable' } })
+        })
+        return request
+      },
+    } as unknown as IDBFactory
+    const reportUnhandled = process.listeners('unhandledRejection')
+    // y-indexeddb chains its own handler onto the open promise and never
+    // catches it, so a failed open also produces an unhandled rejection
+    // from inside the library. Swallow it for this test only.
+    process.removeAllListeners('unhandledRejection')
+    process.on('unhandledRejection', () => undefined)
+    try {
+      const persistence = persistBoard(new Y.Doc(), 'persist-unavailable')
+      await expect(persistence.whenLoaded).rejects.toThrow(
+        'IndexedDB is unavailable',
+      )
+      // Node reports unhandled rejections at the end of the tick; give it
+      // one while the swallowing listener is still the only one.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    } finally {
+      globalThis.indexedDB = available
+      process.removeAllListeners('unhandledRejection')
+      for (const listener of reportUnhandled) {
+        process.on('unhandledRejection', listener)
+      }
+    }
   })
 })
