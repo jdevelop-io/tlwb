@@ -63,28 +63,45 @@ export async function appendUpdate(
   return row.seq
 }
 
+/**
+ * Both selects run inside one REPEATABLE READ transaction so they see a
+ * single consistent snapshot: without it, a compaction that commits
+ * between the two plain SELECTs below could be read half-applied (the
+ * new, higher `snapshotSeq` from the first select, then the updates it
+ * covers already deleted by the second), silently losing them from the
+ * document this call builds.
+ */
 export async function loadBoard(
   db: Db,
   id: string,
 ): Promise<LoadedBoard | undefined> {
-  const [board] = await db
-    .select({ snapshot: boards.snapshot, snapshotSeq: boards.snapshotSeq })
-    .from(boards)
-    .where(eq(boards.id, id))
-  if (!board) {
-    return undefined
-  }
-  const updates = await db
-    .select({ seq: boardUpdates.seq, update: boardUpdates.update })
-    .from(boardUpdates)
-    .where(
-      and(
-        eq(boardUpdates.boardId, id),
-        gt(boardUpdates.seq, board.snapshotSeq),
-      ),
-    )
-    .orderBy(asc(boardUpdates.seq))
-  return { snapshot: board.snapshot, snapshotSeq: board.snapshotSeq, updates }
+  return db.transaction(
+    async (tx) => {
+      const [board] = await tx
+        .select({ snapshot: boards.snapshot, snapshotSeq: boards.snapshotSeq })
+        .from(boards)
+        .where(eq(boards.id, id))
+      if (!board) {
+        return undefined
+      }
+      const updates = await tx
+        .select({ seq: boardUpdates.seq, update: boardUpdates.update })
+        .from(boardUpdates)
+        .where(
+          and(
+            eq(boardUpdates.boardId, id),
+            gt(boardUpdates.seq, board.snapshotSeq),
+          ),
+        )
+        .orderBy(asc(boardUpdates.seq))
+      return {
+        snapshot: board.snapshot,
+        snapshotSeq: board.snapshotSeq,
+        updates,
+      }
+    },
+    { isolationLevel: 'repeatable read' },
+  )
 }
 
 /** Replaces the snapshot and drops every update it covers, atomically. */
