@@ -1,5 +1,6 @@
 import type { BoardStoreEvent, LineElement } from '@tlwb/engine'
 import { createElement } from '@tlwb/engine'
+import { describeBoardStoreContract } from '@tlwb/engine/testing'
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import { createYjsBoardStore } from '../src/store'
@@ -105,3 +106,5 @@ describe('createYjsBoardStore', () => {
     expect(store.getMeta()).toEqual({ name: 'Untitled', createdAt: 0 })
   })
 })
+
+describeBoardStoreContract('yjs', () => createYjsBoardStore(new Y.Doc()))

@@ -20,6 +20,7 @@ import {
   REMOTE_ORIGIN,
   readElement,
 } from './document'
+import { createUndoManager } from './undo'
 
 const DEFAULT_META: BoardMeta = { name: 'Untitled', createdAt: 0 }
 
@@ -32,6 +33,7 @@ const DEFAULT_META: BoardMeta = { name: 'Untitled', createdAt: 0 }
 export function createYjsBoardStore(doc: Y.Doc): BoardStore {
   const elements = getElementsMap(doc)
   const meta = getMetaMap(doc)
+  const undoManager = createUndoManager(elements)
   const cache = new Map<ElementId, BoardElement>()
   let sorted: BoardElement[] | null = null
   const listeners = new Set<(event: BoardStoreEvent) => void>()
@@ -50,6 +52,9 @@ export function createYjsBoardStore(doc: Y.Doc): BoardStore {
     const origin: unknown = transaction.origin
     if (origin === LOCAL_ORIGIN || origin === REMOTE_ORIGIN) {
       return origin
+    }
+    if (origin === undoManager) {
+      return 'undo'
     }
     return REMOTE_ORIGIN
   }
@@ -145,15 +150,26 @@ export function createYjsBoardStore(doc: Y.Doc): BoardStore {
         }
       }, origin)
     },
-    stopCapturing() {},
+    stopCapturing() {
+      undoManager.stopCapturing()
+    },
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    undo() {},
-    redo() {},
-    canUndo: () => false,
-    canRedo: () => false,
-    clearHistory() {},
+    undo() {
+      undoManager.stopCapturing()
+      undoManager.undo()
+    },
+    redo() {
+      undoManager.stopCapturing()
+      undoManager.redo()
+    },
+    canUndo: () => undoManager.canUndo(),
+    canRedo: () => undoManager.canRedo(),
+    clearHistory() {
+      undoManager.stopCapturing()
+      undoManager.clear()
+    },
   }
 }
