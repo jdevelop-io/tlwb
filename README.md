@@ -20,6 +20,9 @@ Monorepo packages:
   (scene and overlay), pointer, wheel, and keyboard input, remote
   presence painting, double-click text editing, read-only mode, and PNG
   and SVG export.
+- `packages/store-yjs`: Yjs implementation of the engine's store,
+  local-first persistence, synchronization client, presence, and image
+  assets. The only package that imports Yjs.
 
 ## Getting started
 
