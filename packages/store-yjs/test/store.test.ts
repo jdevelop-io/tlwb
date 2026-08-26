@@ -96,9 +96,31 @@ describe('createYjsBoardStore', () => {
     const store = createYjsBoardStore(doc)
     const events: BoardStoreEvent[] = []
     store.subscribe((event) => events.push(event))
+    const element = createElement('rectangle', { index: 'a0' })
     store.applyChanges([])
     store.applyChanges([{ kind: 'update', id: 'missing', props: { x: 1 } }])
+    store.applyChanges([
+      { kind: 'create', element },
+      { kind: 'delete', id: element.id },
+    ])
     expect(events).toHaveLength(0)
+  })
+
+  it('folds a create and an update of the same element into one create', () => {
+    const doc = new Y.Doc()
+    const store = createYjsBoardStore(doc)
+    const events: BoardStoreEvent[] = []
+    store.subscribe((event) => events.push(event))
+    const element = createElement('rectangle', { index: 'a0', x: 0 })
+    store.applyChanges([
+      { kind: 'create', element },
+      { kind: 'update', id: element.id, props: { x: 42 } },
+    ])
+
+    expect(events).toHaveLength(1)
+    expect(expectChangesEvent(events[0]).changes).toEqual([
+      { kind: 'create', element: { ...element, x: 42 } },
+    ])
   })
 
   it('hands out a list a caller cannot mutate', () => {
@@ -121,6 +143,8 @@ describe('createYjsBoardStore', () => {
     const store = createYjsBoardStore(doc)
     const element = createElement('rectangle', { index: 'a0', x: 5 })
     store.applyChanges([{ kind: 'create', element }])
+    const events: BoardStoreEvent[] = []
+    store.subscribe((event) => events.push(event))
 
     const peer = new Y.Doc()
     const malformed = new Y.Array<number>()
@@ -141,6 +165,7 @@ describe('createYjsBoardStore', () => {
     expect(store.getElement('malformed')).toBeUndefined()
     expect(store.getElement(element.id)).toEqual(element)
     expect(store.listElements()).toEqual([element])
+    expect(events).toEqual([])
   })
 
   it('reads default meta from an empty document', () => {

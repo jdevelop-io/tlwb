@@ -96,7 +96,10 @@ export function createYjsBoardStore(doc: Y.Doc): BoardStore {
       }
     }
     sorted = null
-    emit({ kind: 'changes', changes, origin: originOf(transaction) })
+    // A batch that cancels itself out changes nothing: no event at all.
+    if (changes.length > 0) {
+      emit({ kind: 'changes', changes, origin: originOf(transaction) })
+    }
   })
 
   function getMeta(): BoardMeta {
