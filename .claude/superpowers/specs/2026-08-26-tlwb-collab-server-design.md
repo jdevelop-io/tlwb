@@ -59,9 +59,11 @@ Docker image, and the Compose file.
 - The server imports `yjs` directly. The "only `store-yjs` imports Yjs"
   rule of the parent specification protects the engine and the client;
   a server whose job is to relay Yjs updates has no reason to hide the
-  library. The server reuses `createYjsBoardStore` from `@tlwb/store-yjs`
-  to read elements out of a document rather than duplicating the
-  document layout.
+  library. The server reads an element as the `toJSON()` of its `Y.Map`
+  under `doc.getMap('elements')`, the layout `store-yjs` fixed; it does
+  not mount `createYjsBoardStore`, whose undo manager and caches serve
+  an editor, not a relay. `@tlwb/store-yjs` is a development dependency
+  only, as the client of the end-to-end tests.
 - `@tlwb/engine` gains `validateElement(value: unknown): value is
   BoardElement`, a `zod` schema over the element union, next to the
   existing `sanitizePeers`. The engine owns the element model, so it owns
@@ -75,8 +77,12 @@ packages: strict TypeScript, Vitest, Biome. The workspace already
 includes `apps/*`.
 
 Dependencies: `hono`, `@hono/node-server`, `ws`, `yjs`, `y-protocols`,
-`drizzle-orm`, `postgres`, `@tlwb/engine`, `@tlwb/store-yjs`.
-Development dependencies: `drizzle-kit`, `vitest`, `@types/ws`.
+`lib0` (message encoding, already a dependency of `yjs`), `drizzle-orm`,
+`postgres`, `tsx` (runs the TypeScript sources in the image; the
+workspace packages export their sources with extensionless imports, so
+Node cannot load them without a loader), `@tlwb/engine`. Development
+dependencies: `@tlwb/store-yjs`, `drizzle-kit`, `vitest`, `@types/ws`,
+`@types/node`.
 
 ```
 apps/collab-server/
@@ -198,9 +204,10 @@ arriving during the timer cancels it.
    accepted update is applied to both, so staging never needs a full
    copy. An observer on the staging `elements` map records the
    identifiers touched by the transaction.
-3. Validate: each touched identifier is read through
-   `createYjsBoardStore(staging).getElement(id)` and passed to
-   `validateElement`; a deleted identifier is skipped. The `meta` map is
+3. Validate: each touched identifier is read from the staging
+   `elements` map; a missing entry is a deletion and is skipped, an
+   entry that is not a `Y.Map` is malformed, and a `Y.Map` is passed as
+   its `toJSON()` to `validateElement`. The `meta` map is
    checked as `{ name?: string, createdAt?: number }`. The encoded state
    of the staging document must stay under the document limit (default
    5 MB).
@@ -308,9 +315,12 @@ required value exits with code 1 and the variable's name.
 
 ### Deployment
 
-`apps/collab-server/Dockerfile` is multi-stage: build TypeScript to
-`dist/`, then `pnpm deploy --prod` into a `node:22-alpine` image that
-carries only the production dependencies. A `docker-compose.yml` at the
+`apps/collab-server/Dockerfile` is a single stage on `node:22-alpine`:
+copy the monorepo, `pnpm install --frozen-lockfile --prod`, run the
+server through `tsx`. No build step and no bundling; the image carries
+the workspace sources and production dependencies only. A
+multi-stage build with a bundler is the upgrade when image size or cold
+start matters. A `docker-compose.yml` at the
 repository root defines `postgres` (`postgres:17`) and `collab-server`;
 the same file serves local development and the local test run.
 
