@@ -99,6 +99,12 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
     } else if (code === 4409 || code === 4422 || code === 4429) {
       setToast('Change refused by the server')
     }
+    // Consumed once: clearing it here makes an identical repeat a real
+    // transition next time, so the effect fires again instead of the
+    // code lingering unchanged.
+    if (code !== null) {
+      session.acknowledgeClose()
+    }
   }, [session, snapshot.closeCode])
 
   useEffect(() => {

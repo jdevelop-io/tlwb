@@ -37,6 +37,14 @@ export function ShareDialog(props: {
     }
   }, [open])
 
+  useEffect(() => {
+    if (!copied) {
+      return
+    }
+    const timer = setTimeout(() => setCopied(false), 1500)
+    return () => clearTimeout(timer)
+  }, [copied])
+
   const keys = session.keys() ?? createdKeys
   const effectiveRole = role === 'edit' && !keys?.editKey ? 'view' : role
   const link = keys
@@ -62,7 +70,6 @@ export function ShareDialog(props: {
     try {
       await navigator.clipboard.writeText(link)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
     } catch {
       // The link stays selected in the input for a manual copy.
     }

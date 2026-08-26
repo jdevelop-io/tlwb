@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePeers } from '../hooks/use-peers'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
@@ -37,10 +37,19 @@ export function PresenceStack(props: {
   const peers = usePeers(props.session)
   const snapshot = useSession(props.session)
   const [renaming, setRenaming] = useState(false)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (renaming) {
+      renameInputRef.current?.focus()
+    }
+  }, [renaming])
+
   return (
     <div className="presence-stack">
       {renaming ? (
         <input
+          ref={renameInputRef}
           aria-label="Your name"
           defaultValue={props.identity.name}
           onBlur={(event) => {

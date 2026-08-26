@@ -80,6 +80,12 @@ export interface BoardSession {
   becomeViewer(): void
   /** The server no longer knows this link (4401, 4404). */
   forgetKeys(): void
+  /**
+   * The close code is delivered once: the consumer that acted on it
+   * clears it here so the next arrival (even the same code) is a fresh
+   * transition the caller can observe again.
+   */
+  acknowledgeClose(): void
   destroy(): Promise<void>
 }
 
@@ -285,6 +291,10 @@ export async function openBoardSession(
       clearKeys(boardId, storage)
       refreshUpload()
       restartConnection()
+      notify()
+    },
+    acknowledgeClose() {
+      closeCode = null
       notify()
     },
     async destroy() {

@@ -7,7 +7,7 @@
 }
 
 .share-dialog::backdrop {
-  background: rgb(26 26 26 / 0.3);
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
 }
 
 .share-dialog h2 {

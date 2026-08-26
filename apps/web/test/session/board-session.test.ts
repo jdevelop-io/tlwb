@@ -134,6 +134,32 @@ describe('openBoardSession', () => {
     await session.destroy()
   })
 
+  it('delivers a close code once, so an identical repeat is a fresh event', async () => {
+    writeKeys('hosted3', { viewKey: 'v' })
+    const fake = fakeConnect()
+    const session = await openBoardSession({
+      boardId: 'hosted3',
+      fresh: false,
+      identity,
+      connect: fake.connect,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    const seen: Array<number | null> = []
+    session.subscribe(() => seen.push(session.getSnapshot().closeCode))
+
+    fake.close(4429)
+    expect(session.getSnapshot().closeCode).toBe(4429)
+
+    session.acknowledgeClose()
+    expect(session.getSnapshot().closeCode).toBeNull()
+
+    fake.close(4429)
+    expect(session.getSnapshot().closeCode).toBe(4429)
+
+    expect(seen).toEqual([4429, null, 4429])
+    await session.destroy()
+  })
+
   it('adopts a hosting handoff and starts the connection', async () => {
     const session = await openBoardSession({
       boardId: 'pre',
