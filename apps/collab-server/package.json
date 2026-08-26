@@ -1,0 +1,33 @@
+{
+  "name": "@tlwb/collab-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@tlwb/engine": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.4",
+    "lib0": "^0.2.117",
+    "postgres": "^3.4.9",
+    "tsx": "^4.20.0",
+    "ws": "^8.21.3",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.32"
+  },
+  "devDependencies": {
+    "@tlwb/store-yjs": "workspace:*",
+    "@types/node": "^26.2.0",
+    "@types/ws": "^8.18.1",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
