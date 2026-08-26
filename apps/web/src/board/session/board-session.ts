@@ -69,7 +69,12 @@ export interface BoardSession {
   presence(): Presence
   connection(): BoardConnection | null
   setIdentity(identity: Identity): void
-  /** The migration hands over the hosted databases and keys. */
+  /**
+   * The migration hands over the hosted databases and keys. The
+   * caller keeps ownership of what this replaces: it must clear the
+   * outgoing persistence and delete the outgoing asset store once the
+   * handoff completes. This method never disposes of them itself.
+   */
   adoptHosting(handoff: HostingHandoff): void
   /** The server refused a write (4403): keep the key as a view key. */
   becomeViewer(): void
@@ -115,6 +120,7 @@ export async function openBoardSession(
   let status: ConnectionStatus | 'local' = 'local'
   let closeCode: number | null = null
   let unsubscribeConnection: () => void = () => undefined
+  let destroyed = false
   const listeners = new Set<() => void>()
   let snapshot: SessionSnapshot
 
@@ -156,15 +162,40 @@ export async function openBoardSession(
     presence = createPresence(awareness, { ...identity, isAgent: false })
   }
 
-  function startConnection(): void {
-    const token = keys ? tokenOf(keys) : null
-    if (!token) {
+  /** Stops the current connection, if any, keeping nothing subscribed. */
+  function teardownConnection(): void {
+    unsubscribeConnection()
+    unsubscribeConnection = () => undefined
+    connection?.destroy()
+    connection?.awareness.destroy()
+    connection = null
+  }
+
+  /**
+   * Tears the current connection down and starts a fresh one for
+   * whatever role the session is now in: a socket carrying the current
+   * token, or none at all for a local role. Every key transition
+   * (`adoptHosting`, `becomeViewer`, `forgetKeys`) goes through this, so
+   * a stale socket never outlives the token it was opened with. A no-op
+   * once the session is destroyed, so a late transition cannot open a
+   * new socket on a torn-down session.
+   */
+  function restartConnection(): void {
+    if (destroyed) {
       return
     }
-    unsubscribeConnection()
+    teardownConnection()
     presence?.destroy()
     localAwareness?.destroy()
     localAwareness = null
+    closeCode = null
+    const token = keys ? tokenOf(keys) : null
+    if (!token) {
+      localAwareness = createLocalAwareness(doc)
+      attachPresence(localAwareness)
+      status = 'local'
+      return
+    }
     connection = connectFn(doc, { url: socketUrl(), boardId, token })
     status = connection.getStatus()
     const stopStatus = connection.subscribeStatus((next) => {
@@ -182,12 +213,7 @@ export async function openBoardSession(
     attachPresence(connection.awareness)
   }
 
-  if (keys) {
-    startConnection()
-  } else {
-    localAwareness = createLocalAwareness(doc)
-    attachPresence(localAwareness)
-  }
+  restartConnection()
   refreshUpload()
 
   let recentsTimer: ReturnType<typeof setTimeout> | null = null
@@ -241,8 +267,7 @@ export async function openBoardSession(
       images.setAssets(assets)
       images.setFetchRemote((hash) => remoteFetcher(hash))
       refreshUpload()
-      closeCode = null
-      startConnection()
+      restartConnection()
       touch()
       notify()
     },
@@ -251,6 +276,7 @@ export async function openBoardSession(
         keys = { viewKey: keys.editKey }
         writeKeys(boardId, keys, storage)
         refreshUpload()
+        restartConnection()
         notify()
       }
     },
@@ -258,17 +284,17 @@ export async function openBoardSession(
       keys = null
       clearKeys(boardId, storage)
       refreshUpload()
+      restartConnection()
       notify()
     },
     async destroy() {
       if (recentsTimer) {
         clearTimeout(recentsTimer)
       }
+      destroyed = true
       unsubscribeStore()
-      unsubscribeConnection()
+      teardownConnection()
       presence.destroy()
-      connection?.destroy()
-      connection?.awareness.destroy()
       localAwareness?.destroy()
       images.destroy()
       await persistence?.destroy()

@@ -120,13 +120,17 @@ describe('openBoardSession', () => {
     fake.close(4422)
     expect(seen).toEqual([4422])
 
+    const connectionBeforeDemotion = session.connection()
     session.becomeViewer()
     expect(session.getSnapshot().role).toBe('view')
     expect(session.keys()).toEqual({ viewKey: 'e' })
+    expect(session.getSnapshot().closeCode).toBeNull()
+    expect(session.connection()).not.toBe(connectionBeforeDemotion)
 
     session.forgetKeys()
     expect(session.keys()).toBeNull()
     expect(session.getSnapshot().role).toBe('local')
+    expect(session.connection()).toBeNull()
     await session.destroy()
   })
 
