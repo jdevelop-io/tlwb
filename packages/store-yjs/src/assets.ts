@@ -34,6 +34,10 @@ export function createAssetStore(boardId: string): AssetStore {
       database.createObjectStore('blobs')
     },
   })
+  // Nothing awaits the open until the first call, which can be much
+  // later; keep a failure from surfacing as an unhandled rejection with
+  // no link to its cause. The callers below still see it.
+  db.catch(() => undefined)
   return {
     async put(blob) {
       const bytes = await blob.arrayBuffer()
