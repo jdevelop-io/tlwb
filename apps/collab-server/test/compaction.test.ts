@@ -210,3 +210,91 @@ describe('shutdown while an update is in flight', () => {
     expect(cold.elements).toEqual(['r1'])
   })
 })
+
+describe('idle eviction while an update is in flight', () => {
+  it('drains the room before compacting, and loses nothing', async () => {
+    const boardId = await board()
+    const gate = deferred()
+    const order: string[] = []
+    // The real database, with the update insert held open (as above) and
+    // every transaction call recorded: `compactBoard` is the only thing
+    // that calls `transaction` once the room is loaded, so a mark here
+    // pins the moment eviction actually reaches compaction.
+    const slow = new Proxy(database.db, {
+      get(target, property, receiver) {
+        if (property === 'transaction') {
+          return (...args: unknown[]) => {
+            order.push('compact-start')
+            return (
+              target.transaction as (...a: unknown[]) => unknown
+            )(...args)
+          }
+        }
+        if (property !== 'insert') {
+          return Reflect.get(target, property, receiver)
+        }
+        return (table: unknown) => {
+          const insert = (target.insert as (t: unknown) => unknown)(table)
+          return {
+            values: (row: unknown) => {
+              const values = (
+                insert as { values: (r: unknown) => { returning: unknown } }
+              ).values(row)
+              return {
+                returning: async (columns: unknown) => {
+                  await gate.promise
+                  return (
+                    values as {
+                      returning: (c: unknown) => Promise<unknown>
+                    }
+                  ).returning(columns)
+                },
+              }
+            },
+          }
+        }
+      },
+    }) as Db
+
+    const rooms = createRooms({
+      db: slow,
+      config: config({ ROOM_IDLE_MS: '10' }),
+    })
+    const room = await rooms.acquire(boardId)
+    if (!room) {
+      throw new Error('expected a room')
+    }
+    // Discard the load's own `transaction` call, tracked from here on.
+    order.length = 0
+    const alice = editor()
+    room.join(alice)
+
+    const inFlight = room
+      .handleMessage(alice, encodeUpdate(elementUpdate('r1')))
+      .then(() => {
+        order.push('message')
+      })
+    // Let the message reach the gated insert before the connection
+    // leaves, exactly as the shutdown test does above.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    room.leave(alice)
+    rooms.release(boardId)
+    // Long enough for the 10ms idle timer to fire: eviction should now
+    // be suspended draining the still-gated message, not compacting
+    // ahead of it.
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(order).toEqual([])
+
+    gate.resolve()
+    await inFlight
+    // The eviction that the idle timer started is fire-and-forget: give
+    // it room to reach compaction once the gate is released.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(order).toEqual(['message', 'compact-start'])
+    const cold = await coldLoad(boardId)
+    expect(cold.elements).toEqual(['r1'])
+    expect(cold.residual).toBe(0)
+  })
+})
