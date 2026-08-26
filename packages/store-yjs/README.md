@@ -25,14 +25,13 @@ const assets = createAssetStore(boardId)
 const persistence = persistBoard(doc, boardId)
 await persistence.whenLoaded
 
-// Anonymous board: presence with zero peers.
-let awareness = createLocalAwareness(doc)
-
-// Shared board: the provider brings its own awareness.
-if (shareToken) {
-  const connection = connectBoard(doc, { url, boardId, token: shareToken })
-  awareness = connection.awareness
-}
+// A shared board syncs and brings its own awareness; an anonymous one
+// gets a local awareness and presence with zero peers. Exactly one
+// awareness exists either way: a discarded one leaks its heartbeat.
+const connection = shareToken
+  ? connectBoard(doc, { url, boardId, token: shareToken })
+  : null
+const awareness = connection?.awareness ?? createLocalAwareness(doc)
 
 const presence = createPresence(awareness, {
   name: 'Alice',
@@ -47,6 +46,21 @@ the engine's `createEditor`.
 
 The store never writes on construction. A client creating a new board
 sets its meta itself: `store.setMeta({ name, createdAt: Date.now() })`.
+
+## Tearing a board down
+
+Closing a board releases the awareness heartbeat, the socket, and both
+databases.
+
+```ts
+presence.destroy()
+connection?.destroy()
+// The provider unhooks the awareness it created but never destroys it,
+// so clearing the heartbeat is the caller's job either way.
+awareness.destroy()
+await persistence.destroy()
+await assets.destroy()
+```
 
 ## Document layout
 
