@@ -1,4 +1,4 @@
-import type { Editor } from '@tlwb/engine'
+import type { Editor, PendingImage } from '@tlwb/engine'
 import { createEditor } from '@tlwb/engine'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { usePeers } from '../hooks/use-peers'
@@ -6,6 +6,7 @@ import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
 import { type Identity, saveIdentity } from '../session/identity'
 import { FONTS } from '../session/palette'
+import { ServerError } from '../session/server'
 import '../board.css'
 import { ContextPanel } from './context-panel'
 import { Notice } from './notice'
@@ -34,6 +35,8 @@ export function useEditor(): EditorContextValue {
 export function BoardApp(props: { session: BoardSession; identity: Identity }) {
   const { session } = props
   const containerRef = useRef<HTMLDivElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const pendingRef = useRef<PendingImage | null>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [identity, setIdentity] = useState(props.identity)
@@ -56,6 +59,11 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
       readOnly: session.getSnapshot().role === 'view',
       resolveImage: (hash) => session.images.resolve(hash),
       resolveImageUrl: (hash) => session.images.resolveUrl(hash),
+      getPendingImage: () => {
+        const pending = pendingRef.current
+        pendingRef.current = null
+        return pending
+      },
       onCursorMove: (point) => session.presence().setCursor(point),
       onTextEditRequest: (id) => setEditingId(id),
     })
@@ -115,6 +123,23 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
     return () => clearTimeout(timer)
   }, [toast])
 
+  const onFile = async (file: File | undefined): Promise<void> => {
+    if (!file || !editor) return
+    try {
+      pendingRef.current = await session.images.stage(file)
+      editor.setActiveTool('image')
+    } catch (error) {
+      const status = error instanceof ServerError ? error.status : null
+      setToast(
+        status === 415
+          ? 'This image type is not accepted'
+          : status === 413
+            ? 'This image is too large'
+            : 'Could not upload the image',
+      )
+    }
+  }
+
   const rename = (next: Identity): void => {
     saveIdentity(next)
     setIdentity(next)
@@ -124,10 +149,23 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
   return (
     <div className="board">
       <div ref={containerRef} className="board-canvas" />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
+        hidden
+        onChange={(event) => {
+          void onFile(event.target.files?.[0])
+          event.target.value = ''
+        }}
+      />
       {editor ? (
         <EditorContext.Provider value={{ editor, session }}>
           <TopBar session={session} />
-          <Toolbar editor={editor} onPickImage={() => undefined} />
+          <Toolbar
+            editor={editor}
+            onPickImage={() => fileRef.current?.click()}
+          />
           <ContextPanel editor={editor} store={session.store} />
           <ZoomControls editor={editor} />
           <PresenceStack
