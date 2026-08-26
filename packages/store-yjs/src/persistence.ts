@@ -6,6 +6,8 @@ export interface BoardPersistence {
   whenLoaded: Promise<void>
   /** Stops mirroring the doc and closes the database. */
   destroy(): Promise<void>
+  /** Destroys the mirror and deletes its database. */
+  clear(): Promise<void>
 }
 
 /**
@@ -33,5 +35,6 @@ export function persistBoard(doc: Y.Doc, boardId: string): BoardPersistence {
       whenOpenFails,
     ]),
     destroy: () => persistence.destroy(),
+    clear: () => persistence.clearData(),
   }
 }

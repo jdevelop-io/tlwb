@@ -45,4 +45,35 @@ describe('connectBoard', () => {
 
     expect(connection.getStatus()).toBe('disconnected')
   })
+
+  it('reports close codes and stops reconnecting only on 4401, 4403, 4404', () => {
+    const connection = connectBoard(new Y.Doc(), {
+      url: 'ws://localhost:1',
+      boardId: 'board-1',
+      token: 'secret',
+      connect: false,
+    })
+    const codes: Array<number | null> = []
+    connection.subscribeClose((code) => codes.push(code))
+    connection.provider.emit('connection-close', [
+      { code: 4422 } as CloseEvent,
+      connection.provider,
+    ])
+    connection.provider.emit('connection-close', [null, connection.provider])
+    expect(codes).toEqual([4422, null])
+
+    const reconnects = (code: number) =>
+      connection.provider.shouldReconnect(
+        { code } as CloseEvent,
+        connection.provider,
+      )
+    expect(reconnects(4401)).toBe(false)
+    expect(reconnects(4403)).toBe(false)
+    expect(reconnects(4404)).toBe(false)
+    expect(reconnects(4409)).toBe(true)
+    expect(reconnects(4422)).toBe(true)
+    expect(reconnects(4429)).toBe(true)
+    expect(reconnects(1006)).toBe(true)
+    connection.destroy()
+  })
 })

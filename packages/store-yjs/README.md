@@ -40,6 +40,12 @@ const presence = createPresence(awareness, {
 })
 ```
 
+`subscribeClose` reports every socket closure with its code (`null` for
+a local close). The provider stops reconnecting on `4401`, `4403`, and
+`4404`, the codes that mean the link itself is wrong; `reconnect()`
+resumes once the caller has fixed the cause. Every other code
+reconnects with backoff.
+
 The client never imports `yjs` or `y-protocols`: the document and the
 awareness are opaque handles it passes between these primitives and
 the engine's `createEditor`.
@@ -61,6 +67,9 @@ awareness.destroy()
 await persistence.destroy()
 await assets.destroy()
 ```
+
+To forget a board rather than close it, `persistence.clear()` and
+`assets.delete()` remove both databases.
 
 ## Document layout
 

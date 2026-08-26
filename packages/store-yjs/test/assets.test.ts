@@ -28,4 +28,13 @@ describe('createAssetStore', () => {
     expect(second).toBe(first)
     await assets.destroy()
   })
+
+  it('delete removes the blobs of the board', async () => {
+    const assets = createAssetStore('assets-delete')
+    const hash = await assets.put(new Blob([new Uint8Array([1, 2, 3])]))
+    await assets.delete()
+    const reopened = createAssetStore('assets-delete')
+    expect(await reopened.get(hash)).toBeUndefined()
+    await reopened.delete()
+  })
 })
