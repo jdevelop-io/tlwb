@@ -31,4 +31,18 @@ describe('connectBoard', () => {
 
     connection.destroy()
   })
+
+  it('reports disconnected after destroy even mid-connection', () => {
+    const connection = connectBoard(new Y.Doc(), {
+      url: 'ws://localhost:1',
+      boardId: 'board-1',
+      token: 'secret',
+      connect: false,
+    })
+
+    connection.provider.emit('status', [{ status: 'connecting' }])
+    connection.destroy()
+
+    expect(connection.getStatus()).toBe('disconnected')
+  })
 })

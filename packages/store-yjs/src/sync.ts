@@ -57,6 +57,7 @@ export function connectBoard(
     destroy() {
       listeners.clear()
       provider.destroy()
+      status = 'disconnected'
     },
   }
 }
