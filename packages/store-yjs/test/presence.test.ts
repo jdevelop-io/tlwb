@@ -83,7 +83,7 @@ describe('createPresence', () => {
     b.destroy()
   })
 
-  it('drops a malformed remote state', () => {
+  it('drops a remote state whose cursor is not a real point', () => {
     const a = new Awareness(new Y.Doc())
     const b = new Awareness(new Y.Doc())
     const alice = createPresence(a, {
@@ -91,7 +91,15 @@ describe('createPresence', () => {
       color: '#FF6B4A',
       isAgent: false,
     })
-    b.setLocalState({ name: 'Broken', cursor: { x: Number.NaN, y: 0 } })
+    // Valid in every other respect: the NaN coordinate alone must be
+    // enough for the peer to be dropped.
+    b.setLocalState({
+      name: 'Bob',
+      color: '#8B7CF6',
+      selectedIds: [],
+      isAgent: false,
+      cursor: { x: Number.NaN, y: 0 },
+    })
     relay(b, a)
 
     expect(alice.getPeers()).toEqual([])
