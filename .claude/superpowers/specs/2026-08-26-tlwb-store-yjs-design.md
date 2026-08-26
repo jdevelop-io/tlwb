@@ -95,9 +95,12 @@ Document layout: `doc.getMap('elements')` maps an element id to a
 `Y.Map` of that element's properties, one key per property of the
 engine's `BoardElement` (`text` as a string, `points` as a plain array,
 bindings as plain objects). `doc.getMap('meta')` holds `name` and
-`createdAt`. Merge granularity is one element property: two people
-moving two different shapes never conflict, and two people editing the
-same property resolve as last writer wins.
+`createdAt`; a document that has neither reads as `Untitled` created at
+`0`, and the client writes both when it creates a board, because the
+store never writes on construction (a load from IndexedDB or the network
+may still be pending). Merge granularity is one element property: two
+people moving two different shapes never conflict, and two people
+editing the same property resolve as last writer wins.
 
 ## 4. The store and its undo
 
@@ -131,7 +134,10 @@ The same `observeDeep` handler turns each transaction into exactly one
 `'changes'` event: a `create` for every added key, an `update` carrying
 only the properties the transaction changed, a `delete` for every removed
 key. A transaction on `meta` emits one `'meta'` event. One transaction
-means one observer call, which is what gives "one event per batch".
+means one observer call, which is what gives "one event per batch". A
+batch that changes nothing (empty, or naming only absent elements) opens
+an empty transaction and emits no event at all; no consumer in the
+engine depends on an event for a no-op batch.
 
 Origin mapping, read from the transaction's origin:
 
@@ -143,9 +149,11 @@ Origin mapping, read from the transaction's origin:
 
 ### Undo
 
-One `Y.UndoManager` over `[elements, meta]` with
-`trackedOrigins: new Set(['local'])` and `captureTimeout: 0`.
-`stopCapturing`, `undo`, `redo`, `canUndo`, `canRedo`, and
+One `Y.UndoManager` over `elements` only, matching the in-memory store
+where a `setMeta` is not undoable, with
+`trackedOrigins: new Set(['local'])` and an infinite `captureTimeout` so
+consecutive local batches coalesce until `stopCapturing` closes the
+entry. `stopCapturing`, `undo`, `redo`, `canUndo`, `canRedo`, and
 `clearHistory` delegate to it. A non-local transaction neither closes nor
 joins the current capture, which is the contract's rule and the
 `UndoManager`'s native behavior.
@@ -170,9 +178,10 @@ the undo stack.
 
 ### Synchronization
 
-`connectBoard(doc, { url, boardId, token })` mounts
-`new WebsocketProvider(url, boardId, doc, { params: { token } })` and
-returns `{ awareness, getStatus(), subscribeStatus(listener), destroy() }`
+`connectBoard(doc, { url, boardId, token, connect? })` mounts
+`new WebsocketProvider(url, boardId, doc, { params: { token }, connect })`
+and returns
+`{ provider, awareness, getStatus(), subscribeStatus(listener), destroy() }`
 with `status: 'connecting' | 'connected' | 'disconnected'` derived from
 the provider's `status` events. Reconnection, backoff, and
 resynchronization are the provider's. Read-only access is enforced by
@@ -202,9 +211,12 @@ An anonymous board has no provider; the client creates a bare
 hash.
 
 - `put(blob: Blob): Promise<string>` hashes the content with SHA-256
-  through `crypto.subtle`, stores the blob, returns the hex hash. The
-  same content always yields the same hash and one stored blob.
-- `get(hash: string): Promise<Blob | undefined>`.
+  through `crypto.subtle`, stores the bytes and the MIME type (an
+  `ArrayBuffer` clones identically in every IndexedDB implementation, a
+  `Blob` does not), returns the hex hash. The same content always yields
+  the same hash and one stored record.
+- `get(hash: string): Promise<Blob | undefined>` rebuilds the `Blob`
+  from the stored bytes and type.
 - `destroy()` closes the database.
 
 The client builds the engine's `ImageResolver` on top of it. There is no
