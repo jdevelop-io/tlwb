@@ -35,6 +35,22 @@ jobs:
   verify:
     name: Verify on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: tlwb
+          POSTGRES_PASSWORD: tlwb
+          POSTGRES_DB: tlwb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://tlwb:tlwb@localhost:5432/tlwb
     strategy:
       fail-fast: false
       matrix:

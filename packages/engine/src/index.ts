@@ -104,6 +104,7 @@ export {
   indexBetween,
   sortByIndex,
 } from './model/ordering'
+export { validateElement } from './model/validate'
 export type { Peer } from './presence'
 export { sanitizePeers } from './presence'
 export { getFreehandPath } from './render/freehand'
