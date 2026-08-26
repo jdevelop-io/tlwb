@@ -321,4 +321,24 @@ describe('interaction controller', () => {
     controller.setSelectedIds([])
     expect(calls).toBe(before)
   })
+
+  it('executes an action programmatically and notifies', () => {
+    const { controller } = setup()
+    let notified = 0
+    controller.subscribe(() => {
+      notified += 1
+    })
+    controller.execute({ kind: 'set-tool', tool: 'hand' })
+    expect(controller.getActiveTool()).toBe('hand')
+    expect(notified).toBe(1)
+  })
+
+  it('returns the creation defaults without exposing the live object', () => {
+    const { controller } = setup()
+    controller.setDefaults({ strokeColor: '#FF6B4A' })
+    const defaults = controller.getDefaults()
+    expect(defaults).toEqual({ strokeColor: '#FF6B4A' })
+    defaults.strokeColor = '#000000'
+    expect(controller.getDefaults()).toEqual({ strokeColor: '#FF6B4A' })
+  })
 })

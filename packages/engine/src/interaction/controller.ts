@@ -7,7 +7,7 @@ import {
   type KeyInput,
   resolveKeyboardAction,
 } from '../keyboard'
-import { applyWithArrows } from '../model/bindings'
+import { applyWithBindings } from '../model/bindings'
 import type { ElementId, ElementProps } from '../model/element'
 import {
   bringForward,
@@ -33,6 +33,7 @@ import type {
   GestureKind,
   PendingImage,
   PointerInput,
+  TextEditOrigin,
   Tool,
   ToolContext,
   ToolOverlay,
@@ -62,7 +63,30 @@ export interface InteractionControllerOptions {
   setCamera(camera: Camera): void
   /** Initial style defaults for created elements. */
   defaults?: ElementProps
-  onTextEditRequest?(id: ElementId): void
+  /**
+   * The host opens its DOM text editor over the element.
+   *
+   * A 'created' origin means the built-in text tool has just created
+   * the element and its undo capture is still open, so that the host's
+   * first commit joins the creation entry and one undo removes the
+   * element. Return true to take ownership of that capture: the host
+   * must then close it (`store.stopCapturing()`) when the edit settles,
+   * or the next local write joins the creation entry too. `nudge`
+   * writes without a boundary of its own, so an abandoned edit followed
+   * by an arrow key would otherwise undo the move and the element in
+   * one step.
+   *
+   * A host that ignores the origin returns nothing, and the tool closes
+   * the capture itself: creating and typing then cost two undo entries,
+   * which is what this controller did before the origin existed.
+   * `createEditor` takes ownership and settles it for you.
+   *
+   * The return type is `boolean | void`, not `boolean | undefined`:
+   * only `void` keeps a host's existing `(id: ElementId) => void`
+   * callback assignable, which is what makes taking the capture opt-in.
+   */
+  // biome-ignore lint/suspicious/noConfusingVoidType: `undefined` would reject the `(id) => void` callbacks hosts already pass
+  onTextEditRequest?(id: ElementId, origin: TextEditOrigin): boolean | void
   /**
    * Asset staged by the host for the image tool; null when none. The
    * engine only reads this once per placement, at the pointer-up that
@@ -96,6 +120,10 @@ export interface InteractionController {
   cancelGesture(): void
   /** True when the key was consumed; the host preventDefaults then. */
   handleKey(input: KeyInput): boolean
+  /** Runs an action as a consumed key would; the client chrome calls it. */
+  execute(action: KeyboardAction): void
+  /** Copy of the current creation defaults (contextual panel reads here). */
+  getDefaults(): ElementProps
   getSnapshot(): InteractionSnapshot
   /** Fires on any change of tool, selection, or gesture state. */
   subscribe(listener: () => void): () => void
@@ -118,10 +146,30 @@ export function createInteractionController(
   let activeToolType: ToolType = 'select'
   let defaults: ElementProps = { ...options.defaults }
   const listeners = new Set<() => void>()
+  // Some actions (a tool switch, clearing the selection) notify as a
+  // side effect of the helper they call, on top of the trailing notify
+  // every dispatch already does. Suppressing nested notifies while a
+  // dispatch runs keeps one key press or one `execute` call down to a
+  // single notification, matching what a subscriber actually cares
+  // about: the settled state after the action, not each step of it.
+  let dispatching = false
 
   const notify = (): void => {
+    if (dispatching) {
+      return
+    }
     for (const listener of listeners) {
       listener()
+    }
+  }
+
+  function dispatch(action: () => void): void {
+    dispatching = true
+    try {
+      action()
+    } finally {
+      dispatching = false
+      notify()
     }
   }
 
@@ -139,7 +187,8 @@ export function createInteractionController(
     },
     getDefaults: () => defaults,
     setActiveTool: (type) => setActiveTool(type),
-    requestTextEdit: (id) => options.onTextEditRequest?.(id),
+    requestTextEdit: (id, origin = 'existing') =>
+      options.onTextEditRequest?.(id, origin) === true,
     getPendingImage: () => options.getPendingImage?.() ?? null,
   }
 
@@ -266,7 +315,7 @@ export function createInteractionController(
             id: element.id,
             props: { x: element.x + action.dx, y: element.y + action.dy },
           }))
-        applyWithArrows(store, changes, wanted)
+        applyWithBindings(store, changes, wanted)
         return
       }
       default: {
@@ -288,6 +337,10 @@ export function createInteractionController(
     setDefaults: (patch) => {
       defaults = { ...defaults, ...patch }
     },
+    // Copied out, as getSelectedIds and getSnapshot copy out: the
+    // caller gets a snapshot, not a handle onto the controller's own
+    // defaults object.
+    getDefaults: () => ({ ...defaults }),
     pointerDown: (input) => {
       tools[activeToolType].onPointerDown(input, context)
       notify()
@@ -309,9 +362,11 @@ export function createInteractionController(
       if (!action) {
         return false
       }
-      execute(action)
-      notify()
+      dispatch(() => execute(action))
       return true
+    },
+    execute: (action) => {
+      dispatch(() => execute(action))
     },
     getSnapshot: () => {
       const elements = store.listElements()

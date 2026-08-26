@@ -28,7 +28,10 @@ pnpm test
 
 - `packages/engine`: the framework-agnostic whiteboard engine. Its data
   layer holds the element model, fractional z-ordering, the board store
-  with per-origin undo and redo, and the versioned JSON snapshot format.
+  with per-origin undo and redo, and the versioned JSON snapshot format;
+  rendering, tools, and the DOM-bound `createEditor` API sit on top.
+  Tests run in Node against `@napi-rs/canvas` and a small fake DOM
+  (`test/editor/fakeDom.ts`); the engine never needs jsdom or a browser.
 
 ## Checks
 
@@ -48,6 +51,14 @@ pnpm test       # Vitest across the workspace
 Tests are written with Vitest and drive development: write the failing
 test first, then the code that makes it pass. Tests exercise real
 behavior through public interfaces rather than mocks.
+
+One file is the exception to that setup:
+`packages/engine/src/editor/environment.ts` is the only place the engine
+touches `window` and `document`. Its tests stand fake globals up around
+it, which pins the logic but not the browser itself, so its bindings
+(`ResizeObserver`, `matchMedia`, `getComputedStyle`, canvas creation) are
+also verified by hand in a real browser whenever a client mounts the
+editor. Do not read the coverage of that file as covering the browser.
 
 The board store has one behavioral contract, `describeBoardStoreContract`
 in `packages/engine/src/store/contract.ts`, exported from the package as

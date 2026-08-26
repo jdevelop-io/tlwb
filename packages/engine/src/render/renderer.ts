@@ -1,6 +1,7 @@
 import { type Camera, clampZoom, createCamera } from '../camera'
 import type { BoardStore } from '../store/types'
 import { type ImageResolver, renderScene } from './scene'
+import { createFrameScheduler, type FrameRequester } from './schedule'
 import type { FontConfig } from './text'
 
 export interface RendererOptions {
@@ -14,23 +15,16 @@ export interface RendererOptions {
   resolveImage?: ImageResolver
   background?: string
   /** Frame scheduler, injectable for tests. */
-  requestFrame?: (callback: () => void) => void
+  requestFrame?: FrameRequester
 }
 
 export interface Renderer {
   getCamera(): Camera
   setCamera(camera: Camera): void
-  resize(width: number, height: number): void
+  /** The pixel ratio defaults to the current one. */
+  resize(width: number, height: number, devicePixelRatio?: number): void
   markDirty(): void
   destroy(): void
-}
-
-const defaultRequestFrame = (callback: () => void): void => {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => callback())
-  } else {
-    setTimeout(callback, 16)
-  }
 }
 
 /**
@@ -39,54 +33,40 @@ const defaultRequestFrame = (callback: () => void): void => {
  * continuous loop; a clean board costs nothing.
  */
 export function createRenderer(options: RendererOptions): Renderer {
-  const { canvas, store, requestFrame = defaultRequestFrame } = options
+  const { canvas, store } = options
   let camera = createCamera()
   let viewport = { width: options.width, height: options.height }
-  let dirty = false
-  let destroyed = false
+  let devicePixelRatio = options.devicePixelRatio ?? 1
 
-  const renderNow = (): void => {
+  const scheduler = createFrameScheduler(() => {
     renderScene(canvas, {
       elements: store.listElements(),
       camera,
       viewport,
-      devicePixelRatio: options.devicePixelRatio,
+      devicePixelRatio,
       fonts: options.fonts,
       resolveImage: options.resolveImage,
       background: options.background,
     })
-  }
+  }, options.requestFrame)
 
-  const markDirty = (): void => {
-    if (dirty || destroyed) {
-      return
-    }
-    dirty = true
-    requestFrame(() => {
-      dirty = false
-      if (destroyed) {
-        return
-      }
-      renderNow()
-    })
-  }
-
-  const unsubscribe = store.subscribe(() => markDirty())
-  markDirty()
+  const unsubscribe = store.subscribe(() => scheduler.markDirty())
+  scheduler.markDirty()
 
   return {
     getCamera: () => camera,
     setCamera: (next) => {
       camera = { ...next, zoom: clampZoom(next.zoom) }
-      markDirty()
+      scheduler.markDirty()
     },
-    resize: (width, height) => {
+    resize: (width, height, ratio = devicePixelRatio) => {
       viewport = { width, height }
-      markDirty()
+      devicePixelRatio = ratio
+      scheduler.markDirty()
     },
-    markDirty,
+    markDirty: scheduler.markDirty,
     destroy: () => {
-      destroyed = true
+      scheduler.destroy()
       unsubscribe()
     },
   }

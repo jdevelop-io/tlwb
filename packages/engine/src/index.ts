@@ -10,6 +10,27 @@ export {
   worldToScreen,
   zoomCamera,
 } from './camera'
+export type { CursorContext } from './editor/cursor'
+export { cursorFor } from './editor/cursor'
+export { createEditor } from './editor/editor'
+export type { EditorEnvironment } from './editor/environment'
+export { resolveEnvironment } from './editor/environment'
+export type {
+  Editor,
+  EditorAction,
+  EditorOptions,
+  EditorState,
+  ExportOptions,
+} from './editor/types'
+export {
+  EXPORT_MARGIN,
+  exportBounds,
+  selectExportElements,
+} from './export/bounds'
+export type { PngExportOptions } from './export/png'
+export { exportScenePng } from './export/png'
+export type { SvgExportOptions } from './export/svg'
+export { exportSceneSvg } from './export/svg'
 export type { Rect } from './geometry/bounds'
 export {
   expandRect,
@@ -57,10 +78,13 @@ export type { KeyboardAction, KeyInput } from './keyboard'
 export { resolveKeyboardAction } from './keyboard'
 export type { BindableElement } from './model/bindings'
 export {
+  applyWithBindings,
   attachmentPoint,
   boundArrowUpdates,
+  boundLabelUpdates,
   findBindTarget,
   isBindable,
+  labelFrame,
 } from './model/bindings'
 export { createElement } from './model/create'
 export * from './model/element'
@@ -80,18 +104,25 @@ export {
   indexBetween,
   sortByIndex,
 } from './model/ordering'
+export type { Peer } from './presence'
+export { sanitizePeers } from './presence'
 export { getFreehandPath } from './render/freehand'
+export type { OverlayTheme, RenderOverlayOptions } from './render/overlay'
+export { DEFAULT_OVERLAY_THEME, renderOverlay } from './render/overlay'
 export type { Renderer, RendererOptions } from './render/renderer'
 export { createRenderer } from './render/renderer'
 export type { ImageResolver, RenderSceneOptions } from './render/scene'
 export { renderScene } from './render/scene'
+export type { FrameRequester, FrameScheduler } from './render/schedule'
+export { createFrameScheduler } from './render/schedule'
 export type { SketchyElement } from './render/shapes'
-export { getShapeDrawables } from './render/shapes'
-export type { FontConfig } from './render/text'
+export { getShapeDrawables, getShapeSvgPaths } from './render/shapes'
+export type { FontConfig, TextSize, TextSpec } from './render/text'
 export {
   DEFAULT_FONTS,
   fontString,
   LINE_HEIGHT,
+  measureText,
   textAnchorX,
   textLines,
 } from './render/text'
@@ -118,6 +149,7 @@ export type {
   GestureKind,
   PendingImage,
   PointerInput,
+  TextEditOrigin,
   Tool,
   ToolContext,
   ToolOverlay,

@@ -14,7 +14,7 @@ import {
   rotationAngle,
   scaleElement,
 } from '../geometry/transform'
-import { applyWithArrows } from '../model/bindings'
+import { applyWithBindings } from '../model/bindings'
 import type { BoardElement, ElementId, Point } from '../model/element'
 import { duplicateElements } from '../model/operations'
 import { elementsInRect, expandToGroups, selectionBounds } from '../selection'
@@ -312,7 +312,7 @@ export function createSelectTool(): Tool {
           )
           session.guides = snap.guides
           session.wrote = true
-          applyWithArrows(store, changes, movedIds)
+          applyWithBindings(store, changes, movedIds)
           return
         }
         case 'lasso': {
@@ -374,7 +374,7 @@ export function createSelectTool(): Tool {
             }),
           )
           session.wrote = true
-          applyWithArrows(store, changes, new Set(session.start.keys()))
+          applyWithBindings(store, changes, new Set(session.start.keys()))
           return
         }
         case 'rotating': {
@@ -394,7 +394,7 @@ export function createSelectTool(): Tool {
             input.shiftKey,
           )
           session.wrote = true
-          applyWithArrows(
+          applyWithBindings(
             store,
             [{ kind: 'update', id: session.id, props: { angle } }],
             new Set([session.id]),

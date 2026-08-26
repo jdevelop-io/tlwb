@@ -159,20 +159,74 @@ export function boundArrowUpdates(
 }
 
 /**
- * Applies a batch, then re-anchors the arrows bound to the touched ids.
- * This is the whole re-anchor policy in one place: any change to an
- * element's position must re-anchor its bound arrows, so every caller
- * that moves elements goes through here rather than pairing
- * `applyChanges` with `boundArrowUpdates` on its own.
+ * Frame of a label centered in its container: the label's own center
+ * sits on the container's center and it turns with the container, so
+ * rotating either one keeps them concentric.
  */
-export function applyWithArrows(
+export function labelFrame(
+  container: BoardElement,
+  size: { width: number; height: number },
+): { x: number; y: number; angle: number } {
+  return {
+    x: container.x + (container.width - size.width) / 2,
+    y: container.y + (container.height - size.height) / 2,
+    angle: container.angle,
+  }
+}
+
+/**
+ * Update batch recentering every label whose container is in
+ * `movedIds`, from the current element positions (call it after the
+ * move batch has been applied). A label that moved itself is skipped,
+ * exactly like an arrow that moved itself in `boundArrowUpdates`.
+ */
+export function boundLabelUpdates(
+  elements: readonly BoardElement[],
+  movedIds: ReadonlySet<ElementId>,
+): BoardChange[] {
+  const byId = new Map(elements.map((element) => [element.id, element]))
+  const changes: BoardChange[] = []
+  for (const element of elements) {
+    if (
+      element.type !== 'text' ||
+      element.containerId === null ||
+      movedIds.has(element.id)
+    ) {
+      continue
+    }
+    const container = byId.get(element.containerId)
+    if (!container || !movedIds.has(container.id)) {
+      continue
+    }
+    changes.push({
+      kind: 'update',
+      id: element.id,
+      props: labelFrame(container, element),
+    })
+  }
+  return changes
+}
+
+/**
+ * Applies a batch, then re-anchors the arrows and recenters the labels
+ * bound to the touched ids. This is the whole follow policy in one
+ * place: any change to an element's frame must update what is bound to
+ * it, so every caller that moves, resizes, or rotates elements goes
+ * through here rather than pairing `applyChanges` with the update
+ * builders on its own.
+ */
+export function applyWithBindings(
   store: BoardStore,
   changes: BoardChange[],
   touchedIds: ReadonlySet<ElementId>,
 ): void {
   store.applyChanges(changes)
-  const arrows = boundArrowUpdates(store.listElements(), touchedIds)
-  if (arrows.length > 0) {
-    store.applyChanges(arrows)
+  const elements = store.listElements()
+  const bound = [
+    ...boundArrowUpdates(elements, touchedIds),
+    ...boundLabelUpdates(elements, touchedIds),
+  ]
+  if (bound.length > 0) {
+    store.applyChanges(bound)
   }
 }
