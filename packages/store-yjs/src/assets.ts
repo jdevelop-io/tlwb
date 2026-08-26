@@ -1,12 +1,8 @@
 import { type DBSchema, deleteDB, openDB } from 'idb'
 
 export interface AssetStore {
-  /**
-   * Stores the blob and returns its SHA-256 content hash (hex). Pass a
-   * known hash to store under it directly, skipping recomputation, for
-   * content already addressed by that hash (a remote fetch by hash).
-   */
-  put(blob: Blob, hash?: string): Promise<string>
+  /** Stores the blob and returns its SHA-256 content hash (hex). */
+  put(blob: Blob): Promise<string>
   get(hash: string): Promise<Blob | undefined>
   destroy(): Promise<void>
   /** Closes and deletes the database of this board. */
@@ -45,11 +41,11 @@ export function createAssetStore(boardId: string): AssetStore {
   // no link to its cause. The callers below still see it.
   db.catch(() => undefined)
   return {
-    async put(blob, hash) {
+    async put(blob) {
       const bytes = await blob.arrayBuffer()
-      const key = hash ?? (await sha256Hex(bytes))
-      await (await db).put('blobs', { type: blob.type, bytes }, key)
-      return key
+      const hash = await sha256Hex(bytes)
+      await (await db).put('blobs', { type: blob.type, bytes }, hash)
+      return hash
     },
     async get(hash) {
       const record = await (await db).get('blobs', hash)
