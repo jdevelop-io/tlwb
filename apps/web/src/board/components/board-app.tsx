@@ -9,7 +9,9 @@ import { FONTS } from '../session/palette'
 import { ServerError } from '../session/server'
 import '../board.css'
 import { ContextPanel } from './context-panel'
+import { HelpButton } from './help-button'
 import { Notice } from './notice'
+import { OverflowMenu } from './overflow-menu'
 import { PresenceStack } from './presence-stack'
 import { ShareDialog } from './share-dialog'
 import { TextEditor } from './text-editor'
@@ -173,13 +175,18 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
             identity={identity}
             onRename={rename}
             onShare={() => setShareOpen(true)}
-            menu={null}
+            menu={
+              snapshot.role === 'view' ? null : (
+                <OverflowMenu session={session} editor={editor} />
+              )
+            }
           />
           <ShareDialog
             session={session}
             open={shareOpen}
             onClose={() => setShareOpen(false)}
           />
+          <HelpButton />
           {editingId ? (
             <TextEditor
               editor={editor}

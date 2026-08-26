@@ -27,3 +27,17 @@
   text-decoration: none;
   font-weight: 500;
 }
+
+.help-button {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  z-index: 10;
+}
