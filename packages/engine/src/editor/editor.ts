@@ -30,7 +30,12 @@ import { createRenderer } from '../render/renderer'
 import { createFrameScheduler } from '../render/schedule'
 import { DEFAULT_FONTS, measureText, type TextSpec } from '../render/text'
 import { selectionBounds } from '../selection'
-import { HIT_TOLERANCE, type ToolType, topIndex } from '../tools/types'
+import {
+  HIT_TOLERANCE,
+  type TextEditOrigin,
+  type ToolType,
+  topIndex,
+} from '../tools/types'
 import { resolveEnvironment } from './environment'
 import { bindInput } from './input'
 import {
@@ -118,6 +123,26 @@ export function createEditor(options: EditorOptions): Editor {
    */
   let pendingTextId: ElementId | null = null
 
+  /**
+   * The single door to the host's text editor, whichever route opened
+   * it: the text tool through the controller, a double-click here. A
+   * 'created' element arrives with its undo capture still open, and
+   * recording it here is what lets the first `commitText` join the
+   * creation entry instead of opening a second one. Closing that
+   * capture would cost two undo entries, the first of which only
+   * empties the text back to an invisible zero-width frame.
+   *
+   * The open capture is the price. Every other route into the store
+   * closes it first (`settleTextCreation`), so an edit the user
+   * abandons cannot swallow a later unrelated action.
+   */
+  const beginTextEdit = (id: ElementId, origin: TextEditOrigin): void => {
+    if (origin === 'created') {
+      pendingTextId = id
+    }
+    options.onTextEditRequest?.(id)
+  }
+
   const renderer = createRenderer({
     canvas: sceneCanvas,
     store,
@@ -152,7 +177,7 @@ export function createEditor(options: EditorOptions): Editor {
     getCamera: () => renderer.getCamera(),
     setCamera,
     defaults: options.defaults,
-    onTextEditRequest: options.onTextEditRequest,
+    onTextEditRequest: beginTextEdit,
     getPendingImage: options.getPendingImage,
   })
 
@@ -222,26 +247,18 @@ export function createEditor(options: EditorOptions): Editor {
   })
 
   /**
-   * Creating a text and typing its first characters is one action from
-   * the user's seat, so it is one undo entry: the capture opened here
-   * stays open and the first `commitText` joins it. Closing it here
-   * instead would cost two undo entries, the first of which only empties
-   * the text back to an invisible zero-width frame.
-   *
-   * The open capture is the price. Every other route into the store
-   * closes it first (`settleTextCreation`), so an edit the user abandons
-   * cannot swallow a later unrelated action.
+   * The double-click route: creates the text with its capture left
+   * open, then goes through the same door the text tool goes through.
    */
   const placeText = (element: BoardElement): void => {
     store.stopCapturing()
     store.applyChanges([{ kind: 'create', element }])
-    pendingTextId = element.id
     controller.setActiveTool('select')
     controller.setSelectedIds([element.id])
-    options.onTextEditRequest?.(element.id)
+    beginTextEdit(element.id, 'created')
   }
 
-  /** Closes the capture `placeText` left open, if one is still open. */
+  /** Closes the capture a creation left open, if one is still open. */
   const settleTextCreation = (): void => {
     if (pendingTextId === null) {
       return
@@ -294,7 +311,7 @@ export function createEditor(options: EditorOptions): Editor {
           return
         case 'edit':
           controller.setSelectedIds([target.id])
-          options.onTextEditRequest?.(target.id)
+          beginTextEdit(target.id, 'existing')
           return
         case 'label': {
           const shape = store.getElement(target.containerId)

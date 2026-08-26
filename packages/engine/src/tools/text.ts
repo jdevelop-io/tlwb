@@ -20,10 +20,12 @@ export function createTextTool(): Tool {
         x: input.world.x,
         y: input.world.y,
       })
+      // The capture stays open: 'created' hands it to the owner of the
+      // pending creation, so the host's first commit joins this entry
+      // and one undo removes the element.
       context.store.applyChanges([{ kind: 'create', element }])
-      context.store.stopCapturing()
       context.setSelection([element.id])
-      context.requestTextEdit(element.id)
+      context.requestTextEdit(element.id, 'created')
       context.setActiveTool('select')
     },
     onCancel() {},

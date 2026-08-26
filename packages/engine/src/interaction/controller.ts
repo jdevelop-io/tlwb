@@ -33,6 +33,7 @@ import type {
   GestureKind,
   PendingImage,
   PointerInput,
+  TextEditOrigin,
   Tool,
   ToolContext,
   ToolOverlay,
@@ -62,7 +63,11 @@ export interface InteractionControllerOptions {
   setCamera(camera: Camera): void
   /** Initial style defaults for created elements. */
   defaults?: ElementProps
-  onTextEditRequest?(id: ElementId): void
+  /**
+   * The origin tells the owner of the undo capture whether the element
+   * was just created; a host that only edits text can ignore it.
+   */
+  onTextEditRequest?(id: ElementId, origin: TextEditOrigin): void
   /**
    * Asset staged by the host for the image tool; null when none. The
    * engine only reads this once per placement, at the pointer-up that
@@ -163,7 +168,8 @@ export function createInteractionController(
     },
     getDefaults: () => defaults,
     setActiveTool: (type) => setActiveTool(type),
-    requestTextEdit: (id) => options.onTextEditRequest?.(id),
+    requestTextEdit: (id, origin = 'existing') =>
+      options.onTextEditRequest?.(id, origin),
     getPendingImage: () => options.getPendingImage?.() ?? null,
   }
 

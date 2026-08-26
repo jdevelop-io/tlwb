@@ -101,6 +101,34 @@ describe('text creation as one undo entry', () => {
     expect(store.getElement(id)).toMatchObject({ x: 30 })
   })
 
+  it('removes a text placed with the text tool with a single undo', () => {
+    const { editor, store, pointer } = mountEditor()
+    editor.setActiveTool('text')
+    pointer('pointerdown', 30, 40)
+    pointer('pointerup', 30, 40)
+    const [text] = store.listElements()
+    editor.commitText(text?.id ?? '', 'hello')
+    editor.undo()
+    expect(store.listElements()).toEqual([])
+  })
+
+  it('keeps an unrelated action out of an abandoned tool placement', () => {
+    const { editor, store, pointer } = mountEditor()
+    editor.setActiveTool('text')
+    pointer('pointerdown', 30, 40)
+    pointer('pointerup', 30, 40)
+    // No commit ever comes: the host's editor is closed another way.
+    editor.setActiveTool('rectangle')
+    pointer('pointerdown', 100, 100)
+    pointer('pointermove', 200, 160)
+    pointer('pointerup', 200, 160)
+    expect(store.listElements()).toHaveLength(2)
+    editor.undo()
+    expect(store.listElements().map((element) => element.type)).toEqual([
+      'text',
+    ])
+  })
+
   it('keeps an unrelated action out of an abandoned creation entry', () => {
     const { editor, store, pointer } = mountEditor()
     pointer('dblclick', 30, 40)

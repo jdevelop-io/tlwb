@@ -37,6 +37,14 @@ export interface PendingImage {
   height: number
 }
 
+/**
+ * Why the host is being asked to open its text editor. 'created' says
+ * the caller has just created the element and left its undo capture
+ * open, so the first commit joins the creation entry; 'existing' asks
+ * to edit an element that was already there.
+ */
+export type TextEditOrigin = 'created' | 'existing'
+
 export interface ToolContext {
   store: BoardStore
   getCamera(): Camera
@@ -48,8 +56,12 @@ export interface ToolContext {
   getDefaults(): ElementProps
   /** Creation tools fall back to select once their element exists. */
   setActiveTool(type: ToolType): void
-  /** The host opens its DOM text editor over the element. */
-  requestTextEdit(id: ElementId): void
+  /**
+   * The host opens its DOM text editor over the element. A tool that
+   * just created the element passes 'created' and leaves its capture
+   * open, so creating and typing cost one undo entry.
+   */
+  requestTextEdit(id: ElementId, origin?: TextEditOrigin): void
   /** Asset staged by the host for the image tool; null when none. */
   getPendingImage(): PendingImage | null
 }

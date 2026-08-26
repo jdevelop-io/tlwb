@@ -149,6 +149,7 @@ export type {
   GestureKind,
   PendingImage,
   PointerInput,
+  TextEditOrigin,
   Tool,
   ToolContext,
   ToolOverlay,
