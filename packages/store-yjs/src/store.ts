@@ -139,6 +139,10 @@ export function createYjsBoardStore(doc: Y.Doc): BoardStore {
     listElements() {
       if (!sorted) {
         sorted = sortByIndex([...cache.values()])
+        // Frozen rather than copied per call: the contract forbids
+        // exposing internal state to callers, and the render loop wants
+        // the array identity to stay stable between reads.
+        Object.freeze(sorted)
       }
       return sorted
     },

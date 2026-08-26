@@ -101,6 +101,21 @@ describe('createYjsBoardStore', () => {
     expect(events).toHaveLength(0)
   })
 
+  it('hands out a list a caller cannot mutate', () => {
+    const doc = new Y.Doc()
+    const store = createYjsBoardStore(doc)
+    store.applyChanges([
+      { kind: 'create', element: createElement('rectangle', { index: 'a0' }) },
+    ])
+    const listed = store.listElements()
+
+    expect(Object.isFrozen(listed)).toBe(true)
+    expect(() => {
+      listed.push(createElement('ellipse', { index: 'a1' }))
+    }).toThrow(TypeError)
+    expect(store.listElements()).toHaveLength(1)
+  })
+
   it('ignores a value written under an element id that is not a map', () => {
     const doc = new Y.Doc()
     const store = createYjsBoardStore(doc)
