@@ -109,8 +109,8 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       return c.json({ error: 'too many boards created' }, 429)
     }
 
-    // 16 random bytes in base64url: 22 characters inside BOARD_ID's
-    // alphabet, unguessable, and never chosen by a client.
+    // 16 random bytes in base64url: 22 characters, alphabet
+    // [A-Za-z0-9_-], unguessable, and never chosen by a client.
     const boardId = randomBytes(16).toString('base64url')
     const editKey = generateKey()
     const viewKey = generateKey()
