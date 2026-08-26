@@ -20,12 +20,17 @@ export function createTextTool(): Tool {
         x: input.world.x,
         y: input.world.y,
       })
-      // The capture stays open: 'created' hands it to the owner of the
-      // pending creation, so the host's first commit joins this entry
-      // and one undo removes the element.
+      // The capture is offered, not abandoned: a recipient that takes
+      // it ('created' handed over, true returned) closes it once the
+      // edit settles, so the host's first commit joins this entry and
+      // one undo removes the element. A recipient that declines leaves
+      // the tool to close it here, which costs a second undo entry but
+      // never lets an unrelated write join this one.
       context.store.applyChanges([{ kind: 'create', element }])
       context.setSelection([element.id])
-      context.requestTextEdit(element.id, 'created')
+      if (!context.requestTextEdit(element.id, 'created')) {
+        context.store.stopCapturing()
+      }
       context.setActiveTool('select')
     },
     onCancel() {},

@@ -126,21 +126,26 @@ export function createEditor(options: EditorOptions): Editor {
   /**
    * The single door to the host's text editor, whichever route opened
    * it: the text tool through the controller, a double-click here. A
-   * 'created' element arrives with its undo capture still open, and
-   * recording it here is what lets the first `commitText` join the
-   * creation entry instead of opening a second one. Closing that
-   * capture would cost two undo entries, the first of which only
-   * empties the text back to an invisible zero-width frame.
+   * 'created' element arrives with its undo capture still open. This
+   * takes ownership of it, saying so with the return value the text
+   * tool reads, and the `pendingTextId` recorded here is what lets the
+   * first `commitText` join the creation entry instead of opening a
+   * second one. Closing that capture instead would cost two undo
+   * entries, the first of which only empties the text back to an
+   * invisible zero-width frame.
    *
    * The open capture is the price. Every other route into the store
    * closes it first (`settleTextCreation`), so an edit the user
    * abandons cannot swallow a later unrelated action.
    */
-  const beginTextEdit = (id: ElementId, origin: TextEditOrigin): void => {
+  const beginTextEdit = (id: ElementId, origin: TextEditOrigin): boolean => {
     if (origin === 'created') {
       pendingTextId = id
     }
     options.onTextEditRequest?.(id)
+    // Recording the pending creation is taking ownership of its still
+    // open capture: `settleTextCreation` is what closes it.
+    return origin === 'created'
   }
 
   const renderer = createRenderer({

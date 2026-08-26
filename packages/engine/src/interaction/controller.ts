@@ -64,10 +64,29 @@ export interface InteractionControllerOptions {
   /** Initial style defaults for created elements. */
   defaults?: ElementProps
   /**
-   * The origin tells the owner of the undo capture whether the element
-   * was just created; a host that only edits text can ignore it.
+   * The host opens its DOM text editor over the element.
+   *
+   * A 'created' origin means the built-in text tool has just created
+   * the element and its undo capture is still open, so that the host's
+   * first commit joins the creation entry and one undo removes the
+   * element. Return true to take ownership of that capture: the host
+   * must then close it (`store.stopCapturing()`) when the edit settles,
+   * or the next local write joins the creation entry too. `nudge`
+   * writes without a boundary of its own, so an abandoned edit followed
+   * by an arrow key would otherwise undo the move and the element in
+   * one step.
+   *
+   * A host that ignores the origin returns nothing, and the tool closes
+   * the capture itself: creating and typing then cost two undo entries,
+   * which is what this controller did before the origin existed.
+   * `createEditor` takes ownership and settles it for you.
+   *
+   * The return type is `boolean | void`, not `boolean | undefined`:
+   * only `void` keeps a host's existing `(id: ElementId) => void`
+   * callback assignable, which is what makes taking the capture opt-in.
    */
-  onTextEditRequest?(id: ElementId, origin: TextEditOrigin): void
+  // biome-ignore lint/suspicious/noConfusingVoidType: `undefined` would reject the `(id) => void` callbacks hosts already pass
+  onTextEditRequest?(id: ElementId, origin: TextEditOrigin): boolean | void
   /**
    * Asset staged by the host for the image tool; null when none. The
    * engine only reads this once per placement, at the pointer-up that
@@ -169,7 +188,7 @@ export function createInteractionController(
     getDefaults: () => defaults,
     setActiveTool: (type) => setActiveTool(type),
     requestTextEdit: (id, origin = 'existing') =>
-      options.onTextEditRequest?.(id, origin),
+      options.onTextEditRequest?.(id, origin) === true,
     getPendingImage: () => options.getPendingImage?.() ?? null,
   }
 

@@ -41,8 +41,12 @@ export function createTestContext(): TestContext {
     setActiveTool: (type) => {
       context.activeTool = type
     },
+    // Declines the undo capture, like any host that ignores the origin:
+    // the tool closes its own entry. `createTextTool`'s other branch is
+    // driven by overriding this in the test that needs it.
     requestTextEdit: (id) => {
       context.textEditRequests.push(id)
+      return false
     },
     getPendingImage: () => context.pendingImage,
   }

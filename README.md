@@ -72,7 +72,9 @@ label or a text element, the editor calls `onTextEditRequest(id)`; the
 host opens whatever text input it wants, positioned with
 `editor.getElementScreenRect(id)`, and calls `editor.commitText(id,
 text)` when the host is done (on blur, on Enter, whichever fits the
-host's UI):
+host's UI). Creating a text and typing its first characters is one undo
+entry: `createEditor` keeps the creation's undo capture open until the
+commit, and closes it on any other action:
 
 ```ts
 import type { Editor } from '@tlwb/engine'
@@ -105,6 +107,14 @@ const editor = createEditor({
   onTextEditRequest: (id) => openTextEditor(editor, container, id),
 })
 ```
+
+A host binding its own DOM through `createInteractionController` instead
+owns that capture. Its `onTextEditRequest(id, origin)` receives an
+`origin` of `'created'` when the text tool has just created the element
+and left the capture open: return `true` to take it, and call
+`store.stopCapturing()` when the edit settles (the commit, or any
+unrelated action). Returning nothing declines it, the tool closes the
+capture itself, and creating then typing costs two undo entries.
 
 ### Presence and read-only mode
 

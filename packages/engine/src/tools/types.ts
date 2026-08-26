@@ -58,10 +58,15 @@ export interface ToolContext {
   setActiveTool(type: ToolType): void
   /**
    * The host opens its DOM text editor over the element. A tool that
-   * just created the element passes 'created' and leaves its capture
-   * open, so creating and typing cost one undo entry.
+   * just created the element passes 'created' and leaves its undo
+   * capture open, so creating and typing cost one undo entry.
+   *
+   * Returns true when the recipient took ownership of that capture and
+   * will close it itself. A recipient that ignores the origin returns
+   * nothing, which is falsy: the caller must then close the capture, so
+   * declining is always the safe answer.
    */
-  requestTextEdit(id: ElementId, origin?: TextEditOrigin): void
+  requestTextEdit(id: ElementId, origin?: TextEditOrigin): boolean
   /** Asset staged by the host for the image tool; null when none. */
   getPendingImage(): PendingImage | null
 }
