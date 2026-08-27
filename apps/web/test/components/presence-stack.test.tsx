@@ -28,4 +28,31 @@ describe('PresenceStack', () => {
     expect(screen.getByRole('textbox', { name: 'Your name' })).toHaveFocus()
     await session.destroy()
   })
+
+  it('keeps the menu slot outside the scrolling peer list', async () => {
+    const session = await openBoardSession({
+      boardId: 'ps2',
+      fresh: true,
+      identity,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    render(
+      <PresenceStack
+        session={session}
+        identity={identity}
+        onRename={() => undefined}
+        onShare={() => undefined}
+        menu={<div data-testid="menu-marker" />}
+      />,
+    )
+    // A popover nested inside the peer list would inherit its
+    // scrolling clip box and get clipped to nothing, exactly like the
+    // overflow menu did before this scrolling was scoped to the peer
+    // list alone: see presence-stack.css for the full explanation.
+    const marker = screen.getByTestId('menu-marker')
+    const scrollingPeers = document.querySelector('.presence-avatars')
+    expect(scrollingPeers).not.toBeNull()
+    expect(scrollingPeers?.contains(marker)).toBe(false)
+    await session.destroy()
+  })
 })

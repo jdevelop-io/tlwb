@@ -72,14 +72,16 @@ export function PresenceStack(props: {
           onClick={() => setRenaming(true)}
         />
       )}
-      {peers.map((peer) => (
-        <Avatar
-          key={peer.id}
-          name={peer.name}
-          color={peer.color}
-          isAgent={peer.isAgent}
-        />
-      ))}
+      <div className="presence-avatars">
+        {peers.map((peer) => (
+          <Avatar
+            key={peer.id}
+            name={peer.name}
+            color={peer.color}
+            isAgent={peer.isAgent}
+          />
+        ))}
+      </div>
       {snapshot.role !== 'view' ? (
         <button type="button" className="share" onClick={props.onShare}>
           Share

@@ -96,3 +96,40 @@ test('a view link shows the board and refuses to draw', async ({
   await expect.poll(() => elementCount(viewer)).toBe(1)
   await other.close()
 })
+
+test("the overflow menu paints its items outside the presence stack's clipping", async ({
+  page,
+}) => {
+  await page.goto('/b/new')
+  await page.getByRole('radio', { name: 'Select (1)' }).waitFor()
+  await page.getByRole('button', { name: 'More' }).click()
+
+  const items = [
+    'Export PNG',
+    'Export SVG',
+    'Duplicate',
+    'Remove from this browser',
+  ]
+  for (const name of items) {
+    const button = page.getByRole('button', { name })
+    // toBeVisible only checks CSS visibility/display and a non-empty
+    // box; an ancestor's overflow can clip a box to nothing while both
+    // of those still hold. Ask the browser what is actually painted at
+    // the button's own screen position instead: if a scrolling
+    // ancestor clips it, that point hits something else (or nothing).
+    const isPaintedHere = await button.evaluate((el) => {
+      const rect = el.getBoundingClientRect()
+      const hit = document.elementFromPoint(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+      )
+      return hit === el || (hit !== null && el.contains(hit))
+    })
+    expect(isPaintedHere, `${name} should be painted at its own position`).toBe(
+      true,
+    )
+  }
+
+  await page.getByRole('button', { name: 'Export PNG' }).click()
+  await expect(page.getByRole('button', { name: 'More' })).toBeVisible()
+})
