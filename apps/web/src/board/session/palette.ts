@@ -22,6 +22,9 @@ export const FILL_COLORS: readonly (string | null)[] = [
   '#FFEC99',
 ]
 
+/** The board's own white: the canvas behind it, and every export of it. */
+export const BOARD_BACKGROUND = '#FFFFFF'
+
 export const FONTS: FontConfig = {
   hand: 'Caveat, cursive',
   ui: 'Inter, system-ui, sans-serif',

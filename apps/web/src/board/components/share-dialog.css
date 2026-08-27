@@ -26,7 +26,7 @@
 }
 
 .share-dialog .error {
-  color: #c92a2a;
+  color: var(--danger);
 }
 
 .share-role {

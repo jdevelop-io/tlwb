@@ -3,6 +3,7 @@ import { MoreHorizontal } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { download, duplicateBoard, removeBoard } from '../session/board-actions'
 import type { BoardSession } from '../session/board-session'
+import { BOARD_BACKGROUND } from '../session/palette'
 import { Notice } from './notice'
 import './overflow-menu.css'
 
@@ -66,7 +67,7 @@ export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
               type="button"
               onClick={run(async () => {
                 const blob = await editor.exportPng({
-                  background: '#FFFFFF',
+                  background: BOARD_BACKGROUND,
                   scale: 2,
                 })
                 download(blob, `${name()}.png`)
@@ -79,7 +80,7 @@ export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
             <button
               type="button"
               onClick={run(() => {
-                const svg = editor.exportSvg({ background: '#FFFFFF' })
+                const svg = editor.exportSvg({ background: BOARD_BACKGROUND })
                 download(
                   new Blob([svg], { type: 'image/svg+xml' }),
                   `${name()}.svg`,

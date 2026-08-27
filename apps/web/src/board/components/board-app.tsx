@@ -6,7 +6,7 @@ import { usePeers } from '../hooks/use-peers'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
 import { type Identity, saveIdentity } from '../session/identity'
-import { FONTS } from '../session/palette'
+import { BOARD_BACKGROUND, FONTS } from '../session/palette'
 import { ServerError } from '../session/server'
 import '../board.css'
 import { ContextPanel } from './context-panel'
@@ -58,7 +58,7 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
       container,
       store: session.store,
       fonts: FONTS,
-      background: '#FFFFFF',
+      background: BOARD_BACKGROUND,
       readOnly: session.getSnapshot().role === 'view',
       resolveImage: (hash) => session.images.resolve(hash),
       resolveImageUrl: (hash) => session.images.resolveUrl(hash),

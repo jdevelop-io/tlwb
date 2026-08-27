@@ -18,7 +18,12 @@ export interface ShareDeps {
 /**
  * Turns a local board into a hosted one. Nothing local changes before
  * the server has answered, and a failed upload removes what was written
- * under the new id, so the board is either fully moved or untouched.
+ * under the new id, so a failure there leaves the board where it was.
+ * Two things it does not undo: the board the server has already
+ * created, along with whatever assets reached it, stays there
+ * orphaned; and past the upload loop there is no rollback at all, so a
+ * failure while clearing the old databases leaves them on the device
+ * with the board already hosted under its new id.
  */
 export async function shareBoard(
   session: BoardSession,
