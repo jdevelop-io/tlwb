@@ -1,6 +1,7 @@
 import type { Editor, PendingImage } from '@tlwb/engine'
 import { createEditor } from '@tlwb/engine'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { useCloseCode } from '../hooks/use-close-code'
 import { usePeers } from '../hooks/use-peers'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
@@ -44,9 +45,9 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
   const [identity, setIdentity] = useState(props.identity)
   const [shareOpen, setShareOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const [linkDead, setLinkDead] = useState(false)
   const snapshot = useSession(session)
   const peers = usePeers(session)
+  const { linkDead, editRefused } = useCloseCode(session, setToast)
 
   useEffect(() => {
     const container = containerRef.current
@@ -98,24 +99,6 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
   useEffect(() => {
     editor?.setPresence(peers)
   }, [editor, peers])
-
-  useEffect(() => {
-    const code = snapshot.closeCode
-    if (code === 4401 || code === 4404) {
-      session.forgetKeys()
-      setLinkDead(true)
-    } else if (code === 4403) {
-      session.becomeViewer()
-    } else if (code === 4409 || code === 4422 || code === 4429) {
-      setToast('Change refused by the server')
-    }
-    // Consumed once: clearing it here makes an identical repeat a real
-    // transition next time, so the effect fires again instead of the
-    // code lingering unchanged.
-    if (code !== null) {
-      session.acknowledgeClose()
-    }
-  }, [session, snapshot.closeCode])
 
   useEffect(() => {
     if (!toast) {
@@ -196,7 +179,11 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
             />
           ) : null}
           {snapshot.role === 'view' ? (
-            <Notice kind="banner">View only</Notice>
+            <Notice kind="banner">
+              {editRefused
+                ? 'Your change was not saved: this link is view only'
+                : 'View only'}
+            </Notice>
           ) : null}
           {snapshot.storage === 'memory' ? (
             <Notice kind="banner">This browser is not saving this board</Notice>
