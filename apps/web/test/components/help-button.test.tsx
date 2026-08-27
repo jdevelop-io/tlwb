@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { HelpButton } from '../../src/board/components/help-button'
 
 describe('HelpButton', () => {
@@ -8,13 +8,16 @@ describe('HelpButton', () => {
     expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument()
   })
 
-  it('lists the shortcuts and can be dismissed, without crashing where dialog is unsupported', () => {
+  it('lists the shortcuts, opens modally, and can be dismissed', () => {
+    const showModal = vi.spyOn(HTMLDialogElement.prototype, 'showModal')
+    const close = vi.spyOn(HTMLDialogElement.prototype, 'close')
     render(<HelpButton />)
-    // happy-dom's <dialog> has no showModal/close; the component guards
-    // both, so clicking here must not throw.
     fireEvent.click(screen.getByRole('button', { name: 'Help' }))
+    expect(showModal).toHaveBeenCalledOnce()
     expect(screen.getByText('Shortcuts')).toBeInTheDocument()
     expect(screen.getByText('Pan and zoom')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(close).toHaveBeenCalledOnce()
+    vi.restoreAllMocks()
   })
 })

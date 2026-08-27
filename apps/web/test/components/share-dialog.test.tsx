@@ -1,18 +1,45 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createBoardDoc, createLocalAwareness } from '@tlwb/store-yjs'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShareDialog } from '../../src/board/components/share-dialog'
 import { openBoardSession } from '../../src/board/session/board-session'
 import { writeKeys } from '../../src/board/session/keys'
 
 const identity = { name: 'Ada', color: '#1971C2' }
 
-beforeEach(() => {
-  localStorage.clear()
-  // happy-dom's <dialog> has no showModal; the component guards it.
-})
+beforeEach(() => localStorage.clear())
+afterEach(() => vi.restoreAllMocks())
 
 describe('ShareDialog', () => {
+  it('opens through showModal, not through the open attribute', async () => {
+    const session = await openBoardSession({
+      boardId: 'sd0',
+      fresh: true,
+      identity,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    // Only showModal gives the backdrop, the focus trap, and dismissal
+    // on Escape. Rendering `open` would open the dialog non-modally and,
+    // worse, leave `dialog.open` already true by the time the effect
+    // runs, so showModal would never fire.
+    const showModal = vi.spyOn(HTMLDialogElement.prototype, 'showModal')
+    const close = vi.spyOn(HTMLDialogElement.prototype, 'close')
+    const { rerender } = render(
+      <ShareDialog session={session} open={false} onClose={() => undefined} />,
+    )
+    expect(showModal).not.toHaveBeenCalled()
+    expect(document.querySelector('dialog')?.open).toBe(false)
+
+    rerender(<ShareDialog session={session} open onClose={() => undefined} />)
+    expect(showModal).toHaveBeenCalledOnce()
+
+    rerender(
+      <ShareDialog session={session} open={false} onClose={() => undefined} />,
+    )
+    expect(close).toHaveBeenCalledOnce()
+    await session.destroy()
+  })
+
   it('offers to create a link on a local board and shows the links after', async () => {
     const session = await openBoardSession({
       boardId: 'sd1',

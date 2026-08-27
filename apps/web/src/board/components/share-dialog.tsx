@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useModalDialog } from '../hooks/use-modal-dialog'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
 import { type StoredKeys, shareLink } from '../session/keys'
@@ -14,7 +15,7 @@ export function ShareDialog(props: {
   const { session, open, onClose } = props
   const share = props.share ?? ((target: BoardSession) => shareBoard(target))
   const snapshot = useSession(session)
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const dialogRef = useModalDialog(open)
   const [role, setRole] = useState<'edit' | 'view'>('edit')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,18 +25,6 @@ export function ShareDialog(props: {
   // (tests, injected `share`) that resolve keys without touching the
   // session.
   const [createdKeys, setCreatedKeys] = useState<StoredKeys | null>(null)
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog || typeof dialog.showModal !== 'function') {
-      return
-    }
-    if (open && !dialog.open) {
-      dialog.showModal()
-    } else if (!open && dialog.open) {
-      dialog.close()
-    }
-  }, [open])
 
   useEffect(() => {
     if (!copied) {
@@ -76,12 +65,7 @@ export function ShareDialog(props: {
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="share-dialog"
-      onClose={onClose}
-      open={open || undefined}
-    >
+    <dialog ref={dialogRef} className="share-dialog" onClose={onClose}>
       <h2>Share this board</h2>
       {!keys ? (
         <>

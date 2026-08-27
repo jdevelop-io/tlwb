@@ -1,5 +1,6 @@
 import { CircleHelp } from 'lucide-react'
-import { useRef } from 'react'
+import { useState } from 'react'
+import { useModalDialog } from '../hooks/use-modal-dialog'
 
 const SHORTCUTS: Array<[string, string]> = [
   ['1 to 0, E', 'Tools'],
@@ -11,7 +12,8 @@ const SHORTCUTS: Array<[string, string]> = [
 ]
 
 export function HelpButton() {
-  const ref = useRef<HTMLDialogElement>(null)
+  const [open, setOpen] = useState(false)
+  const ref = useModalDialog(open)
 
   return (
     <>
@@ -19,15 +21,11 @@ export function HelpButton() {
         type="button"
         className="help-button"
         aria-label="Help"
-        onClick={() => {
-          if (typeof ref.current?.showModal === 'function') {
-            ref.current.showModal()
-          }
-        }}
+        onClick={() => setOpen(true)}
       >
         <CircleHelp size={18} />
       </button>
-      <dialog ref={ref} className="share-dialog">
+      <dialog ref={ref} className="share-dialog" onClose={() => setOpen(false)}>
         <h2>Shortcuts</h2>
         <dl>
           {SHORTCUTS.map(([keys, what]) => (
@@ -39,15 +37,7 @@ export function HelpButton() {
             </div>
           ))}
         </dl>
-        <button
-          type="button"
-          className="close"
-          onClick={() => {
-            if (typeof ref.current?.close === 'function') {
-              ref.current.close()
-            }
-          }}
-        >
+        <button type="button" className="close" onClick={() => setOpen(false)}>
           Close
         </button>
       </dialog>
