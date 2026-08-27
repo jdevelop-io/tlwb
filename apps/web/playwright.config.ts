@@ -6,7 +6,19 @@ const databaseUrl =
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
-  use: { baseURL: 'http://localhost:5173' },
+  // The list reporter keeps console output readable; the HTML report is
+  // what the CI job uploads on failure (apps/web/playwright-report), so
+  // it must never try to open a browser on a headless runner.
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'playwright-report' }],
+  ],
+  use: {
+    baseURL: 'http://localhost:5173',
+    // Kept only when a test actually fails, not on every run.
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+  },
   webServer: [
     {
       command: 'pnpm --filter @tlwb/collab-server start',
