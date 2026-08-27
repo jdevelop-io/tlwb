@@ -16,7 +16,7 @@ export interface RunningServer {
 export async function startServer(config: Config): Promise<RunningServer> {
   const database = await connectDatabase(config.databaseUrl)
   const rooms = createRooms({ db: database.db, config })
-  const app = createApp({ db: database.db, config })
+  const app = createApp({ db: database.db, config, rooms })
 
   const { server, port } = await new Promise<{
     server: HttpServer

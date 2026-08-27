@@ -10,11 +10,14 @@ import type { Db } from './db/client'
 import { issueBoard } from './issue-board'
 import { type Role, resolveRole } from './keys'
 import { log } from './log'
+import { createMcpApp } from './mcp'
 import { createIpLimiter, type IpLimiter } from './rate-limit'
+import type { RoomRegistry } from './rooms'
 
 export interface HttpDeps {
   db: Db
   config: Config
+  rooms: RoomRegistry
   now?: () => number
   /** Shared with the MCP `create_board` tool; created here when absent. */
   createLimiter?: IpLimiter
@@ -154,6 +157,18 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       'X-Content-Type-Options': 'nosniff',
     })
   })
+
+  app.route(
+    '/mcp',
+    createMcpApp({
+      db,
+      config,
+      rooms: deps.rooms,
+      createLimiter,
+      now,
+      trustProxy: config.trustProxy,
+    }),
+  )
 
   return app
 }

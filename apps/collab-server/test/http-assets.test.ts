@@ -4,6 +4,7 @@ import { loadConfig } from '../src/config'
 import { putAsset } from '../src/db/assets'
 import { connectDatabase } from '../src/db/client'
 import { createApp } from '../src/http'
+import { createRooms } from '../src/rooms'
 
 const url = process.env.DATABASE_URL as string
 let database: Awaited<ReturnType<typeof connectDatabase>>
@@ -11,17 +12,19 @@ let app: ReturnType<typeof createApp>
 
 beforeAll(async () => {
   database = await connectDatabase(url)
+  const config = loadConfig({
+    DATABASE_URL: url,
+    CORS_ORIGIN: 'http://a',
+    MAX_ASSET_BYTES: '64',
+    // Every board here is created without a forwarded-for header, so
+    // they all key on the same bucket: the default of 10 per minute
+    // would tip this file into 429 as it grows.
+    CREATE_LIMIT_PER_MIN: '1000',
+  })
   app = createApp({
     db: database.db,
-    config: loadConfig({
-      DATABASE_URL: url,
-      CORS_ORIGIN: 'http://a',
-      MAX_ASSET_BYTES: '64',
-      // Every board here is created without a forwarded-for header, so
-      // they all key on the same bucket: the default of 10 per minute
-      // would tip this file into 429 as it grows.
-      CREATE_LIMIT_PER_MIN: '1000',
-    }),
+    config,
+    rooms: createRooms({ db: database.db, config }),
   })
 })
 

@@ -4,6 +4,7 @@ import { findBoard } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
 import { createApp } from '../src/http'
 import { hashKey } from '../src/keys'
+import { createRooms } from '../src/rooms'
 
 const url = process.env.DATABASE_URL as string
 let database: Awaited<ReturnType<typeof connectDatabase>>
@@ -17,13 +18,15 @@ afterAll(async () => {
 })
 
 function app(overrides: Record<string, string> = {}, now?: () => number) {
+  const config = loadConfig({
+    DATABASE_URL: url,
+    CORS_ORIGIN: 'http://a',
+    ...overrides,
+  })
   return createApp({
     db: database.db,
-    config: loadConfig({
-      DATABASE_URL: url,
-      CORS_ORIGIN: 'http://a',
-      ...overrides,
-    }),
+    config,
+    rooms: createRooms({ db: database.db, config }),
     now,
   })
 }
@@ -91,13 +94,16 @@ describe('POST /boards', () => {
   })
 
   it('answers a handler failure as JSON and logs one line', async () => {
+    const brokenDb = {
+      insert: () => {
+        throw new Error('database is down')
+      },
+    } as never
+    const config = loadConfig({ DATABASE_URL: url, CORS_ORIGIN: 'http://a' })
     const broken = createApp({
-      db: {
-        insert: () => {
-          throw new Error('database is down')
-        },
-      } as never,
-      config: loadConfig({ DATABASE_URL: url, CORS_ORIGIN: 'http://a' }),
+      db: brokenDb,
+      config,
+      rooms: createRooms({ db: brokenDb, config }),
     })
     const lines: string[] = []
     const spy = vi.spyOn(console, 'log').mockImplementation((line) => {
