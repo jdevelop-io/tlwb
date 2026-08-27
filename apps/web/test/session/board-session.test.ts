@@ -161,13 +161,16 @@ describe('openBoardSession', () => {
   })
 
   it('adopts a hosting handoff and starts the connection', async () => {
+    // A local board dials nothing, so this connect stays unused until
+    // the handoff gives the session a token to connect with.
+    const fake = fakeConnect()
     const session = await openBoardSession({
       boardId: 'pre',
       fresh: true,
       identity,
+      connect: fake.connect,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    const fake = fakeConnect()
     const hosted = await openBoardSession({
       boardId: 'other',
       fresh: true,
@@ -177,11 +180,8 @@ describe('openBoardSession', () => {
     if (hosted === 'not-found') throw new Error('unexpected')
     const persistence = hosted.persistence()
     const assets = hosted.assets()
-    if (!persistence)
-      throw new Error('unexpected')
-      // Reuse another session's databases as a stand-in for the migration's.
-    ;(session as unknown as { connectFn: typeof fake.connect }).connectFn =
-      fake.connect
+    if (!persistence) throw new Error('unexpected')
+    // Reuse another session's databases as a stand-in for the migration's.
     session.adoptHosting({
       boardId: 'new1',
       keys: { editKey: 'e', viewKey: 'v' },

@@ -119,7 +119,7 @@ export async function openBoardSession(
 
   let assets = createAssetStore(boardId)
   let identity = options.identity
-  let connectFn = options.connect ?? connectBoard
+  const connectFn = options.connect ?? connectBoard
   let connection: BoardConnection | null = null
   let presence!: Presence
   let localAwareness: ReturnType<typeof createLocalAwareness> | null = null
@@ -243,8 +243,6 @@ export async function openBoardSession(
     doc,
     store,
     images,
-    // Test seam: swapped by the adoption test.
-    connectFn,
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) {
       listeners.add(listener)
@@ -265,7 +263,6 @@ export async function openBoardSession(
       notify()
     },
     adoptHosting(handoff: HostingHandoff) {
-      connectFn = session.connectFn
       boardId = handoff.boardId
       keys = handoff.keys
       persistence = handoff.persistence
