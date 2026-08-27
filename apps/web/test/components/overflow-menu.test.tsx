@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { createElement } from '@tlwb/engine'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OverflowMenu } from '../../src/board/components/overflow-menu'
 import { openBoardSession } from '../../src/board/session/board-session'
@@ -103,5 +104,78 @@ describe('OverflowMenu', () => {
       await openBoardSession({ boardId: 'ov5', fresh: false, identity }),
     ).toBe('not-found')
     assign.mockRestore()
+  })
+
+  it('exports SVG through the editor and downloads it under the board name', async () => {
+    const session = await openBoardSession({
+      boardId: 'ov6',
+      fresh: true,
+      identity,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    session.store.setMeta({ name: 'Plan' })
+    const editor = fakeEditor()
+    vi.mocked(editor.exportSvg).mockReturnValue('<svg>x</svg>')
+    const realCreateElement = document.createElement.bind(document)
+    const captured: { anchor: HTMLAnchorElement | null } = { anchor: null }
+    const click = vi.fn()
+    vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+      const el = realCreateElement(tag)
+      if (tag === 'a') {
+        el.click = click
+        captured.anchor = el as HTMLAnchorElement
+      }
+      return el
+    }) as typeof document.createElement)
+
+    render(<OverflowMenu session={session} editor={editor} />)
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByText('Export SVG'))
+
+    await vi.waitFor(() =>
+      expect(editor.exportSvg).toHaveBeenCalledWith({
+        background: '#FFFFFF',
+      }),
+    )
+    await vi.waitFor(() => expect(click).toHaveBeenCalledOnce())
+    const anchor = captured.anchor
+    if (!anchor) throw new Error('no anchor was created')
+    expect(anchor.download).toBe('Plan.svg')
+    expect(anchor.href).toMatch(/^blob:/)
+
+    vi.mocked(document.createElement).mockRestore()
+    await session.destroy()
+  })
+
+  it('surfaces an error toast when duplicating fails', async () => {
+    const session = await openBoardSession({
+      boardId: 'ov7',
+      fresh: true,
+      identity,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    const hash = await session
+      .assets()
+      .put(new Blob([new Uint8Array([1])], { type: 'image/png' }))
+    session.store.applyChanges([
+      {
+        kind: 'create',
+        element: createElement('image', { index: 'a0', assetHash: hash }),
+      },
+    ])
+    session.assets().get = vi.fn().mockRejectedValue(new Error('boom'))
+    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
+
+    render(<OverflowMenu session={session} editor={fakeEditor()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByText('Duplicate'))
+
+    expect(
+      await screen.findByText('Could not duplicate the board'),
+    ).toBeInTheDocument()
+    expect(assign).not.toHaveBeenCalled()
+
+    assign.mockRestore()
+    await session.destroy()
   })
 })

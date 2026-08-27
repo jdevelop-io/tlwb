@@ -3,11 +3,15 @@ import { MoreHorizontal } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { download, duplicateBoard, removeBoard } from '../session/board-actions'
 import type { BoardSession } from '../session/board-session'
+import { Notice } from './notice'
 import './overflow-menu.css'
+
+const TOAST_DURATION_MS = 4000
 
 export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
   const { session, editor } = props
   const [open, setOpen] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const name = () => session.store.getMeta().name || 'board'
 
@@ -25,10 +29,23 @@ export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [open])
 
-  const run = (action: () => Promise<void> | void) => async () => {
-    setOpen(false)
-    await action()
-  }
+  useEffect(() => {
+    if (!toast) {
+      return
+    }
+    const timer = setTimeout(() => setToast(null), TOAST_DURATION_MS)
+    return () => clearTimeout(timer)
+  }, [toast])
+
+  const run =
+    (action: () => Promise<void> | void, errorMessage: string) => async () => {
+      setOpen(false)
+      try {
+        await action()
+      } catch {
+        setToast(errorMessage)
+      }
+    }
 
   return (
     <div className="overflow">
@@ -53,7 +70,7 @@ export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
                   scale: 2,
                 })
                 download(blob, `${name()}.png`)
-              })}
+              }, 'Could not export the board')}
             >
               Export PNG
             </button>
@@ -67,7 +84,7 @@ export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
                   new Blob([svg], { type: 'image/svg+xml' }),
                   `${name()}.svg`,
                 )
-              })}
+              }, 'Could not export the board')}
             >
               Export SVG
             </button>
@@ -78,7 +95,7 @@ export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
               onClick={run(async () => {
                 const id = await duplicateBoard(session)
                 location.assign(`/b/${id}`)
-              })}
+              }, 'Could not duplicate the board')}
             >
               Duplicate
             </button>
@@ -92,12 +109,17 @@ export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
                 }
                 await removeBoard(session)
                 location.assign('/')
-              })}
+              }, 'Could not remove the board')}
             >
               Remove from this browser
             </button>
           </li>
         </menu>
+      ) : null}
+      {toast ? (
+        <Notice kind="toast" onClose={() => setToast(null)}>
+          {toast}
+        </Notice>
       ) : null}
     </div>
   )

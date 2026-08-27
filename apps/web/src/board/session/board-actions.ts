@@ -52,7 +52,12 @@ export async function duplicateBoard(
   return newId
 }
 
-/** Forgets the board on this device; a hosted board lives on elsewhere. */
+/**
+ * Forgets the board on this device; a hosted board lives on elsewhere.
+ * The keys, alias, and recents entry are cleared in a `finally`: a
+ * database that fails to clear or delete must not leave those local
+ * traces pointing at a session that was already destroyed.
+ */
 export async function removeBoard(
   session: BoardSession,
   storage: Storage = localStorage,
@@ -61,9 +66,12 @@ export async function removeBoard(
   const persistence = session.persistence()
   const assets = session.assets()
   await session.destroy()
-  await persistence?.clear()
-  await assets.delete()
-  clearKeys(boardId, storage)
-  clearAliasesTo(boardId, storage)
-  removeRecent(boardId, storage)
+  try {
+    await persistence?.clear()
+    await assets.delete()
+  } finally {
+    clearKeys(boardId, storage)
+    clearAliasesTo(boardId, storage)
+    removeRecent(boardId, storage)
+  }
 }
