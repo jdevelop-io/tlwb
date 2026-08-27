@@ -29,6 +29,10 @@ Monorepo packages:
   incoming element on a staging document, persists boards in Postgres
   as a snapshot plus residual updates, and stores image assets. One
   Docker image plus Postgres (`docker compose up`).
+- `apps/web`: the product's client. A static landing page and the board
+  editor (React), served by Caddy on the same origin as the
+  collaboration server. Local-first boards, sharing by link, presence,
+  image assets, export.
 
 ## Getting started
 
@@ -40,6 +44,19 @@ onwards reads and honors automatically.
 pnpm install
 pnpm test
 ```
+
+## Running the product
+
+```bash
+docker compose up --build
+```
+
+Then open `http://localhost:8080`. For development, run Postgres and
+the server (`docker compose up -d postgres`, then
+`DATABASE_URL=postgres://tlwb:tlwb@localhost:5432/tlwb CORS_ORIGIN=http://localhost:5173 pnpm --filter @tlwb/collab-server dev`)
+and the web application (`pnpm --filter @tlwb/web dev`) on
+`http://localhost:5173`; the Vite server proxies `/api` and `/ws` to
+the collaboration server.
 
 ## Using the engine
 

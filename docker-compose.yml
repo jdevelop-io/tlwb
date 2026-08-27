@@ -22,12 +22,21 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://tlwb:tlwb@postgres:5432/tlwb
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: http://localhost:8080
     ports:
       - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - collab-server
 
 volumes:
   postgres-data:
