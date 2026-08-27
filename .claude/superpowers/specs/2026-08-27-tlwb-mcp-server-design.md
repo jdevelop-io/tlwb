@@ -206,9 +206,14 @@ the agent.
 
 `ElementPatch` is every optional property above, all optional, without
 `type`; `text`, `points`, and bindings included for the variants that
-have them. A patch that sets a property a variant does not have is
-rejected by the room's validation, not by the schema, to keep the schema
-small.
+have them, to keep the schema small. A patch that sets a property a
+variant does not have is tolerated, not rejected: the engine's own
+validation explicitly allows extra properties
+(`packages/engine/src/model/validate.ts`), so a foreign field (`text` on
+a rectangle, say) is persisted and comes back out through `read_board`.
+Every engine consumer of such a field guards on the element's own type,
+so the impact is inert, but it is not the schema-level rejection an
+earlier version of this specification described.
 
 `read_board` returns elements in stacking order (`listElements()`),
 complete, as the engine holds them, so what the agent reads is what it
@@ -328,7 +333,9 @@ share link.
 
 - `PUBLIC_URL` (default `CORS_ORIGIN`) added to the configuration: the
   server needs an origin to build the share URLs `create_board` returns;
-  with `*`, the URLs are relative.
+  with `*`, the URLs are relative (`/b/<id>#edit=<key>`). `parseBoardRef`
+  accepts such a host-less reference the same way as an absolute one, so
+  every tool still consumes the link `create_board` handed back.
 - A mutation tool returns as soon as the room accepted the update; the
   five-second presence window runs after the response, not before it,
   so an agent's loop is not slowed by its own avatar.
