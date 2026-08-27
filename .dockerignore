@@ -5,7 +5,6 @@
 node_modules
 **/node_modules
 **/dist
-apps/web/dist
 **/coverage
 **/__diffs__
 **/test-results
