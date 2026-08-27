@@ -4,43 +4,35 @@ import { withBoard } from '../agent-client'
 import { parseBoardRef } from '../board-ref'
 import { imageBlock, loadImages, renderPng } from '../render'
 import { agentDeps, type McpDeps } from '../server'
-import { guarded, jsonResult, ToolError } from '../tool-error'
+import { guarded, ToolError } from '../tool-error'
+import { boardParam } from './read-board'
 
-export const boardParam = z
-  .string()
-  .describe(
-    'Share URL of the board: https://<host>/b/<id>#edit=<key> or #view=<key>',
-  )
+export const scaleParam = z
+  .number()
+  .min(0.25)
+  .max(3)
+  .default(1)
+  .describe('Pixels per world unit; 2 for a sharper image')
 
-export function registerReadBoard(
+export function registerGetBoardScreenshot(
   server: McpServer,
   deps: McpDeps,
   _ip: string,
 ): void {
   server.registerTool(
-    'read_board',
+    'get_board_screenshot',
     {
       description:
-        'Read a board: its meta (name, createdAt) and every element in stacking order, exactly as the editor holds them.',
-      inputSchema: {
-        board: boardParam,
-        image: z
-          .boolean()
-          .default(false)
-          .describe('Also return a PNG of the board'),
-      },
+        'Render the whole board as a PNG, as the editor exports it, for visual verification.',
+      inputSchema: { board: boardParam, scale: scaleParam },
     },
-    ({ board, image }) =>
-      guarded({ tool: 'read_board' }, async () => {
+    ({ board, scale }) =>
+      guarded({ tool: 'get_board_screenshot' }, async () => {
         const ref = parseBoardRef(board)
         return withBoard(agentDeps(deps), ref, 'view', async (client) => {
           const elements = client.store.listElements()
-          const result = jsonResult({ meta: client.store.getMeta(), elements })
-          if (!image) {
-            return result
-          }
           const png = await renderPng(elements, {
-            scale: 1,
+            scale,
             maxPixels: deps.config.mcpMaxImagePixels,
             resolveImage: await loadImages(deps.db, ref.boardId, elements),
           })
@@ -49,7 +41,7 @@ export function registerReadBoard(
               `board ${ref.boardId} is too large to render; lower scale`,
             )
           }
-          return { content: [...result.content, imageBlock(png)] }
+          return { content: [imageBlock(png)] }
         })
       }),
   )

@@ -93,6 +93,7 @@ describe('tool listing', () => {
       'add_elements',
       'create_board',
       'delete_elements',
+      'get_board_screenshot',
       'read_board',
       'update_elements',
     ])
@@ -369,5 +370,69 @@ describe('delete_elements', () => {
       await call(client, 'read_board', { board: board.viewUrl }),
     )
     expect(read.elements).toHaveLength(2)
+  })
+})
+
+function imageOf(result: CallToolResult): { data: string; mimeType: string } {
+  const block = result.content.find((c) => c.type === 'image')
+  if (block?.type !== 'image') {
+    throw new Error('no image block')
+  }
+  return block
+}
+
+describe('get_board_screenshot', () => {
+  it('returns a PNG image block', async () => {
+    const client = await connect()
+    const board = await boardWithBox(client)
+    const result = await call(client, 'get_board_screenshot', {
+      board: board.viewUrl,
+    })
+    expect(result.isError).toBeFalsy()
+    const image = imageOf(result)
+    expect(image.mimeType).toBe('image/png')
+    expect(Buffer.from(image.data, 'base64').subarray(0, 4)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    )
+  })
+
+  it('refuses a render over MCP_MAX_IMAGE_PIXELS', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [{ type: 'rectangle', x: 0, y: 0, width: 1000, height: 1000 }],
+    })
+    const result = await call(client, 'get_board_screenshot', {
+      board: board.viewUrl,
+      scale: 1,
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe(
+      `board ${board.boardId} is too large to render; lower scale`,
+    )
+  })
+
+  it('bounds scale at the schema', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const result = await call(client, 'get_board_screenshot', {
+      board: board.viewUrl,
+      scale: 9,
+    })
+    expect(result.isError).toBe(true)
+  })
+})
+
+describe('read_board with image', () => {
+  it('adds a PNG block after the JSON text', async () => {
+    const client = await connect()
+    const board = await boardWithBox(client)
+    const result = await call(client, 'read_board', {
+      board: board.viewUrl,
+      image: true,
+    })
+    expect(result.content.map((c) => c.type)).toEqual(['text', 'image'])
+    expect(jsonOf<{ elements: unknown[] }>(result).elements).toHaveLength(2)
   })
 })

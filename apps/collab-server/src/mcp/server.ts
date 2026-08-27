@@ -7,6 +7,7 @@ import type { AgentDeps } from './agent-client'
 import { registerAddElements } from './tools/add-elements'
 import { registerCreateBoard } from './tools/create-board'
 import { registerDeleteElements } from './tools/delete-elements'
+import { registerGetBoardScreenshot } from './tools/get-board-screenshot'
 import { registerReadBoard } from './tools/read-board'
 import { registerUpdateElements } from './tools/update-elements'
 
@@ -53,5 +54,6 @@ export function createMcpServer(deps: McpDeps, ip: string): McpServer {
   registerAddElements(server, deps, ip)
   registerUpdateElements(server, deps, ip)
   registerDeleteElements(server, deps, ip)
+  registerGetBoardScreenshot(server, deps, ip)
   return server
 }
