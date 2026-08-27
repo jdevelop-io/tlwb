@@ -5,6 +5,15 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  /*
+   * The toolbar sits at the same height, centred, and is about 446px
+   * wide, so it starts at 50vw - 223px: below roughly 1064px of
+   * viewport width the two boxes met and the toolbar, painted later,
+   * covered the end of this one. Stopping short of it by one gap keeps
+   * both reachable. Every child holds its min-content width except the
+   * name, which takes what is left.
+   */
+  max-width: calc(50vw - 247px);
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -59,6 +68,7 @@
 
 .board-name {
   width: 180px;
+  min-width: 0;
   padding: var(--space-1) var(--space-2);
   border: 1px solid transparent;
   border-radius: var(--radius);

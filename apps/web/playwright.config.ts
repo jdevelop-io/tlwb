@@ -19,6 +19,13 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
+  // The chrome is absolutely positioned around the canvas, so what
+  // overlaps what depends on the viewport. The narrow one is the
+  // smallest the application is meant for.
+  projects: [
+    { name: 'desktop', use: { viewport: { width: 1280, height: 720 } } },
+    { name: 'narrow', use: { viewport: { width: 1024, height: 768 } } },
+  ],
   webServer: [
     {
       command: 'pnpm --filter @tlwb/collab-server start',

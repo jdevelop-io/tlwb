@@ -1,4 +1,36 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
+
+/**
+ * toBeVisible only checks CSS visibility, display, and a non-empty box.
+ * All three still hold while an ancestor clips the element to nothing,
+ * or while another panel of the chrome paints on top of it. Ask the
+ * browser what it actually paints at the element's own position
+ * instead, at both ends as well as the middle so a partial cover counts
+ * too.
+ */
+async function expectPainted(target: Locator, what: string): Promise<void> {
+  const covered = await target.evaluate((el) => {
+    const rect = el.getBoundingClientRect()
+    return [0.05, 0.5, 0.95]
+      .map((fraction) => Math.round(rect.left + rect.width * fraction))
+      .filter((x) => {
+        const hit = document.elementFromPoint(x, rect.top + rect.height / 2)
+        return hit !== el && !(hit !== null && el.contains(hit))
+      })
+  })
+  expect(covered, `${what} should be painted at its own position`).toEqual([])
+}
+
+async function elementCount(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          tlwb: { session: { store: { listElements(): unknown[] } } }
+        }
+      ).tlwb.session.store.listElements().length,
+  )
+}
 
 async function drawRectangle(page: Page, x = 400, y = 300): Promise<void> {
   await page.keyboard.press('3')
@@ -100,27 +132,38 @@ test("the overflow menu paints its items outside the presence stack's clipping",
     'Remove from this browser',
   ]
   for (const name of items) {
-    const button = page.getByRole('button', { name })
-    // toBeVisible only checks CSS visibility/display and a non-empty
-    // box; an ancestor's overflow can clip a box to nothing while both
-    // of those still hold. Ask the browser what is actually painted at
-    // the button's own screen position instead: if a scrolling
-    // ancestor clips it, that point hits something else (or nothing).
-    const isPaintedHere = await button.evaluate((el) => {
-      const rect = el.getBoundingClientRect()
-      const hit = document.elementFromPoint(
-        rect.left + rect.width / 2,
-        rect.top + rect.height / 2,
-      )
-      return hit === el || (hit !== null && el.contains(hit))
-    })
-    expect(isPaintedHere, `${name} should be painted at its own position`).toBe(
-      true,
-    )
+    await expectPainted(page.getByRole('button', { name }), name)
   }
 
   await page.getByRole('button', { name: 'Export PNG' }).click()
   await expect(page.getByRole('button', { name: 'More' })).toBeVisible()
+})
+
+test('the panels of the chrome never paint over one another', async ({
+  page,
+}) => {
+  await page.goto('/b/new')
+  await page.getByRole('radio', { name: 'Select (1)' }).waitFor()
+  // Drawing leaves the shape selected, which is what raises the context
+  // panel.
+  await drawRectangle(page)
+  await expect(
+    page.getByRole('button', { name: 'Bring to front' }),
+  ).toBeVisible()
+
+  // Every panel is absolutely positioned over the same canvas at the
+  // same z-index, so which one wins where is a function of the
+  // viewport: run this at each of them.
+  const panels: Array<[string, string]> = [
+    ['.top-bar', 'the top bar'],
+    ['.toolbar', 'the toolbar'],
+    ['.context-panel', 'the context panel'],
+    ['.zoom-controls', 'the zoom controls'],
+    ['.presence-stack', 'the presence stack'],
+  ]
+  for (const [selector, what] of panels) {
+    await expectPainted(page.locator(selector), what)
+  }
 })
 
 test('the share dialog opens as a modal and closes on Escape', async ({
