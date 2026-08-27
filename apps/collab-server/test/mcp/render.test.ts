@@ -6,9 +6,44 @@ import { putAsset } from '../../src/db/assets'
 import { createBoard } from '../../src/db/boards'
 import { connectDatabase } from '../../src/db/client'
 import { generateKey, hashKey } from '../../src/keys'
-import { loadImages, renderPng } from '../../src/mcp/render'
+import {
+  exceedsPixelBudget,
+  loadImages,
+  registerFont,
+  renderPng,
+} from '../../src/mcp/render'
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47]
+
+describe('registerFont', () => {
+  it('throws rather than silently falling back to a substitute font', () => {
+    // A real, resolvable file that is not a font: `registerFromPath`
+    // returns null for it instead of throwing on its own.
+    expect(() =>
+      registerFont('@fontsource/inter/package.json', 'Bogus'),
+    ).toThrow(/failed to register font/)
+  })
+})
+
+describe('exceedsPixelBudget', () => {
+  it('agrees with renderPng about the ceiling', async () => {
+    const scene = [
+      createElement('rectangle', {
+        index: 'a0',
+        id: 'r',
+        x: 0,
+        y: 0,
+        width: 1000,
+        height: 1000,
+      }),
+    ]
+    expect(exceedsPixelBudget(scene, 1, 100)).toBe(true)
+    await expect(
+      renderPng(scene, { scale: 1, maxPixels: 100 }),
+    ).resolves.toBeNull()
+    expect(exceedsPixelBudget(scene, 1, 100_000_000)).toBe(false)
+  })
+})
 
 const scene = [
   createElement('rectangle', {

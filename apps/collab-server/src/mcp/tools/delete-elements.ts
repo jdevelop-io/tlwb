@@ -23,9 +23,13 @@ export function registerDeleteElements(
         agentName: agentNameParam,
       },
     },
-    ({ board, ids, agentName }) =>
-      guarded({ tool: 'delete_elements' }, async () => {
+    ({ board, ids, agentName }) => {
+      const context: { tool: string; boardId?: string } = {
+        tool: 'delete_elements',
+      }
+      return guarded(context, async () => {
         const ref = parseBoardRef(board)
+        context.boardId = ref.boardId
         return withBoard(agentDeps(deps), ref, 'edit', async (client) => {
           const targets: BoardElement[] = []
           for (const id of ids) {
@@ -46,6 +50,7 @@ export function registerDeleteElements(
           client.present({ ...presence, selectedIds: [] })
           return jsonResult({ deleted: ids })
         })
-      }),
+      })
+    },
   )
 }

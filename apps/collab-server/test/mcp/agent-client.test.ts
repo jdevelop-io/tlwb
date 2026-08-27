@@ -6,7 +6,7 @@ import { connectDatabase } from '../../src/db/client'
 import { generateKey, hashKey } from '../../src/keys'
 import { AGENT_COLOR, withBoard } from '../../src/mcp/agent-client'
 import { ToolError } from '../../src/mcp/tool-error'
-import { decodeMessage } from '../../src/protocol'
+import { decodeMessage, encodeSyncStep2 } from '../../src/protocol'
 import { createRoom, type Room, type RoomConnection } from '../../src/room'
 import type { RoomRegistry } from '../../src/rooms'
 
@@ -59,7 +59,9 @@ function awarenessStates(connection: FakeConnection): unknown[] {
 
 const awarenessModule = await import('y-protocols/awareness')
 
-async function setup(options: { maxDocBytes?: number } = {}) {
+async function setup(
+  options: { maxDocBytes?: number; persistFails?: boolean } = {},
+) {
   const boardId = `agent${Date.now()}${Math.floor(Math.random() * 1000)}`
   const editKey = generateKey()
   const viewKey = generateKey()
@@ -74,6 +76,9 @@ async function setup(options: { maxDocBytes?: number } = {}) {
     maxDocBytes: options.maxDocBytes ?? 1_000_000,
     maxAwarenessBytes: 16_384,
     persist: async (update) => {
+      if (options.persistFails) {
+        throw new Error('connection refused')
+      }
       persisted.push(update)
       return persisted.length
     },
@@ -179,6 +184,85 @@ describe('withBoard', () => {
     ).rejects.toThrow(new ToolError(`board ${boardId} exceeds the size limit`))
   })
 
+  it('maps a storage failure to a message that does not blame the elements', async () => {
+    const { boardId, editKey, deps } = await setup({ persistFails: true })
+    await expect(
+      withBoard(deps, { boardId, key: editKey }, 'edit', (client) =>
+        client.mutate((store) =>
+          store.applyChanges(
+            [
+              {
+                kind: 'create',
+                element: createElement('rectangle', { index: 'a0', id: 'r' }),
+              },
+            ],
+            'remote',
+          ),
+        ),
+      ),
+    ).rejects.toThrow(
+      new ToolError(
+        `board ${boardId} could not be saved: storage is unavailable, retry later`,
+      ),
+    )
+  })
+
+  it('maps an internal room error to a message that does not blame the elements', async () => {
+    const boardId = `agent${Date.now()}${Math.floor(Math.random() * 1000)}`
+    const editKey = generateKey()
+    await createBoard(database.db, boardId, {
+      editKeyHash: hashKey(editKey),
+      viewKeyHash: hashKey(generateKey()),
+    })
+    // A hand-rolled room, not `createRoom`: it answers step 1 like the
+    // real one, then closes with `internal error` on the next message,
+    // the same reason `room.ts` uses when `processMessage` throws
+    // unexpectedly.
+    const doc = new Y.Doc()
+    const fakeRoom: Room = {
+      doc,
+      join: () => {},
+      leave: () => {},
+      async handleMessage(connection, data) {
+        const message = decodeMessage(data)
+        if (message.kind === 'sync-step1') {
+          connection.send(encodeSyncStep2(doc, message.stateVector))
+          return
+        }
+        connection.close(4422, 'internal error')
+      },
+      drain: async () => {},
+      connectionCount: () => 0,
+      closeAll: () => {},
+      destroy: () => {},
+    }
+    const rooms: RoomRegistry = {
+      acquire: async (id) => (id === boardId ? fakeRoom : undefined),
+      release: () => {},
+      shutdown: async () => {},
+    }
+    const deps = { db: database.db, rooms, presenceMs: 0 }
+    await expect(
+      withBoard(deps, { boardId, key: editKey }, 'edit', (client) =>
+        client.mutate((store) =>
+          store.applyChanges(
+            [
+              {
+                kind: 'create',
+                element: createElement('rectangle', { index: 'a0', id: 'r' }),
+              },
+            ],
+            'remote',
+          ),
+        ),
+      ),
+    ).rejects.toThrow(
+      new ToolError(
+        `board ${boardId} could not be saved: an internal error occurred, retry later`,
+      ),
+    )
+  })
+
   it('refuses a view key when edit is needed, before joining', async () => {
     const { boardId, viewKey, room, deps } = await setup()
     await expect(
@@ -187,6 +271,45 @@ describe('withBoard', () => {
       new ToolError(`board ${boardId} is view-only with this link`),
     )
     expect(room.connectionCount()).toBe(0)
+  })
+
+  it('still releases the room when join itself throws', async () => {
+    const boardId = `agent${Date.now()}${Math.floor(Math.random() * 1000)}`
+    const editKey = generateKey()
+    await createBoard(database.db, boardId, {
+      editKeyHash: hashKey(editKey),
+      viewKeyHash: hashKey(generateKey()),
+    })
+    const doc = new Y.Doc()
+    const left: RoomConnection[] = []
+    const fakeRoom: Room = {
+      doc,
+      join: () => {
+        throw new Error('boom')
+      },
+      leave: (connection) => {
+        left.push(connection)
+      },
+      handleMessage: async () => {},
+      drain: async () => {},
+      connectionCount: () => 0,
+      closeAll: () => {},
+      destroy: () => {},
+    }
+    const released: string[] = []
+    const rooms: RoomRegistry = {
+      acquire: async (id) => (id === boardId ? fakeRoom : undefined),
+      release: (id) => {
+        released.push(id)
+      },
+      shutdown: async () => {},
+    }
+    const deps = { db: database.db, rooms, presenceMs: 0 }
+    await expect(
+      withBoard(deps, { boardId, key: editKey }, 'edit', async () => 1),
+    ).rejects.toThrow('boom')
+    expect(left).toHaveLength(1)
+    expect(released).toEqual([boardId])
   })
 
   it('lets a view key read', async () => {

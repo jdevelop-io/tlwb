@@ -1,10 +1,22 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import { type Config, loadConfig } from '../../src/config'
 import { connectDatabase } from '../../src/db/client'
 import { createMcpServer, type McpDeps } from '../../src/mcp/server'
+import {
+  MAX_POINTS_PER_ELEMENT,
+  MAX_TEXT_LENGTH,
+} from '../../src/mcp/tools/elements'
 import { createIpLimiter } from '../../src/rate-limit'
 import { createRooms, type RoomRegistry } from '../../src/rooms'
 
@@ -266,6 +278,90 @@ describe('add_elements', () => {
     })
     expect(result.isError).toBe(true)
   })
+
+  it('refuses a points array over MAX_POINTS_PER_ELEMENT at the schema', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const result = await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [
+        {
+          type: 'draw',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          points: Array.from({ length: MAX_POINTS_PER_ELEMENT + 1 }, () => ({
+            x: 0,
+            y: 0,
+          })),
+        },
+      ],
+    })
+    expect(result.isError).toBe(true)
+  })
+
+  it('refuses text over MAX_TEXT_LENGTH at the schema', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const result = await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [
+        {
+          type: 'text',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          text: 'a'.repeat(MAX_TEXT_LENGTH + 1),
+        },
+      ],
+    })
+    expect(result.isError).toBe(true)
+  })
+
+  it('refuses the whole batch when an id collides with an existing element, without replacing it', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [
+        { type: 'rectangle', id: 'box', x: 0, y: 0, width: 100, height: 50 },
+      ],
+    })
+    const result = await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [
+        { type: 'ellipse', id: 'box', x: 0, y: 0, width: 1, height: 1 },
+      ],
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe('element box already exists')
+    const read = jsonOf<{ elements: { id: string; type: string }[] }>(
+      await call(client, 'read_board', { board: board.viewUrl }),
+    )
+    expect(read.elements.map((e) => ({ id: e.id, type: e.type }))).toEqual([
+      { id: 'box', type: 'rectangle' },
+    ])
+  })
+
+  it('refuses the whole batch on a duplicate id within the batch, creating nothing', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const result = await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [
+        { type: 'ellipse', id: 'dup', x: 0, y: 0, width: 1, height: 1 },
+        { type: 'diamond', id: 'dup', x: 0, y: 0, width: 1, height: 1 },
+      ],
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe('element dup already exists')
+    const read = jsonOf<{ elements: unknown[] }>(
+      await call(client, 'read_board', { board: board.viewUrl }),
+    )
+    expect(read.elements).toEqual([])
+  })
 })
 
 async function boardWithBox(client: Client) {
@@ -327,6 +423,39 @@ describe('update_elements', () => {
       await call(client, 'read_board', { board: board.viewUrl }),
     )
     expect(read.elements.find((e) => e.id === 'box')).toMatchObject({ x: 0 })
+  })
+
+  // Documents the real engine behaviour (extra properties are
+  // tolerated, `packages/engine/src/model/validate.ts`), not the
+  // schema-level rejection an earlier version of the specification
+  // described: `box` is a rectangle, so `text`, `containerId`, and
+  // `points` are foreign to it, yet the whole patch is accepted and the
+  // fields persist and round-trip through `read_board`.
+  it('tolerates a foreign property, persisting it rather than rejecting it', async () => {
+    const client = await connect()
+    const board = await boardWithBox(client)
+    const result = await call(client, 'update_elements', {
+      board: board.editUrl,
+      updates: [
+        {
+          id: 'box',
+          text: 'nope',
+          containerId: 'ghost',
+          points: [{ x: 1, y: 2 }],
+        },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+    expect(jsonOf(result)).toEqual({ updated: ['box'] })
+    const read = jsonOf<{ elements: Record<string, unknown>[] }>(
+      await call(client, 'read_board', { board: board.viewUrl }),
+    )
+    expect(read.elements.find((e) => e.id === 'box')).toMatchObject({
+      type: 'rectangle',
+      text: 'nope',
+      containerId: 'ghost',
+      points: [{ x: 1, y: 2 }],
+    })
   })
 
   it('refuses a view link', async () => {
@@ -434,5 +563,89 @@ describe('read_board with image', () => {
     })
     expect(result.content.map((c) => c.type)).toEqual(['text', 'image'])
     expect(jsonOf<{ elements: unknown[] }>(result).elements).toHaveLength(2)
+  })
+})
+
+/** Log lines this tool call produced, parsed and filtered by tool name. */
+async function logsFor(
+  tool: string,
+  run: () => Promise<unknown>,
+): Promise<Record<string, unknown>[]> {
+  const lines: string[] = []
+  const spy = vi.spyOn(console, 'log').mockImplementation((line) => {
+    lines.push(String(line))
+  })
+  try {
+    await run()
+  } finally {
+    spy.mockRestore()
+  }
+  return lines
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+    .filter((event) => event.tool === tool)
+}
+
+describe('tool call logging', () => {
+  it('carries the board id on both a success and a failure, never the key', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const key = board.editUrl.split('#edit=')[1] as string
+
+    const events = await logsFor('read_board', async () => {
+      await call(client, 'read_board', { board: board.editUrl })
+      await call(client, 'read_board', {
+        board: `http://web.test/b/${board.boardId}#edit=wrong`,
+      })
+    })
+
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({ boardId: board.boardId, ok: true })
+    expect(typeof events[0]?.ms).toBe('number')
+    expect(events[1]).toMatchObject({ boardId: board.boardId, ok: false })
+    for (const event of events) {
+      expect(JSON.stringify(event)).not.toContain(key)
+    }
+  })
+
+  it('has no board id for create_board until it succeeds', async () => {
+    const refusingLimiter = createIpLimiter(0, 60_000)
+    const client = await connect({ createLimiter: refusingLimiter })
+
+    const refused = await logsFor('create_board', () =>
+      call(client, 'create_board', {}),
+    )
+    expect(refused).toHaveLength(1)
+    expect(refused[0]?.ok).toBe(false)
+    expect(refused[0]?.boardId).toBeUndefined()
+
+    const successClient = await connect()
+    const succeeded = await logsFor('create_board', () =>
+      call(successClient, 'create_board', {}),
+    )
+    expect(succeeded).toHaveLength(1)
+    expect(succeeded[0]?.ok).toBe(true)
+    expect(typeof succeeded[0]?.boardId).toBe('string')
+  })
+})
+
+describe('relative share URLs (CORS_ORIGIN=*, no PUBLIC_URL)', () => {
+  it('creates a board whose relative link every other tool still accepts', async () => {
+    const relativeConfig = loadConfig({
+      DATABASE_URL: url,
+      CORS_ORIGIN: '*',
+      ROOM_IDLE_MS: '50',
+    })
+    const client = await connect({ config: relativeConfig })
+    const board = await newBoard(client)
+    expect(board.editUrl).toMatch(/^\/b\/.+#edit=/)
+    expect(board.viewUrl).toMatch(/^\/b\/.+#view=/)
+
+    const read = await call(client, 'read_board', { board: board.editUrl })
+    expect(read.isError).toBeFalsy()
+    const added = await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [{ type: 'rectangle', x: 0, y: 0, width: 1, height: 1 }],
+    })
+    expect(added.isError).toBeFalsy()
   })
 })

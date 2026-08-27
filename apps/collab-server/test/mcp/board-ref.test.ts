@@ -37,6 +37,15 @@ describe('parseBoardRef', () => {
     ).toBe('abcdefgh')
   })
 
+  // What `create_board` returns when `PUBLIC_URL` is unset and
+  // `CORS_ORIGIN` is `*`: no host to build a full URL from.
+  it('accepts a host-less reference', () => {
+    expect(parseBoardRef('/b/abcdefgh12345678#edit=k1')).toEqual({
+      boardId: 'abcdefgh12345678',
+      key: 'k1',
+    })
+  })
+
   it.each([
     'not a url',
     'https://tlwb.example/b/abcdefgh',

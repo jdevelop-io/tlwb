@@ -23,9 +23,13 @@ export function registerUpdateElements(
         agentName: agentNameParam,
       },
     },
-    ({ board, updates, agentName }) =>
-      guarded({ tool: 'update_elements' }, async () => {
+    ({ board, updates, agentName }) => {
+      const context: { tool: string; boardId?: string } = {
+        tool: 'update_elements',
+      }
+      return guarded(context, async () => {
         const ref = parseBoardRef(board)
+        context.boardId = ref.boardId
         return withBoard(agentDeps(deps), ref, 'edit', async (client) => {
           for (const { id } of updates) {
             if (!client.store.getElement(id)) {
@@ -44,6 +48,7 @@ export function registerUpdateElements(
           client.present(presenceFor(touched, agentName))
           return jsonResult({ updated: updates.map(({ id }) => id) })
         })
-      }),
+      })
+    },
   )
 }

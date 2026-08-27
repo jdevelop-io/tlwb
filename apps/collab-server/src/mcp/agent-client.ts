@@ -56,6 +56,19 @@ function rejection(boardId: string, reason: string): ToolError {
   if (reason === 'read-only link') {
     return new ToolError(`board ${boardId} is view-only with this link`)
   }
+  // Infrastructure failures, not a problem with the submitted elements:
+  // labelling them as a rejection invites an agent to retry with
+  // different elements in a loop instead of backing off.
+  if (reason === 'storage failure') {
+    return new ToolError(
+      `board ${boardId} could not be saved: storage is unavailable, retry later`,
+    )
+  }
+  if (reason === 'internal error') {
+    return new ToolError(
+      `board ${boardId} could not be saved: an internal error occurred, retry later`,
+    )
+  }
   return new ToolError(`elements rejected: ${reason}`)
 }
 
@@ -146,8 +159,8 @@ export async function withBoard<T>(
     mirror.destroy()
   }
 
-  room.join(connection)
   try {
+    room.join(connection)
     // The room answers step 1 with step 2, applied to the mirror in `send`.
     await room.handleMessage(connection, encodeSyncStep1(mirror))
     return await run(client)

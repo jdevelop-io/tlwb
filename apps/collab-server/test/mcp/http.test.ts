@@ -156,4 +156,40 @@ describe('POST /mcp', () => {
     )
     expect(response.status).toBe(415)
   })
+
+  // Unauthenticated, reachable from the public internet, and read whole
+  // into memory before anything looks at a key: this bound is what
+  // keeps a multi-gigabyte body from taking the process down.
+  it('refuses a body over MAX_MESSAGE_BYTES with 413, not by exhausting memory', async () => {
+    const response = await app({
+      TRUST_PROXY: 'true',
+      MAX_MESSAGE_BYTES: '100',
+    }).request(
+      rpc('tools/call', {
+        name: 'create_board',
+        arguments: { name: 'x'.repeat(1000) },
+      }),
+    )
+    expect(response.status).toBe(413)
+  })
+
+  it('answers the same route with a trailing slash', async () => {
+    const response = await app({ TRUST_PROXY: 'true' }).request(
+      new Request('http://server/mcp/', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'x-forwarded-for': '10.0.0.1',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/list',
+          params: {},
+        }),
+      }),
+    )
+    expect(response.status).toBe(200)
+  })
 })

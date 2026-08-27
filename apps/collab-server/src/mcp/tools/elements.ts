@@ -38,7 +38,19 @@ const textProps = {
   containerId: z.string().nullable().optional(),
 }
 
-const points = z.array(point).describe('Relative to x and y, in world units')
+// Bounds on a single element's own shape, distinct from `mcpMaxBatch`
+// (the number of elements per call): well beyond a hand-drawn stroke or
+// a whiteboard note, but short of one element amplifying a
+// request that already passed the body size limit into pathological
+// engine and Yjs work.
+export const MAX_POINTS_PER_ELEMENT = 5_000
+export const MAX_TEXT_LENGTH = 20_000
+
+const points = z
+  .array(point)
+  .max(MAX_POINTS_PER_ELEMENT)
+  .describe('Relative to x and y, in world units')
+const text = z.string().max(MAX_TEXT_LENGTH)
 
 /**
  * The engine's element variants with a required core and optional style;
@@ -61,7 +73,7 @@ export const elementInput = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('text'),
     ...box,
-    text: z.string(),
+    text,
     ...textProps,
   }),
   z.object({ type: z.literal('image'), ...box }),
@@ -78,7 +90,7 @@ export const elementPatch = z.object({
   points: points.optional(),
   startBinding: binding.optional(),
   endBinding: binding.optional(),
-  text: z.string().optional(),
+  text: text.optional(),
   ...textProps,
 })
 export type ElementPatch = z.infer<typeof elementPatch>

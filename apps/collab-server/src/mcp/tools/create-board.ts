@@ -26,8 +26,13 @@ export function registerCreateBoard(
           .describe('Board title'),
       },
     },
-    ({ name }) =>
-      guarded({ tool: 'create_board' }, async () => {
+    ({ name }) => {
+      // No board id exists until `issueBoard` succeeds: left unset
+      // rather than logged as a placeholder that looks like one.
+      const context: { tool: string; boardId?: string } = {
+        tool: 'create_board',
+      }
+      return guarded(context, async () => {
         if (!deps.createLimiter.take(ip)) {
           throw new ToolError(
             'too many boards created from this address, retry later',
@@ -37,6 +42,7 @@ export function registerCreateBoard(
         if (!issued) {
           throw new Error('board id collision')
         }
+        context.boardId = issued.boardId
         await withBoard(
           agentDeps(deps),
           { boardId: issued.boardId, key: issued.editKey },
@@ -55,6 +61,7 @@ export function registerCreateBoard(
             issued.viewKey,
           ),
         })
-      }),
+      })
+    },
   )
 }

@@ -44,13 +44,32 @@ export function registerAddElements(
         agentName: agentNameParam,
       },
     },
-    ({ board, elements, agentName }) =>
-      guarded({ tool: 'add_elements' }, async () => {
+    ({ board, elements, agentName }) => {
+      const context: { tool: string; boardId?: string } = {
+        tool: 'add_elements',
+      }
+      return guarded(context, async () => {
         const ref = parseBoardRef(board)
+        context.boardId = ref.boardId
         if (elements.some((element) => element.type === 'image')) {
           throw new ToolError('image elements cannot be added over MCP')
         }
         return withBoard(agentDeps(deps), ref, 'edit', async (client) => {
+          // A create with an id already on the board replaces it
+          // (`store.ts`'s `elements.set`), so a collision here must
+          // refuse the whole batch rather than silently overwrite, the
+          // same way an unknown id refuses update_elements and
+          // delete_elements.
+          const seen = new Set<string>()
+          for (const input of elements) {
+            if (input.id === undefined) {
+              continue
+            }
+            if (seen.has(input.id) || client.store.getElement(input.id)) {
+              throw new ToolError(`element ${input.id} already exists`)
+            }
+            seen.add(input.id)
+          }
           let index = client.store.listElements().at(-1)?.index ?? null
           const created = elements.map((input) => {
             index = indexAfter(index)
@@ -64,6 +83,7 @@ export function registerAddElements(
           client.present(presenceFor(created, agentName))
           return jsonResult({ ids: created.map((element) => element.id) })
         })
-      }),
+      })
+    },
   )
 }

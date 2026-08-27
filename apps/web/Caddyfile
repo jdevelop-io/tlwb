@@ -13,7 +13,7 @@
 		reverse_proxy collab-server:3000
 	}
 
-	@mcp path /mcp
+	@mcp path /mcp /mcp/
 	handle @mcp {
 		reverse_proxy collab-server:3000
 	}

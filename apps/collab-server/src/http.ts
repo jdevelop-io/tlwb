@@ -167,17 +167,20 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     })
   })
 
-  app.route(
-    '/mcp',
-    createMcpApp({
-      db,
-      config,
-      rooms: deps.rooms,
-      createLimiter,
-      now,
-      trustProxy: config.trustProxy,
-    }),
-  )
+  const mcpApp = createMcpApp({
+    db,
+    config,
+    rooms: deps.rooms,
+    createLimiter,
+    now,
+    trustProxy: config.trustProxy,
+  })
+  // `app.route('/mcp', ...)` alone answers `/mcp` but 404s on
+  // `/mcp/`, and mounting at `/mcp/` instead flips which one is
+  // unmatched: the same sub-app is routed at both so a client that
+  // normalises the trailing slash still reaches it.
+  app.route('/mcp', mcpApp)
+  app.route('/mcp/', mcpApp)
 
   return app
 }

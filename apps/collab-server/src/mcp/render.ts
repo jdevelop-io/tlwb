@@ -25,14 +25,26 @@ if (typeof globalThis.Path2D === 'undefined') {
 export const FONTS = { hand: 'Caveat', ui: 'Inter' }
 const BACKGROUND = '#FFFFFF'
 
-function register(specifier: string, family: string): void {
-  GlobalFonts.registerFromPath(
+/**
+ * Registers a font file, throwing if it fails: this runs at module
+ * load, so failing loudly at startup is the right behaviour rather
+ * than silently falling back to a substitute font and serving PNGs
+ * whose layout and fonts do not match the browser's export.
+ */
+export function registerFont(specifier: string, family: string): void {
+  const key = GlobalFonts.registerFromPath(
     fileURLToPath(import.meta.resolve(specifier)),
     family,
   )
+  if (!key) {
+    throw new Error(`failed to register font "${family}" from ${specifier}`)
+  }
 }
-register('@fontsource/inter/files/inter-latin-400-normal.woff2', FONTS.ui)
-register('@fontsource/caveat/files/caveat-latin-500-normal.woff2', FONTS.hand)
+registerFont('@fontsource/inter/files/inter-latin-400-normal.woff2', FONTS.ui)
+registerFont(
+  '@fontsource/caveat/files/caveat-latin-500-normal.woff2',
+  FONTS.hand,
+)
 
 /** A napi canvas with the browser's `toBlob`, which napi lacks. */
 function canvasFactory(): () => HTMLCanvasElement {
@@ -55,15 +67,28 @@ export interface RenderOptions {
   resolveImage?: ImageResolver
 }
 
+/**
+ * Whether a render at `scale` would exceed `maxPixels`, checked from
+ * bounds alone so a caller can refuse an oversized board before paying
+ * for anything the render itself would need (loading and decoding
+ * assets in particular).
+ */
+export function exceedsPixelBudget(
+  elements: readonly BoardElement[],
+  scale: number,
+  maxPixels: number,
+): boolean {
+  const bounds = exportBounds(elements)
+  const pixels = Math.ceil(bounds.width) * Math.ceil(bounds.height) * scale ** 2
+  return pixels > maxPixels
+}
+
 /** Null when the output would exceed `maxPixels`. */
 export async function renderPng(
   elements: readonly BoardElement[],
   options: RenderOptions,
 ): Promise<Uint8Array | null> {
-  const bounds = exportBounds(elements)
-  const pixels =
-    Math.ceil(bounds.width) * Math.ceil(bounds.height) * options.scale ** 2
-  if (pixels > options.maxPixels) {
+  if (exceedsPixelBudget(elements, options.scale, options.maxPixels)) {
     return null
   }
   const blob = await exportScenePng(

@@ -2,7 +2,12 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { withBoard } from '../agent-client'
 import { parseBoardRef } from '../board-ref'
-import { imageBlock, loadImages, renderPng } from '../render'
+import {
+  exceedsPixelBudget,
+  imageBlock,
+  loadImages,
+  renderPng,
+} from '../render'
 import { agentDeps, type McpDeps } from '../server'
 import { guarded, jsonResult, ToolError } from '../tool-error'
 
@@ -30,14 +35,26 @@ export function registerReadBoard(
           .describe('Also return a PNG of the board'),
       },
     },
-    ({ board, image }) =>
-      guarded({ tool: 'read_board' }, async () => {
+    ({ board, image }) => {
+      const context: { tool: string; boardId?: string } = {
+        tool: 'read_board',
+      }
+      return guarded(context, async () => {
         const ref = parseBoardRef(board)
+        context.boardId = ref.boardId
         return withBoard(agentDeps(deps), ref, 'view', async (client) => {
           const elements = client.store.listElements()
           const result = jsonResult({ meta: client.store.getMeta(), elements })
           if (!image) {
             return result
+          }
+          // Tested before loading a single asset: a board over the
+          // ceiling must not pay for decoding every image it holds
+          // first.
+          if (exceedsPixelBudget(elements, 1, deps.config.mcpMaxImagePixels)) {
+            throw new ToolError(
+              `board ${ref.boardId} is too large to render; lower scale`,
+            )
           }
           const png = await renderPng(elements, {
             scale: 1,
@@ -51,6 +68,7 @@ export function registerReadBoard(
           }
           return { content: [...result.content, imageBlock(png)] }
         })
-      }),
+      })
+    },
   )
 }

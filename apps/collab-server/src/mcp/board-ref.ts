@@ -15,17 +15,29 @@ export const BOARD_URL_HELP =
 const BOARD_PATH = /^\/b\/([A-Za-z0-9_-]{8,64})$/
 const FRAGMENT = /^(?:edit|view)=([A-Za-z0-9_-]+)$/
 
+// A private base an absolute URL never has, used only to parse a
+// host-less reference (`/b/<id>#edit=<key>`, as `create_board` returns
+// when `PUBLIC_URL` is unset and `CORS_ORIGIN` is `*`) the same way as
+// an absolute one. The host it would carry is never read.
+const RELATIVE_BASE = 'http://mcp-relative.invalid'
+
 /**
  * Only the path and the fragment are read: a self-hosted deployment
- * accepts its own links. A key in the query string is refused rather
- * than tolerated, so nobody learns to put it there.
+ * accepts its own links, and one without a public origin configured
+ * still accepts the relative link it handed the agent. A key in the
+ * query string is refused rather than tolerated, so nobody learns to
+ * put it there.
  */
 export function parseBoardRef(input: string): BoardRef {
   let url: URL
   try {
     url = new URL(input)
   } catch {
-    throw new ToolError(BOARD_URL_HELP)
+    try {
+      url = new URL(input, RELATIVE_BASE)
+    } catch {
+      throw new ToolError(BOARD_URL_HELP)
+    }
   }
   const path = BOARD_PATH.exec(url.pathname)
   const fragment = FRAGMENT.exec(url.hash.slice(1))
