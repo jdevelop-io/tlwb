@@ -24,5 +24,20 @@ export function useModalDialog(
       dialog.close()
     }
   }, [open])
+
+  useEffect(() => {
+    const dialog = ref.current
+    if (!dialog) {
+      return
+    }
+    // The editor listens for keys on the window and preventDefaults the
+    // ones it consumes, Escape included, which cancels the browser's own
+    // dismissal of a modal before it happens. Keys pressed inside a
+    // dialog are the dialog's business and stop here.
+    const swallow = (event: KeyboardEvent): void => event.stopPropagation()
+    dialog.addEventListener('keydown', swallow)
+    return () => dialog.removeEventListener('keydown', swallow)
+  }, [])
+
   return ref
 }

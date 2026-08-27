@@ -1,16 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
 
-async function elementCount(page: Page): Promise<number> {
-  return page.evaluate(
-    () =>
-      (
-        window as unknown as {
-          tlwb: { session: { store: { listElements(): unknown[] } } }
-        }
-      ).tlwb.session.store.listElements().length,
-  )
-}
-
 async function drawRectangle(page: Page, x = 400, y = 300): Promise<void> {
   await page.keyboard.press('3')
   await page.mouse.move(x, y)
@@ -132,4 +121,25 @@ test("the overflow menu paints its items outside the presence stack's clipping",
 
   await page.getByRole('button', { name: 'Export PNG' }).click()
   await expect(page.getByRole('button', { name: 'More' })).toBeVisible()
+})
+
+test('the share dialog opens as a modal and closes on Escape', async ({
+  page,
+}) => {
+  await page.goto('/b/new')
+  await page.getByRole('radio', { name: 'Select (1)' }).waitFor()
+  await page.getByRole('button', { name: 'Share' }).click()
+
+  // The help dialog shares the class, so match on what this one says.
+  const dialog = page
+    .locator('dialog.share-dialog')
+    .filter({ hasText: 'Share this board' })
+  await expect(dialog).toBeVisible()
+  // `:modal` matches only a dialog opened through showModal(), which is
+  // what gives it the backdrop, the focus trap, and the dismissal
+  // below. A dialog opened by its `open` attribute matches none of it.
+  expect(await dialog.evaluate((el) => el.matches(':modal'))).toBe(true)
+
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
 })
