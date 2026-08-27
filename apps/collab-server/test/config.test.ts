@@ -19,6 +19,11 @@ describe('loadConfig', () => {
       rateLimitPer10s: 200,
       createLimitPerMin: 10,
       trustProxy: false,
+      publicUrl: 'http://a',
+      mcpLimitPerMin: 120,
+      mcpPresenceMs: 5000,
+      mcpMaxBatch: 200,
+      mcpMaxImagePixels: 16_000_000,
     })
   })
 
@@ -65,5 +70,21 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...minimal, PORT: '-1' })).toThrow(
       new ConfigError('PORT must be a positive integer'),
     )
+  })
+
+  it('reads PUBLIC_URL and the MCP settings from the environment', () => {
+    const config = loadConfig({
+      ...minimal,
+      PUBLIC_URL: 'https://tlwb.example',
+      MCP_LIMIT_PER_MIN: '5',
+      MCP_PRESENCE_MS: '100',
+      MCP_MAX_BATCH: '3',
+      MCP_MAX_IMAGE_PIXELS: '1000',
+    })
+    expect(config.publicUrl).toBe('https://tlwb.example')
+    expect(config.mcpLimitPerMin).toBe(5)
+    expect(config.mcpPresenceMs).toBe(100)
+    expect(config.mcpMaxBatch).toBe(3)
+    expect(config.mcpMaxImagePixels).toBe(1000)
   })
 })
