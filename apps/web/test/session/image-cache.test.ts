@@ -83,17 +83,17 @@ describe('image cache', () => {
       onLoaded,
     })
     expect(cache.resolve(localHash)).toBeNull()
-    await settled()
-    await settled()
-    expect(cache.resolve(localHash)).not.toBeNull()
+    await vi.waitFor(() => {
+      expect(cache.resolve(localHash)).not.toBeNull()
+    })
     expect(onLoaded).toHaveBeenCalledTimes(1)
     expect(remote).not.toHaveBeenCalled()
 
     expect(cache.resolve(remoteHash)).toBeNull()
-    await settled()
-    await settled()
+    await vi.waitFor(() => {
+      expect(cache.resolve(remoteHash)).not.toBeNull()
+    })
     expect(remote).toHaveBeenCalledWith(remoteHash)
-    expect(cache.resolve(remoteHash)).not.toBeNull()
     expect(await assets.get(remoteHash)).toBeDefined()
     cache.destroy()
     await assets.delete()
@@ -110,9 +110,9 @@ describe('image cache', () => {
       onLoaded: () => undefined,
     })
     expect(cache.resolve('not-the-real-hash')).toBeNull()
-    await settled()
-    await settled()
-    expect(remote).toHaveBeenCalledWith('not-the-real-hash')
+    await vi.waitFor(() => {
+      expect(remote).toHaveBeenCalledWith('not-the-real-hash')
+    })
     expect(cache.resolve('not-the-real-hash')).toBeNull()
     cache.destroy()
     await assets.delete()
@@ -130,9 +130,9 @@ describe('image cache', () => {
     })
     expect(cache.resolve('concurrent')).toBeNull()
     expect(cache.resolve('concurrent')).toBeNull()
-    await settled()
-    await settled()
-    expect(remote).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => {
+      expect(remote).toHaveBeenCalledTimes(1)
+    })
     cache.destroy()
     await assets.delete()
   })
@@ -153,15 +153,15 @@ describe('image cache', () => {
       onLoaded: () => undefined,
     })
     expect(cache.resolve(hash)).toBeNull()
-    await settled()
-    await settled()
-    expect(remote).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => {
+      expect(remote).toHaveBeenCalledTimes(1)
+    })
 
     expect(cache.resolve(hash)).toBeNull()
-    await settled()
-    await settled()
+    await vi.waitFor(() => {
+      expect(cache.resolve(hash)).not.toBeNull()
+    })
     expect(remote).toHaveBeenCalledTimes(2)
-    expect(cache.resolve(hash)).not.toBeNull()
     cache.destroy()
     await assets.delete()
   })
@@ -170,16 +170,25 @@ describe('image cache', () => {
     const assets = createAssetStore('cache-destroy-race')
     const hash = await assets.put(png(7))
     const onLoaded = vi.fn()
+    // Spied so the test can wait for the in-flight load to actually reach
+    // this point, instead of guessing how many ticks the store read and
+    // the decode take.
+    const decodeSpy = vi.fn(decode)
     const cache = createImageCache({
       assets,
       fetchRemote: async () => null,
       upload: null,
-      decode,
+      decode: decodeSpy,
       onLoaded,
     })
     expect(cache.resolve(hash)).toBeNull()
     cache.destroy()
-    await settled()
+    await vi.waitFor(() => {
+      expect(decodeSpy).toHaveResolved()
+    })
+    // The remaining work (the data-url conversion, then the destroyed
+    // check) is plain promise chaining with no store access left, so one
+    // tick reliably drains it.
     await settled()
     expect(cache.resolve(hash)).toBeNull()
     expect(onLoaded).not.toHaveBeenCalled()

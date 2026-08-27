@@ -77,3 +77,49 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  e2e:
+    name: End to end
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: tlwb
+          POSTGRES_PASSWORD: tlwb
+          POSTGRES_DB: tlwb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://tlwb:tlwb@localhost:5432/tlwb
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/setup@v2
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @tlwb/web exec playwright install --with-deps chromium
+
+      - name: Build the web application
+        run: pnpm --filter @tlwb/web build
+
+      - name: Run the journeys
+        run: pnpm --filter @tlwb/web e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
