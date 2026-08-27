@@ -14,6 +14,7 @@ export interface ImageCacheDeps {
   /** Null on a local board: nothing to upload to. */
   upload: ((hash: string, blob: Blob) => Promise<void>) | null
   decode?: (blob: Blob) => Promise<DecodedImage>
+  now?: () => number
   /** The renderer has no idea an image finished loading; the host repaints. */
   onLoaded: () => void
 }
@@ -33,6 +34,16 @@ interface Entry {
   dataUrl: string
 }
 
+/**
+ * How long a hash that failed to resolve is left alone. The renderer
+ * asks for every image on every frame, so without this an asset the
+ * server does not have would mean an IndexedDB read and an HTTP GET per
+ * animation frame, forever. Long enough to cost nothing, short enough
+ * that an asset arriving late (a peer still uploading it, a network
+ * blip) still shows up on its own.
+ */
+const RETRY_AFTER_MS = 10_000
+
 async function decodeWithBitmap(blob: Blob): Promise<DecodedImage> {
   const bitmap = await createImageBitmap(blob)
   return { source: bitmap, width: bitmap.width, height: bitmap.height }
@@ -49,11 +60,14 @@ export async function blobToDataUrl(blob: Blob): Promise<string> {
 
 export function createImageCache(deps: ImageCacheDeps): ImageCache {
   const decode = deps.decode ?? decodeWithBitmap
+  const now = deps.now ?? Date.now
   let upload = deps.upload
   let fetchRemote = deps.fetchRemote
   let assets = deps.assets
   const entries = new Map<string, Entry>()
   const loading = new Set<string>()
+  /** Hash to the time its last load ended with nothing cached. */
+  const misses = new Map<string, number>()
   let destroyed = false
 
   async function remember(hash: string, blob: Blob): Promise<DecodedImage> {
@@ -98,12 +112,26 @@ export function createImageCache(deps: ImageCacheDeps): ImageCache {
       if (entry) {
         return entry.source
       }
-      if (!loading.has(hash)) {
-        loading.add(hash)
-        load(hash)
-          .catch(() => undefined)
-          .finally(() => loading.delete(hash))
+      const missedAt = misses.get(hash)
+      if (
+        loading.has(hash) ||
+        (missedAt !== undefined && now() - missedAt < RETRY_AFTER_MS)
+      ) {
+        return null
       }
+      loading.add(hash)
+      load(hash)
+        .catch(() => undefined)
+        .finally(() => {
+          loading.delete(hash)
+          // One place decides, whatever the reason nothing was cached:
+          // absent locally and remotely, a hash mismatch, or a throw.
+          if (entries.has(hash)) {
+            misses.delete(hash)
+          } else {
+            misses.set(hash, now())
+          }
+        })
       return null
     },
     resolveUrl(hash) {
@@ -122,13 +150,17 @@ export function createImageCache(deps: ImageCacheDeps): ImageCache {
     },
     setFetchRemote(next) {
       fetchRemote = next
+      // A different source can hold what the previous one did not.
+      misses.clear()
     },
     setAssets(next) {
       assets = next
+      misses.clear()
     },
     destroy() {
       destroyed = true
       entries.clear()
+      misses.clear()
     },
   }
 }

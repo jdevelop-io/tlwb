@@ -118,6 +118,36 @@ describe('image cache', () => {
     await assets.delete()
   })
 
+  it('asks once for an asset nobody has, not once per frame', async () => {
+    const assets = createAssetStore('cache-absent')
+    const remote = vi.fn(async () => null)
+    let clock = 0
+    const cache = createImageCache({
+      assets,
+      fetchRemote: remote,
+      upload: null,
+      decode,
+      onLoaded: () => undefined,
+      now: () => clock,
+    })
+    // The renderer resolves every image on every frame: an unresolvable
+    // hash must not mean a store read and a request per frame.
+    for (let frame = 0; frame < 5; frame += 1) {
+      expect(cache.resolve('absent')).toBeNull()
+      await settled()
+      clock += 16
+    }
+    expect(remote).toHaveBeenCalledTimes(1)
+
+    // Still asked again once the retry window has passed.
+    clock += 10_000
+    expect(cache.resolve('absent')).toBeNull()
+    await settled()
+    expect(remote).toHaveBeenCalledTimes(2)
+    cache.destroy()
+    await assets.delete()
+  })
+
   it('never starts a second load while one for the same hash is in flight', async () => {
     const assets = createAssetStore('cache-concurrent')
     const remote = vi.fn(async () => png(5))
@@ -145,18 +175,21 @@ describe('image cache', () => {
       .fn()
       .mockRejectedValueOnce(new Error('network'))
       .mockResolvedValueOnce(blob)
+    let clock = 0
     const cache = createImageCache({
       assets,
       fetchRemote: remote,
       upload: null,
       decode,
       onLoaded: () => undefined,
+      now: () => clock,
     })
     expect(cache.resolve(hash)).toBeNull()
     await vi.waitFor(() => {
       expect(remote).toHaveBeenCalledTimes(1)
     })
 
+    clock += 10_000
     expect(cache.resolve(hash)).toBeNull()
     await vi.waitFor(() => {
       expect(cache.resolve(hash)).not.toBeNull()
