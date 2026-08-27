@@ -2,10 +2,52 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>tlwb</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tlwb, the little whiteboard</title>
+    <meta name="description" content="An instant, collaborative whiteboard your AI agents can draw on. Open a link, sketch, share, and let agents read and edit your boards through MCP." />
+    <meta property="og:title" content="tlwb, the little whiteboard" />
+    <meta property="og:description" content="Instant, collaborative, agent-friendly." />
+    <meta property="og:image" content="/editor-preview.svg" />
+    <link rel="icon" href="/favicon.svg" />
     <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/landing/landing.css" />
   </head>
   <body>
-    <a href="/b/new">Draw now</a>
+    <header class="site-header">
+      <a class="logo" href="/">tlwb</a>
+      <span class="sign-in" title="Coming soon">Sign in</span>
+    </header>
+    <main>
+      <section class="hero">
+        <h1>The instant little whiteboard, for you, your team, and your agents.</h1>
+        <p>Open a link, sketch with a hand-drawn feel, collaborate live, and let your AI agents read and edit the board.</p>
+        <a class="cta" href="/b/new">Draw now</a>
+        <p class="hint">No account. Your boards stay in this browser until you share them.</p>
+        <div id="resume" class="resume"></div>
+        <img class="preview" src="/editor-preview.svg" alt="The tlwb editor showing a hand-drawn architecture diagram with a human and an agent cursor" width="1200" height="720" />
+      </section>
+      <section class="proof">
+        <article><h2>Instant</h2><p>A board is a URL. One click and you are drawing; nothing to install, nothing to sign.</p></article>
+        <article><h2>Collaborative</h2><p>Share a link, edit or view only, and see everyone's cursor as they draw.</p></article>
+        <article><h2>Your agents via MCP</h2><p>Claude Code, Claude Desktop, or any MCP client joins the board as a badged collaborator.</p></article>
+      </section>
+      <section class="open-source">
+        <h2>Open source</h2>
+        <p>The engine, this client, and the MCP server are MIT licensed. Self-host the whole thing with one <code>docker compose up</code>.</p>
+        <a href="https://github.com/jdevelop-io/tlwb">GitHub</a>
+      </section>
+      <section class="pricing">
+        <h2>Pricing</h2>
+        <div class="plans">
+          <article><h3>Free</h3><p>Unlimited local boards, sharing by link, agent access with fair use.</p></article>
+          <article><h3>Pro <small>coming soon</small></h3><p>Unlimited hosted boards and team features.</p></article>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <span>tlwb by JDevelop</span>
+      <a href="https://github.com/jdevelop-io/tlwb">Source</a>
+    </footer>
+    <script type="module" src="/src/landing/recents.ts"></script>
   </body>
 </html>

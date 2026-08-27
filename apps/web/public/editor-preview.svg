@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <title>The tlwb editor showing a hand-drawn architecture diagram with a human and an agent cursor</title>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#1A1A1A" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="720" fill="#FFFFFF" />
+  <rect x="1" y="1" width="1198" height="718" fill="none" stroke="#E5E4E0" stroke-width="2" />
+
+  <rect x="440" y="24" width="320" height="56" rx="12" fill="#FFFFFF" stroke="#E5E4E0" stroke-width="2" />
+  <circle cx="474" cy="52" r="14" fill="none" stroke="#1A1A1A" stroke-width="2" />
+  <circle cx="518" cy="52" r="14" fill="#FFE1D9" stroke="#FF6B4A" stroke-width="2" />
+  <circle cx="562" cy="52" r="14" fill="none" stroke="#1A1A1A" stroke-width="2" />
+  <circle cx="606" cy="52" r="14" fill="none" stroke="#1A1A1A" stroke-width="2" />
+  <circle cx="650" cy="52" r="14" fill="none" stroke="#1A1A1A" stroke-width="2" />
+  <circle cx="694" cy="52" r="14" fill="none" stroke="#1A1A1A" stroke-width="2" />
+  <circle cx="726" cy="52" r="14" fill="none" stroke="#1A1A1A" stroke-width="2" />
+
+  <path d="M170,300 Q160,260 210,262 Q330,250 340,300 Q350,350 260,352 Q160,354 170,300 Z"
+        fill="#FFFFFF" stroke="#1A1A1A" stroke-width="2.5" />
+  <text x="255" y="312" text-anchor="middle" font-family="Caveat, cursive" font-weight="700" font-size="30" fill="#1A1A1A">client</text>
+
+  <path d="M540,300 Q530,258 585,262 Q705,252 715,300 Q724,350 630,352 Q532,354 540,300 Z"
+        fill="#FFFFFF" stroke="#1A1A1A" stroke-width="2.5" />
+  <text x="628" y="312" text-anchor="middle" font-family="Caveat, cursive" font-weight="700" font-size="30" fill="#1A1A1A">api</text>
+
+  <path d="M910,300 Q900,260 955,262 Q1040,252 1050,300 Q1058,350 985,352 Q902,354 910,300 Z"
+        fill="#FFFFFF" stroke="#1A1A1A" stroke-width="2.5" />
+  <text x="978" y="312" text-anchor="middle" font-family="Caveat, cursive" font-weight="700" font-size="30" fill="#1A1A1A">db</text>
+
+  <path d="M345,304 Q440,296 535,304" fill="none" stroke="#1A1A1A" stroke-width="2.5" marker-end="url(#arrowhead)" />
+  <path d="M718,304 Q810,296 905,304" fill="none" stroke="#1A1A1A" stroke-width="2.5" marker-end="url(#arrowhead)" />
+
+  <g transform="translate(300,460)">
+    <path d="M0,0 L0,26 L7,20 L12,30 L18,27 L13,17 L22,17 Z" fill="#FF6B4A" />
+    <rect x="24" y="12" width="70" height="26" rx="6" fill="#FF6B4A" />
+    <text x="59" y="30" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF">Ada</text>
+  </g>
+
+  <g transform="translate(880,540)">
+    <path d="M0,0 L0,26 L7,20 L12,30 L18,27 L13,17 L22,17 Z" fill="#8B7CF6" />
+    <rect x="24" y="12" width="164" height="26" rx="6" fill="#8B7CF6" />
+    <text x="106" y="30" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF">Claude (agent)</text>
+  </g>
+</svg>
