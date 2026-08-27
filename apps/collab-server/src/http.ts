@@ -3,6 +3,7 @@ import type { HttpBindings } from '@hono/node-server'
 import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
+import { HTTPException } from 'hono/http-exception'
 import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
 import { findBoard } from './db/boards'
@@ -77,7 +78,15 @@ export function createApp(deps: HttpDeps): Hono<Env> {
 
   // Every route answers the JSON error shape, a failed query included,
   // and every failure leaves one JSON log line rather than a stack.
+  // An `HTTPException` (raised by `/mcp`'s transport for a protocol
+  // violation such as a malformed body or a bad Accept header) already
+  // carries the correct status and body: honour it, the same way
+  // Hono's own default error handler does, instead of flattening it
+  // into a generic 500.
   app.onError((error, c) => {
+    if (error instanceof HTTPException) {
+      return error.getResponse()
+    }
     log({ event: 'request failed', path: c.req.path, error: String(error) })
     return c.json({ error: 'internal error' }, 500)
   })

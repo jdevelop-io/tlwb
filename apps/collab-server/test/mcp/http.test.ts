@@ -95,4 +95,65 @@ describe('POST /mcp', () => {
     const text = (result.content as { text: string }[])[0]?.text ?? ''
     expect(JSON.parse(text).editUrl).toMatch(/^http:\/\/a\/b\/.+#edit=/)
   })
+
+  // The transport itself rejects a protocol violation with its own
+  // status and JSON-RPC-shaped body, distinct from the app's own
+  // `internal error` shape: the shared `onError` handler must let
+  // those through rather than flattening them into a 500.
+  it('answers a malformed JSON body with 400, not 500', async () => {
+    const response = await app({ TRUST_PROXY: 'true' }).request(
+      new Request('http://server/mcp', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: '{not json',
+      }),
+    )
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body).not.toEqual({ error: 'internal error' })
+    expect(body.jsonrpc).toBe('2.0')
+  })
+
+  it('answers a wrong HTTP method with 405, not 500', async () => {
+    const response = await app({ TRUST_PROXY: 'true' }).request(
+      new Request('http://server/mcp', { method: 'PUT' }),
+    )
+    expect(response.status).toBe(405)
+  })
+
+  it('answers a wrong Accept header with 406, not 500', async () => {
+    const response = await app({ TRUST_PROXY: 'true' }).request(
+      new Request('http://server/mcp', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'text/plain',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/list',
+          params: {},
+        }),
+      }),
+    )
+    expect(response.status).toBe(406)
+  })
+
+  it('answers a wrong Content-Type with 415, not 500', async () => {
+    const response = await app({ TRUST_PROXY: 'true' }).request(
+      new Request('http://server/mcp', {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain',
+          accept: 'application/json, text/event-stream',
+        },
+        body: 'tools/list',
+      }),
+    )
+    expect(response.status).toBe(415)
+  })
 })
