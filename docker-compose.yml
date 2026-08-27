@@ -6,6 +6,8 @@ services:
       POSTGRES_PASSWORD: tlwb
       POSTGRES_DB: tlwb
     ports:
+      # A development convenience: psql and the end-to-end suite run on
+      # the host and dial the database directly.
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -23,8 +25,15 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgres://tlwb:tlwb@postgres:5432/tlwb
       CORS_ORIGIN: http://localhost:8080
-    ports:
-      - "3000:3000"
+      # Caddy is the only thing that reaches this service, and it
+      # rewrites X-Forwarded-For with the address it saw, so the last
+      # entry is trustworthy. Without it every visitor shares one
+      # per-address bucket, which is Caddy's. Safe only because the
+      # port is exposed to the network and not published: anything that
+      # could reach the server directly would write that header itself.
+      TRUST_PROXY: "true"
+    expose:
+      - "3000"
     depends_on:
       postgres:
         condition: service_healthy
