@@ -31,6 +31,11 @@ Or the whole stack: `docker compose up`.
 | `RATE_LIMIT_PER_10S`    | `200`      | Messages per connection per 10 seconds |
 | `CREATE_LIMIT_PER_MIN`  | `10`       | Board creations per IP per minute      |
 | `TRUST_PROXY`           | `false`    | Read the client address from `X-Forwarded-For` |
+| `PUBLIC_URL`            | `CORS_ORIGIN` | Origin the MCP `create_board` share URLs are built on |
+| `MCP_LIMIT_PER_MIN`     | `120`      | MCP requests per IP per minute         |
+| `MCP_PRESENCE_MS`       | `5000`     | How long an agent stays visible after an edit |
+| `MCP_MAX_BATCH`         | `200`      | Elements or ids per MCP call           |
+| `MCP_MAX_IMAGE_PIXELS`  | `16000000` | Largest PNG an MCP render produces     |
 
 Turn `TRUST_PROXY` on only when a reverse proxy you control sets
 `X-Forwarded-For`: the creation limit then keys on its last entry, the
@@ -58,6 +63,30 @@ WebSocket close codes: `4401` bad token, `4403` write on a view link,
 limit, `4422` malformed element, `4429` rate limit, `1009` message over
 `MAX_MESSAGE_BYTES`, closed by the transport before the application sees
 it, `1011` storage failure, `1001` shutdown.
+
+## MCP
+
+`POST /mcp` is a stateless Model Context Protocol endpoint (streamable
+HTTP). Paste into any MCP client:
+
+```json
+{ "mcpServers": { "tlwb": { "url": "http://localhost:8080/mcp" } } }
+```
+
+The credential is the board's share link, passed as `board` to every
+tool: an edit link allows mutations, a view link allows reading only.
+
+- `create_board({ name? })`: `{ boardId, editUrl, viewUrl }`.
+- `read_board({ board, image? })`: `{ meta, elements }`, plus a PNG when
+  `image` is true.
+- `add_elements({ board, elements, agentName? })`: `{ ids }`.
+- `update_elements({ board, updates, agentName? })`: `{ updated }`.
+- `delete_elements({ board, ids, agentName? })`: `{ deleted }`.
+- `get_board_screenshot({ board, scale? })`: a PNG.
+
+After a mutation the agent appears in the board's avatar stack, badged,
+for `MCP_PRESENCE_MS`. Mutations go through the same validation and
+persistence as a browser's; an invalid batch is refused whole.
 
 ## Deployment
 

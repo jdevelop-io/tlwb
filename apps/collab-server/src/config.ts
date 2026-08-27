@@ -11,6 +11,12 @@ export interface Config {
   rateLimitPer10s: number
   createLimitPerMin: number
   trustProxy: boolean
+  /** Origin the share URLs returned by MCP are built on. */
+  publicUrl: string
+  mcpLimitPerMin: number
+  mcpPresenceMs: number
+  mcpMaxBatch: number
+  mcpMaxImagePixels: number
 }
 
 export class ConfigError extends Error {
@@ -60,14 +66,15 @@ function boolean(env: Env, name: string, fallback: boolean): boolean {
 
 /** Reads and validates the environment; throws ConfigError on the first problem. */
 export function loadConfig(env: Env): Config {
+  // Always required, wildcard included: a wide-open API must be
+  // something an operator wrote down, not something a forgotten
+  // NODE_ENV handed them.
+  const corsOrigin = required(env, 'CORS_ORIGIN')
   return {
     databaseUrl: required(env, 'DATABASE_URL'),
     // 0 asks the OS for an ephemeral port; the tests rely on it.
     port: integer(env, 'PORT', 3000, 0),
-    // Always required, wildcard included: a wide-open API must be
-    // something an operator wrote down, not something a forgotten
-    // NODE_ENV handed them.
-    corsOrigin: required(env, 'CORS_ORIGIN'),
+    corsOrigin,
     maxMessageBytes: integer(env, 'MAX_MESSAGE_BYTES', 1_048_576),
     maxDocBytes: integer(env, 'MAX_DOC_BYTES', 5_242_880),
     maxAssetBytes: integer(env, 'MAX_ASSET_BYTES', 10_485_760),
@@ -80,5 +87,10 @@ export function loadConfig(env: Env): Config {
     // written by the client itself. The shipped Compose file turns it
     // on, where the server is only reachable through Caddy.
     trustProxy: boolean(env, 'TRUST_PROXY', false),
+    publicUrl: env.PUBLIC_URL || corsOrigin,
+    mcpLimitPerMin: integer(env, 'MCP_LIMIT_PER_MIN', 120),
+    mcpPresenceMs: integer(env, 'MCP_PRESENCE_MS', 5000, 0),
+    mcpMaxBatch: integer(env, 'MCP_MAX_BATCH', 200),
+    mcpMaxImagePixels: integer(env, 'MCP_MAX_IMAGE_PIXELS', 16_000_000),
   }
 }

@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { createElement } from '@tlwb/engine'
-import { connectBoard, createYjsBoardStore } from '@tlwb/store-yjs'
+import {
+  connectBoard,
+  createPresence,
+  createYjsBoardStore,
+} from '@tlwb/store-yjs'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import { loadConfig } from '../src/config'
@@ -23,6 +30,7 @@ beforeAll(async () => {
       PORT: '0',
       ROOM_IDLE_MS: '50',
       COMPACT_AFTER_UPDATES: '2',
+      MCP_PRESENCE_MS: '300',
       // Every board here is created from the same address: the default
       // of 10 per minute would tip this file into 429 as it grows.
       CREATE_LIMIT_PER_MIN: '1000',
@@ -372,5 +380,115 @@ describe('collaboration server', () => {
       // server: without it, a failed run leaks a listening socket.
       await closing
     }
+  })
+})
+
+describe('MCP over HTTP', () => {
+  async function mcpClient(): Promise<Client> {
+    const client = new Client({ name: 'e2e', version: '0' })
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(`http://${base}/mcp`)),
+    )
+    return client
+  }
+
+  function textOf(result: CallToolResult): string {
+    const block = result.content.find((c) => c.type === 'text')
+    return block?.type === 'text' ? block.text : ''
+  }
+
+  it('lets an agent create a board, draw on it, and be seen by a browser', async () => {
+    const agent = await mcpClient()
+    const created = (await agent.callTool({
+      name: 'create_board',
+      arguments: { name: 'Agents' },
+    })) as CallToolResult
+    const { boardId, editUrl } = JSON.parse(textOf(created)) as {
+      boardId: string
+      editUrl: string
+    }
+    const editKey = editUrl.split('#edit=')[1] as string
+
+    const doc = new Y.Doc()
+    const store = createYjsBoardStore(doc)
+    const browser = connectBoard(doc, {
+      url: `ws://${base}/ws`,
+      boardId,
+      token: editKey,
+    })
+    const presence = createPresence(browser.awareness, {
+      name: 'Human',
+      color: '#000000',
+      isAgent: false,
+    })
+    await waitFor(() => browser.getStatus() === 'connected')
+
+    const added = (await agent.callTool({
+      name: 'add_elements',
+      arguments: {
+        board: editUrl,
+        agentName: 'Claude',
+        elements: [
+          { type: 'rectangle', id: 'box', x: 0, y: 0, width: 120, height: 60 },
+          { type: 'text', x: 10, y: 10, width: 100, height: 20, text: 'API' },
+        ],
+      },
+    })) as CallToolResult
+    expect(added.isError).toBeFalsy()
+
+    await waitFor(() => store.getElement('box') !== undefined)
+    await waitFor(() =>
+      presence
+        .getPeers()
+        .some((peer) => peer.isAgent && peer.name === 'Claude'),
+    )
+    const agentPeer = presence.getPeers().find((peer) => peer.isAgent)
+    expect(agentPeer?.selectedIds).toContain('box')
+    expect(agentPeer?.cursor).not.toBeNull()
+    await waitFor(() => !presence.getPeers().some((peer) => peer.isAgent))
+
+    const shot = (await agent.callTool({
+      name: 'get_board_screenshot',
+      arguments: { board: editUrl },
+    })) as CallToolResult
+    const image = shot.content.find((c) => c.type === 'image')
+    expect(image?.type).toBe('image')
+
+    presence.destroy()
+    browser.destroy()
+    browser.awareness.destroy()
+    doc.destroy()
+    await agent.close()
+  })
+
+  it('persists agent edits across room eviction', async () => {
+    const agent = await mcpClient()
+    const created = (await agent.callTool({
+      name: 'create_board',
+      arguments: {},
+    })) as CallToolResult
+    const { editUrl } = JSON.parse(textOf(created)) as { editUrl: string }
+    await agent.callTool({
+      name: 'add_elements',
+      arguments: {
+        board: editUrl,
+        elements: [
+          { type: 'ellipse', id: 'e', x: 0, y: 0, width: 10, height: 10 },
+        ],
+      },
+    })
+    // ROOM_IDLE_MS is 50 in this file and MCP_PRESENCE_MS 300: the room
+    // is evicted after the presence window, so the next read reloads it
+    // from Postgres.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const read = (await agent.callTool({
+      name: 'read_board',
+      arguments: { board: editUrl },
+    })) as CallToolResult
+    const { elements } = JSON.parse(textOf(read)) as {
+      elements: { id: string }[]
+    }
+    expect(elements.map((e) => e.id)).toEqual(['e'])
+    await agent.close()
   })
 })

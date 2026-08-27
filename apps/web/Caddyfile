@@ -13,6 +13,11 @@
 		reverse_proxy collab-server:3000
 	}
 
+	@mcp path /mcp /mcp/
+	handle @mcp {
+		reverse_proxy collab-server:3000
+	}
+
 	# Hashed asset filenames change whenever their content does, so a
 	# year-long immutable cache is safe.
 	@assets path /assets/*

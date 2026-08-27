@@ -1,24 +1,28 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import type { HttpBindings } from '@hono/node-server'
 import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
+import { HTTPException } from 'hono/http-exception'
 import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
-import { createBoard, findBoard } from './db/boards'
+import { findBoard } from './db/boards'
 import type { Db } from './db/client'
-import { generateKey, hashKey, type Role, resolveRole } from './keys'
+import { issueBoard } from './issue-board'
+import { type Role, resolveRole } from './keys'
 import { log } from './log'
-import { type BucketEntry, createTokenBucket, sweepStale } from './rate-limit'
+import { createMcpApp } from './mcp'
+import { createIpLimiter, type IpLimiter } from './rate-limit'
+import type { RoomRegistry } from './rooms'
 
 export interface HttpDeps {
   db: Db
   config: Config
+  rooms: RoomRegistry
   now?: () => number
+  /** Shared with the MCP `create_board` tool; created here when absent. */
+  createLimiter?: IpLimiter
 }
-
-const CREATE_WINDOW_MS = 60_000
-const MAX_TRACKED_IPS = 10_000
 
 type Env = { Bindings: HttpBindings }
 
@@ -29,7 +33,7 @@ type Env = { Bindings: HttpBindings }
  * entry is the client's own writing, so the header is ignored and the
  * socket address is the only trustworthy key.
  */
-function clientIp(c: Context<Env>, trustProxy: boolean): string {
+export function clientIp(c: Context<Env>, trustProxy: boolean): string {
   if (trustProxy) {
     const parts = c.req.header('x-forwarded-for')?.split(',')
     const last = parts?.[parts.length - 1]?.trim()
@@ -66,14 +70,23 @@ export function createApp(deps: HttpDeps): Hono<Env> {
   const { db, config } = deps
   const now = deps.now ?? Date.now
   const app = new Hono<Env>()
-  let creationBuckets = new Map<string, BucketEntry>()
+  const createLimiter: IpLimiter =
+    deps.createLimiter ?? createIpLimiter(config.createLimitPerMin, 60_000, now)
 
   app.use('/boards', cors({ origin: config.corsOrigin }))
   app.use('/boards/*', cors({ origin: config.corsOrigin }))
 
   // Every route answers the JSON error shape, a failed query included,
   // and every failure leaves one JSON log line rather than a stack.
+  // An `HTTPException` (raised by `/mcp`'s transport for a protocol
+  // violation such as a malformed body or a bad Accept header) already
+  // carries the correct status and body: honour it, the same way
+  // Hono's own default error handler does, instead of flattening it
+  // into a generic 500.
   app.onError((error, c) => {
+    if (error instanceof HTTPException) {
+      return error.getResponse()
+    }
     log({ event: 'request failed', path: c.req.path, error: String(error) })
     return c.json({ error: 'internal error' }, 500)
   })
@@ -81,48 +94,14 @@ export function createApp(deps: HttpDeps): Hono<Env> {
   app.get('/health', (c) => c.json({ ok: true }))
 
   app.post('/boards', async (c) => {
-    const nowMs = now()
-    if (creationBuckets.size > MAX_TRACKED_IPS) {
-      // ponytail: sweeps only entries idle past the refill window, so an
-      // IP currently rate limited keeps its state. Remaining ceiling: if
-      // more than MAX_TRACKED_IPS distinct IPs are all active within the
-      // same window, the map still grows without bound; per-entry expiry
-      // via a proper LRU is the upgrade if that shows up in practice.
-      creationBuckets = sweepStale(creationBuckets, nowMs, CREATE_WINDOW_MS)
-    }
-    const ip = clientIp(c, config.trustProxy)
-    let entry = creationBuckets.get(ip)
-    if (!entry) {
-      entry = {
-        bucket: createTokenBucket(
-          config.createLimitPerMin,
-          CREATE_WINDOW_MS,
-          now,
-        ),
-        seen: nowMs,
-      }
-      creationBuckets.set(ip, entry)
-    } else {
-      entry.seen = nowMs
-    }
-    if (!entry.bucket.take()) {
+    if (!createLimiter.take(clientIp(c, config.trustProxy))) {
       return c.json({ error: 'too many boards created' }, 429)
     }
-
-    // 16 random bytes in base64url: 22 characters, alphabet
-    // [A-Za-z0-9_-], unguessable, and never chosen by a client.
-    const boardId = randomBytes(16).toString('base64url')
-    const editKey = generateKey()
-    const viewKey = generateKey()
-    const outcome = await createBoard(db, boardId, {
-      editKeyHash: hashKey(editKey),
-      viewKeyHash: hashKey(viewKey),
-    })
-    if (outcome === 'exists') {
-      // 128 random bits colliding is not a case worth a retry loop.
+    const issued = await issueBoard(db)
+    if (!issued) {
       return c.json({ error: 'internal error' }, 500)
     }
-    return c.json({ boardId, editKey, viewKey }, 201)
+    return c.json(issued, 201)
   })
 
   const HASH = /^[a-f0-9]{64}$/
@@ -187,6 +166,21 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       'X-Content-Type-Options': 'nosniff',
     })
   })
+
+  const mcpApp = createMcpApp({
+    db,
+    config,
+    rooms: deps.rooms,
+    createLimiter,
+    now,
+    trustProxy: config.trustProxy,
+  })
+  // `app.route('/mcp', ...)` alone answers `/mcp` but 404s on
+  // `/mcp/`, and mounting at `/mcp/` instead flips which one is
+  // unmatched: the same sub-app is routed at both so a client that
+  // normalises the trailing slash still reaches it.
+  app.route('/mcp', mcpApp)
+  app.route('/mcp/', mcpApp)
 
   return app
 }

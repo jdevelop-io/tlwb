@@ -53,3 +53,42 @@ export function createTokenBucket(
     },
   }
 }
+
+export interface IpLimiter {
+  /** True when the address still had a token; consumes it. */
+  take(ip: string): boolean
+}
+
+const MAX_TRACKED_IPS = 10_000
+
+/** One token bucket per address, swept when the table grows large. */
+export function createIpLimiter(
+  capacity: number,
+  windowMs: number,
+  now: () => number = Date.now,
+): IpLimiter {
+  let entries = new Map<string, BucketEntry>()
+  return {
+    take(ip) {
+      const nowMs = now()
+      if (entries.size > MAX_TRACKED_IPS) {
+        // ponytail: sweeps only entries idle past the window, so an
+        // address currently limited keeps its state. Remaining ceiling:
+        // more than MAX_TRACKED_IPS distinct addresses all active within
+        // one window still grow the map; a proper LRU is the upgrade.
+        entries = sweepStale(entries, nowMs, windowMs)
+      }
+      let entry = entries.get(ip)
+      if (!entry) {
+        entry = {
+          bucket: createTokenBucket(capacity, windowMs, now),
+          seen: nowMs,
+        }
+        entries.set(ip, entry)
+      } else {
+        entry.seen = nowMs
+      }
+      return entry.bucket.take()
+    },
+  }
+}

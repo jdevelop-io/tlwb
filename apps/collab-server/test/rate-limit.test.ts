@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createTokenBucket, sweepStale } from '../src/rate-limit'
+import {
+  createIpLimiter,
+  createTokenBucket,
+  sweepStale,
+} from '../src/rate-limit'
 
 describe('createTokenBucket', () => {
   it('allows the burst, refuses when empty, refills over time', () => {
@@ -33,5 +37,18 @@ describe('sweepStale', () => {
     const swept = sweepStale(entries, 10_000, 5_000)
     expect(swept.has('stale-ip')).toBe(false)
     expect(swept.has('fresh-ip')).toBe(true)
+  })
+})
+
+describe('createIpLimiter', () => {
+  it('gives every address its own bucket', () => {
+    let now = 0
+    const limiter = createIpLimiter(2, 60_000, () => now)
+    expect(limiter.take('a')).toBe(true)
+    expect(limiter.take('a')).toBe(true)
+    expect(limiter.take('a')).toBe(false)
+    expect(limiter.take('b')).toBe(true)
+    now = 60_000
+    expect(limiter.take('a')).toBe(true)
   })
 })

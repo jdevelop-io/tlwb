@@ -206,9 +206,14 @@ the agent.
 
 `ElementPatch` is every optional property above, all optional, without
 `type`; `text`, `points`, and bindings included for the variants that
-have them. A patch that sets a property a variant does not have is
-rejected by the room's validation, not by the schema, to keep the schema
-small.
+have them, to keep the schema small. A patch that sets a property a
+variant does not have is tolerated, not rejected: the engine's own
+validation explicitly allows extra properties
+(`packages/engine/src/model/validate.ts`), so a foreign field (`text` on
+a rectangle, say) is persisted and comes back out through `read_board`.
+Every engine consumer of such a field guards on the element's own type,
+so the impact is inert, but it is not the schema-level rejection an
+earlier version of this specification described.
 
 `read_board` returns elements in stacking order (`listElements()`),
 complete, as the engine holds them, so what the agent reads is what it
@@ -267,9 +272,9 @@ request answers `429` before reaching the MCP transport. `create_board`
 additionally takes from the board creation bucket shared with
 `POST /boards`.
 
-Configuration added to `config.ts`: `MCP_LIMIT_PER_MIN` (120),
-`MCP_PRESENCE_MS` (5000), `MCP_MAX_BATCH` (200), `MCP_MAX_IMAGE_PIXELS`
-(16000000).
+Configuration added to `config.ts`: `PUBLIC_URL` (default `CORS_ORIGIN`),
+`MCP_LIMIT_PER_MIN` (120), `MCP_PRESENCE_MS` (5000), `MCP_MAX_BATCH`
+(200), `MCP_MAX_IMAGE_PIXELS` (16000000).
 
 Logging follows the existing JSON `log`: one line per tool call with the
 tool name, the board id, the outcome, and the duration; never the key.
@@ -321,3 +326,19 @@ comment tools, MCP resources and prompts (tools only), persistent agent
 sessions, cursor choreography beyond follow-the-edit, and the
 self-hosted edition's own URL handling beyond accepting any host in the
 share link.
+
+## 10. Amendments
+
+2026-08-27:
+
+- `PUBLIC_URL` (default `CORS_ORIGIN`) added to the configuration: the
+  server needs an origin to build the share URLs `create_board` returns;
+  with `*`, the URLs are relative (`/b/<id>#edit=<key>`). `parseBoardRef`
+  accepts such a host-less reference the same way as an absolute one, so
+  every tool still consumes the link `create_board` handed back.
+- A mutation tool returns as soon as the room accepted the update; the
+  five-second presence window runs after the response, not before it,
+  so an agent's loop is not slowed by its own avatar.
+- The virtual connection's mirror is synchronized through the room's
+  real step 1 / step 2 exchange rather than seeded from the room
+  document.
