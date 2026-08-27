@@ -110,17 +110,26 @@ describe('board actions', () => {
 })
 
 describe('download', () => {
-  it('creates a downloadable anchor, clicks it, and revokes the object URL', () => {
-    const anchor = { href: '', download: '', click: vi.fn() }
+  it('clicks an attached anchor and revokes the object URL only later', async () => {
+    const steps: string[] = []
+    const anchor = {
+      href: '',
+      download: '',
+      click: vi.fn(() => steps.push('click')),
+      remove: vi.fn(() => steps.push('remove')),
+    }
     const fakeDoc = {
       createElement: vi.fn(() => anchor),
+      body: { append: vi.fn(() => steps.push('append')) },
     } as unknown as Document
     const createObjectURL = vi
       .spyOn(URL, 'createObjectURL')
       .mockReturnValue('blob:fake')
     const revokeObjectURL = vi
       .spyOn(URL, 'revokeObjectURL')
-      .mockImplementation(() => undefined)
+      .mockImplementation(() => {
+        steps.push('revoke')
+      })
     const blob = new Blob(['hi'], { type: 'text/plain' })
 
     download(blob, 'notes.txt', fakeDoc)
@@ -128,7 +137,12 @@ describe('download', () => {
     expect(fakeDoc.createElement).toHaveBeenCalledWith('a')
     expect(anchor.href).toBe('blob:fake')
     expect(anchor.download).toBe('notes.txt')
-    expect(anchor.click).toHaveBeenCalledOnce()
+    // A detached anchor never fires the download outside Chromium, and
+    // revoking in the same tick cancels one that did start.
+    expect(steps).toEqual(['append', 'click', 'remove'])
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(steps).toEqual(['append', 'click', 'remove', 'revoke'])
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake')
 
     createObjectURL.mockRestore()

@@ -10,6 +10,12 @@ import type { BoardSession } from './board-session'
 import { clearAliasesTo, clearKeys } from './keys'
 import { removeRecent } from './recents'
 
+/**
+ * Only Chromium honours a click on a detached anchor, and only
+ * Chromium tolerates the object URL being revoked in the same tick;
+ * everywhere else that combination is a silent no-op. So: insert,
+ * click, remove, and let the download start before the URL goes.
+ */
 export function download(
   blob: Blob,
   filename: string,
@@ -19,8 +25,10 @@ export function download(
   const anchor = doc.createElement('a')
   anchor.href = url
   anchor.download = filename
+  doc.body.append(anchor)
   anchor.click()
-  URL.revokeObjectURL(url)
+  anchor.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 /** A new local board holding a copy of this one; returns its id. */
