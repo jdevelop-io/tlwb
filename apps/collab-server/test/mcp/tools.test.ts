@@ -1,4 +1,3 @@
-// biome-ignore-all lint/suspicious/noExportsInTest: helpers reused by later mcp tool test files
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -39,7 +38,7 @@ afterEach(async () => {
   }
 })
 
-export async function connect(
+async function connect(
   overrides: Partial<McpDeps> = {},
   ip = '10.0.0.1',
 ): Promise<Client> {
@@ -60,7 +59,7 @@ export async function connect(
   return client
 }
 
-export async function call(
+async function call(
   client: Client,
   name: string,
   args: Record<string, unknown>,
@@ -68,19 +67,19 @@ export async function call(
   return (await client.callTool({ name, arguments: args })) as CallToolResult
 }
 
-export function textOf(result: CallToolResult): string {
+function textOf(result: CallToolResult): string {
   const block = result.content.find((c) => c.type === 'text')
-  if (!block || block.type !== 'text') {
+  if (block?.type !== 'text') {
     throw new Error('no text block')
   }
   return block.text
 }
 
-export function jsonOf<T>(result: CallToolResult): T {
+function jsonOf<T>(result: CallToolResult): T {
   return JSON.parse(textOf(result)) as T
 }
 
-export async function newBoard(client: Client, name?: string) {
+async function newBoard(client: Client, name?: string) {
   const result = await call(client, 'create_board', name ? { name } : {})
   expect(result.isError).toBeFalsy()
   return jsonOf<{ boardId: string; editUrl: string; viewUrl: string }>(result)
