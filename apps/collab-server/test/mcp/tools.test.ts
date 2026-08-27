@@ -90,6 +90,7 @@ describe('tool listing', () => {
     const client = await connect()
     const { tools } = await client.listTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
+      'add_elements',
       'create_board',
       'read_board',
     ])
@@ -172,6 +173,94 @@ describe('read_board', () => {
   it('answers a schema violation as an error result, not a crash', async () => {
     const client = await connect()
     const result = await call(client, 'read_board', { board: 42 })
+    expect(result.isError).toBe(true)
+  })
+})
+
+describe('add_elements', () => {
+  it('creates elements with engine defaults, in input order, and returns their ids', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const result = await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [
+        { type: 'rectangle', id: 'box', x: 0, y: 0, width: 100, height: 50 },
+        { type: 'text', x: 10, y: 10, width: 80, height: 30, text: 'Hello' },
+        {
+          type: 'arrow',
+          x: 100,
+          y: 25,
+          width: 50,
+          height: 0,
+          points: [
+            { x: 0, y: 0 },
+            { x: 50, y: 0 },
+          ],
+          startBinding: { elementId: 'box' },
+        },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+    const { ids } = jsonOf<{ ids: string[] }>(result)
+    expect(ids).toHaveLength(3)
+    expect(ids[0]).toBe('box')
+
+    const read = jsonOf<{
+      elements: {
+        id: string
+        type: string
+        index: string
+        strokeColor: string
+        text?: string
+        startBinding?: unknown
+      }[]
+    }>(await call(client, 'read_board', { board: board.viewUrl }))
+    expect(read.elements.map((e) => e.id)).toEqual(ids)
+    expect(read.elements[0]?.strokeColor).toBe('#1A1A1A')
+    expect(read.elements[1]?.text).toBe('Hello')
+    expect(read.elements[2]?.startBinding).toEqual({ elementId: 'box' })
+    expect(
+      (read.elements[0]?.index ?? '') < (read.elements[1]?.index ?? ''),
+    ).toBe(true)
+  })
+
+  it('refuses a view link', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const result = await call(client, 'add_elements', {
+      board: board.viewUrl,
+      elements: [{ type: 'rectangle', x: 0, y: 0, width: 1, height: 1 }],
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe(
+      `board ${board.boardId} is view-only with this link`,
+    )
+  })
+
+  it('refuses image elements with its own message', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const result = await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: [{ type: 'image', x: 0, y: 0, width: 1, height: 1 }],
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe('image elements cannot be added over MCP')
+  })
+
+  it('refuses a batch over MCP_MAX_BATCH at the schema', async () => {
+    const client = await connect()
+    const board = await newBoard(client)
+    const result = await call(client, 'add_elements', {
+      board: board.editUrl,
+      elements: Array.from({ length: 4 }, () => ({
+        type: 'rectangle',
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      })),
+    })
     expect(result.isError).toBe(true)
   })
 })

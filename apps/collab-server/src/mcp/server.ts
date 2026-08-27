@@ -4,6 +4,7 @@ import type { Db } from '../db/client'
 import type { IpLimiter } from '../rate-limit'
 import type { RoomRegistry } from '../rooms'
 import type { AgentDeps } from './agent-client'
+import { registerAddElements } from './tools/add-elements'
 import { registerCreateBoard } from './tools/create-board'
 import { registerReadBoard } from './tools/read-board'
 
@@ -47,5 +48,6 @@ export function createMcpServer(deps: McpDeps, ip: string): McpServer {
   const server = new McpServer({ name: 'tlwb', version: '0.0.0' })
   registerCreateBoard(server, deps, ip)
   registerReadBoard(server, deps, ip)
+  registerAddElements(server, deps, ip)
   return server
 }
