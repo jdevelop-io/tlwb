@@ -1,0 +1,49 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/caveat/500.css";
+@import "@fontsource/caveat/700.css";
+
+:root {
+  --paper: #f7f7f5;
+  --surface: #ffffff;
+  --border: #e5e4e0;
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
+  --accent: #ff6b4a;
+  --accent-soft: #ffe1d9;
+  --agent: #8b7cf6;
+  --danger: #c92a2a;
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-hand: "Caveat", cursive;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.08);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 40px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font: 400 14px / 1.5 var(--font-ui);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}

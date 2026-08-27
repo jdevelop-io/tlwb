@@ -91,4 +91,20 @@ describe('persistBoard', () => {
       }
     }
   })
+
+  it('clear deletes the database so a reopen starts empty', async () => {
+    const boardId = 'persist-clear'
+    const doc = new Y.Doc()
+    const store = createYjsBoardStore(doc)
+    const persistence = persistBoard(doc, boardId)
+    await persistence.whenLoaded
+    store.setMeta({ name: 'gone' })
+    await persistence.clear()
+
+    const again = new Y.Doc()
+    const reopened = persistBoard(again, boardId)
+    await reopened.whenLoaded
+    expect(createYjsBoardStore(again).getMeta().name).toBe('Untitled')
+    await reopened.clear()
+  })
 })

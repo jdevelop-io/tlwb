@@ -7,3 +7,5 @@ node_modules
 **/dist
 **/coverage
 **/__diffs__
+**/test-results
+**/playwright-report

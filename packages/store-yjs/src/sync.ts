@@ -4,6 +4,9 @@ import type * as Y from 'yjs'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
+/** The server says the link itself is wrong; reconnecting cannot help. */
+const PERMANENT_CLOSE_CODES = new Set([4401, 4403, 4404])
+
 export interface ConnectOptions {
   /** Collaboration server, for example `wss://collab.tlwb.app`. */
   url: string
@@ -19,6 +22,10 @@ export interface BoardConnection {
   awareness: Awareness
   getStatus(): ConnectionStatus
   subscribeStatus(listener: (status: ConnectionStatus) => void): () => void
+  /** Every socket closure; the code is null when closed locally. */
+  subscribeClose(listener: (code: number | null) => void): () => void
+  /** Resumes after a permanent close, once the caller fixed its cause. */
+  reconnect(): void
   destroy(): void
 }
 
@@ -35,14 +42,23 @@ export function connectBoard(
   const provider = new WebsocketProvider(options.url, options.boardId, doc, {
     params: { token: options.token },
     connect,
+    shouldReconnect: (event) => !PERMANENT_CLOSE_CODES.has(event.code),
   })
   let status: ConnectionStatus = connect ? 'connecting' : 'disconnected'
   const listeners = new Set<(status: ConnectionStatus) => void>()
+  const closeListeners = new Set<(code: number | null) => void>()
 
   provider.on('status', (event: { status: ConnectionStatus }) => {
     status = event.status
     for (const listener of listeners) {
       listener(status)
+    }
+  })
+
+  provider.on('connection-close', (event: CloseEvent | null) => {
+    const code = event?.code ?? null
+    for (const listener of closeListeners) {
+      listener(code)
     }
   })
 
@@ -54,10 +70,16 @@ export function connectBoard(
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    subscribeClose(listener) {
+      closeListeners.add(listener)
+      return () => closeListeners.delete(listener)
+    },
+    reconnect: () => provider.connect(),
     destroy() {
       // Cleared before the transition below on purpose: the caller asked
       // for the teardown and does not need to hear about its own effect.
       listeners.clear()
+      closeListeners.clear()
       provider.destroy()
       status = 'disconnected'
     },

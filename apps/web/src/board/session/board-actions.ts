@@ -1,0 +1,85 @@
+import { exportSnapshot, importSnapshot } from '@tlwb/engine'
+import {
+  createAssetStore,
+  createBoardDoc,
+  createYjsBoardStore,
+  persistBoard,
+} from '@tlwb/store-yjs'
+import { nanoid } from 'nanoid'
+import type { BoardSession } from './board-session'
+import { clearAliasesTo, clearKeys } from './keys'
+import { removeRecent } from './recents'
+
+/**
+ * Only Chromium honours a click on a detached anchor, and only
+ * Chromium tolerates the object URL being revoked in the same tick;
+ * everywhere else that combination is a silent no-op. So: insert,
+ * click, remove, and let the download start before the URL goes.
+ */
+export function download(
+  blob: Blob,
+  filename: string,
+  doc: Document = document,
+): void {
+  const url = URL.createObjectURL(blob)
+  const anchor = doc.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  doc.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+/** A new local board holding a copy of this one; returns its id. */
+export async function duplicateBoard(
+  session: BoardSession,
+  newId: string = nanoid(),
+  now: () => number = Date.now,
+): Promise<string> {
+  const doc = createBoardDoc()
+  const store = createYjsBoardStore(doc)
+  const persistence = persistBoard(doc, newId)
+  const assets = createAssetStore(newId)
+  await persistence.whenLoaded
+  const snapshot = exportSnapshot(session.store)
+  importSnapshot(store, {
+    ...snapshot,
+    meta: { name: `${snapshot.meta.name} copy`, createdAt: now() },
+  })
+  for (const element of snapshot.elements) {
+    if (element.type === 'image') {
+      const blob = await session.assets().get(element.assetHash)
+      if (blob) {
+        await assets.put(blob)
+      }
+    }
+  }
+  await persistence.destroy()
+  await assets.destroy()
+  return newId
+}
+
+/**
+ * Forgets the board on this device; a hosted board lives on elsewhere.
+ * The keys, alias, and recents entry are cleared in a `finally`: a
+ * database that fails to clear or delete must not leave those local
+ * traces pointing at a session that was already destroyed.
+ */
+export async function removeBoard(
+  session: BoardSession,
+  storage: Storage = localStorage,
+): Promise<void> {
+  const { boardId } = session.getSnapshot()
+  const persistence = session.persistence()
+  const assets = session.assets()
+  await session.destroy()
+  try {
+    await persistence?.clear()
+    await assets.delete()
+  } finally {
+    clearKeys(boardId, storage)
+    clearAliasesTo(boardId, storage)
+    removeRecent(boardId, storage)
+  }
+}

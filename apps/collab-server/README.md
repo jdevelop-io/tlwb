@@ -40,9 +40,9 @@ port directly writes that header itself.
 
 ## API
 
-- `POST /boards` with `{ "boardId": "<8 to 64 of [A-Za-z0-9_-]>" }`:
-  `201 { boardId, editKey, viewKey }`, `409` if it exists. Keys are shown
-  once and stored hashed.
+- `POST /boards`, no body: `201 { boardId, editKey, viewKey }`. The
+  server issues the id (22 characters of `[A-Za-z0-9_-]`). Keys are
+  shown once and stored hashed.
 - `PUT /boards/:boardId/assets/:sha256` with the image bytes as the body
   and `Authorization: Bearer <editKey>`: `201` or `200` if present. The
   content type must be `image/png`, `image/jpeg`, `image/gif`,

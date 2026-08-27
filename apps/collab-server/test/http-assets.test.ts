@@ -30,11 +30,7 @@ afterAll(async () => {
 })
 
 async function board() {
-  const response = await app.request('http://server/boards', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ boardId: randomUUID() }),
-  })
+  const response = await app.request('http://server/boards', { method: 'POST' })
   return (await response.json()) as {
     boardId: string
     editKey: string

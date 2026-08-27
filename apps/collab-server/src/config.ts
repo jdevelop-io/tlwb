@@ -76,9 +76,9 @@ export function loadConfig(env: Env): Config {
     compactAfterUpdates: integer(env, 'COMPACT_AFTER_UPDATES', 500),
     rateLimitPer10s: integer(env, 'RATE_LIMIT_PER_10S', 200),
     createLimitPerMin: integer(env, 'CREATE_LIMIT_PER_MIN', 10),
-    // Off by default: the shipped Compose file publishes the port with
-    // no proxy in front, and there X-Forwarded-For is written by the
-    // client itself.
+    // Off by default: with nothing in front, X-Forwarded-For is
+    // written by the client itself. The shipped Compose file turns it
+    // on, where the server is only reachable through Caddy.
     trustProxy: boolean(env, 'TRUST_PROXY', false),
   }
 }

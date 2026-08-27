@@ -1,0 +1,60 @@
+.presence-stack {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: calc(100vw - var(--space-4) * 2);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  z-index: 10;
+}
+
+/*
+ * Only the peer list scrolls. `overflow` (even just on the x axis)
+ * would make this element a clipping ancestor for every descendant,
+ * including the overflow menu's absolutely positioned popover further
+ * along the row: an ancestor whose scrollport is a couple of avatars
+ * tall clips a popover painted below it to nothing. Scoping the
+ * scrolling to this inner strip keeps the popover's clipping ancestor
+ * the unclipped `.presence-stack` instead.
+ */
+.presence-avatars {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: auto hidden;
+}
+
+.avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.avatar-agent {
+  outline: 2px solid var(--agent);
+}
+
+.presence-stack .share {
+  flex: none;
+  margin-left: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  font-weight: 500;
+  cursor: pointer;
+}

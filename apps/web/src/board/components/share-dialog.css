@@ -1,0 +1,65 @@
+.share-dialog {
+  width: min(480px, 90vw);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.share-dialog::backdrop {
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
+.share-dialog h2 {
+  margin: 0 0 var(--space-3);
+  font-size: 20px;
+}
+
+.share-dialog .primary {
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.share-dialog .error {
+  color: var(--danger);
+}
+
+.share-role {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: 0;
+}
+
+.share-link {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.share-link input {
+  flex: 1;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.share-agents {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.share-dialog .close {
+  margin-top: var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}

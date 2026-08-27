@@ -1,10 +1,12 @@
-import { type DBSchema, openDB } from 'idb'
+import { type DBSchema, deleteDB, openDB } from 'idb'
 
 export interface AssetStore {
   /** Stores the blob and returns its SHA-256 content hash (hex). */
   put(blob: Blob): Promise<string>
   get(hash: string): Promise<Blob | undefined>
   destroy(): Promise<void>
+  /** Closes and deletes the database of this board. */
+  delete(): Promise<void>
 }
 
 interface AssetSchema extends DBSchema {
@@ -53,6 +55,10 @@ export function createAssetStore(boardId: string): AssetStore {
     },
     async destroy() {
       ;(await db).close()
+    },
+    async delete() {
+      ;(await db).close()
+      await deleteDB(`tlwb:assets:${boardId}`)
     },
   }
 }
