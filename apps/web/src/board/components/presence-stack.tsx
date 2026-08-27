@@ -6,6 +6,20 @@ import type { BoardSession } from '../session/board-session'
 import type { Identity } from '../session/identity'
 import './presence-stack.css'
 
+/**
+ * A peer's colour arrives over the awareness protocol, where the server
+ * gates nothing by role: anyone holding a link, a view link included,
+ * publishes whatever string they like and the engine only checks that
+ * it is one. It lands in a style attribute here, so `url(...)` would
+ * make every other participant's browser fetch an address of the
+ * writer's choosing. Only a plain hex colour goes through.
+ */
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
+
+function avatarColor(color: string): string {
+  return HEX_COLOR.test(color) ? color : 'var(--muted)'
+}
+
 function Avatar(props: {
   name: string
   color: string
@@ -17,7 +31,7 @@ function Avatar(props: {
     <button
       type="button"
       className={`avatar${props.isAgent ? ' avatar-agent' : ''}`}
-      style={{ background: props.color }}
+      style={{ background: avatarColor(props.color) }}
       title={props.name}
       aria-label={props.name}
       onClick={props.onClick}
