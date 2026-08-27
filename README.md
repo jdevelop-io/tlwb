@@ -58,6 +58,14 @@ and the web application (`pnpm --filter @tlwb/web dev`) on
 `http://localhost:5173`; the Vite server proxies `/api` and `/ws` to
 the collaboration server.
 
+### Letting an agent draw
+
+The stack serves an MCP endpoint at `http://localhost:8080/mcp`. Add it
+to Claude Code (`claude mcp add --transport http tlwb http://localhost:8080/mcp`)
+or any MCP client, share a board's edit link with the agent, and ask it
+to draw: it appears on the board as a badged collaborator. See
+`apps/collab-server/README.md` for the tools.
+
 ## Using the engine
 
 `createEditor` mounts the whiteboard into a container element and hands

@@ -34,6 +34,7 @@ const proxy = {
     rewrite: (path: string) => path.replace(/^\/api/, ''),
   },
   '/ws': { target: 'ws://localhost:3000', ws: true },
+  '/mcp': { target: 'http://localhost:3000' },
 }
 
 export default defineConfig({
