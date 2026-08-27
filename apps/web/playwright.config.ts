@@ -25,6 +25,8 @@ export default defineConfig({
       url: 'http://localhost:3000/health',
       reuseExistingServer: !process.env.CI,
       cwd: '../..',
+      // A server that fails to boot on a runner has to say why.
+      stdout: 'pipe',
       env: {
         DATABASE_URL: databaseUrl,
         CORS_ORIGIN: 'http://localhost:5173',
@@ -32,9 +34,13 @@ export default defineConfig({
       },
     },
     {
-      command: 'pnpm dev',
+      // The journeys run against the built application: a defect that
+      // only shows up in the bundle Caddy serves is exactly what they
+      // are here to catch.
+      command: 'pnpm build && pnpm preview',
       url: 'http://localhost:5173',
       reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
     },
   ],
 })

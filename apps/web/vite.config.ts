@@ -24,6 +24,18 @@ function boardRoutes(): Plugin {
   }
 }
 
+/**
+ * Every request the application makes is relative, so both servers have
+ * to stand in for what Caddy proxies in production.
+ */
+const proxy = {
+  '/api': {
+    target: 'http://localhost:3000',
+    rewrite: (path: string) => path.replace(/^\/api/, ''),
+  },
+  '/ws': { target: 'ws://localhost:3000', ws: true },
+}
+
 export default defineConfig({
   plugins: [react(), boardRoutes()],
   appType: 'mpa',
@@ -35,15 +47,8 @@ export default defineConfig({
       },
     },
   },
-  server: {
-    port: 5173,
-    strictPort: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-      '/ws': { target: 'ws://localhost:3000', ws: true },
-    },
-  },
+  server: { port: 5173, strictPort: true, proxy },
+  // The journeys run against the built application, so the preview
+  // server needs the same proxying as the development one.
+  preview: { port: 5173, strictPort: true, proxy },
 })

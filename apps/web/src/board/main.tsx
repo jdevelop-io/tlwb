@@ -44,8 +44,11 @@ async function main(): Promise<void> {
     createRoot(root).render(<NotFound />)
     return
   }
-  if (import.meta.env.DEV) {
-    // End-to-end tests read the store through this handle.
+  if (navigator.webdriver) {
+    // End-to-end tests read the store through this handle. Gated on
+    // automation rather than on the development build, so the journeys
+    // exercise the same bundle Caddy serves; a link cannot turn it on,
+    // and a browser nobody is driving never sets this flag.
     ;(window as unknown as { tlwb: unknown }).tlwb = { session }
   }
   createRoot(root).render(<BoardApp session={session} identity={identity} />)
