@@ -51,9 +51,10 @@ This one leaves them out; section 10 lists what else it excludes.
   claimed by whoever sees it), and the "local board becomes a hosted
   board" migration this forces is the same one accounts will need to
   adopt anonymous boards later.
-- **Share keys travel in the URL fragment.** `/b/<id>#k=<key>` keeps the
-  key out of server logs and `Referer` headers. The application stores
-  the key locally on first open and strips it from the address bar.
+- **Share keys travel in the URL fragment.** `/b/<id>#edit=<key>` or
+  `/b/<id>#view=<key>` keeps the key out of server logs and `Referer`
+  headers. The application stores the key locally on first open and
+  strips it from the address bar.
 - **A local index of recent boards.** Without a dashboard, an anonymous
   board kept "indefinitely" in IndexedDB would be lost with its URL.
   A localStorage index feeds a "Recent boards" menu in the editor and a
@@ -152,20 +153,21 @@ zero peers. No server call is made.
 
 1. `tlwb:alias:<id>` exists in localStorage: `location.replace` to
    `/b/<newId>`.
-2. The fragment carries `#k=<key>`: store it under `tlwb:keys:<id>`,
-   then `history.replaceState` without the fragment.
+2. The fragment carries `#edit=<key>` or `#view=<key>`: store it under
+   `tlwb:keys:<id>` with the matching role, then `history.replaceState`
+   without the fragment.
 3. A key is known for the id: `connectBoard(doc, { url: '/ws', boardId,
    token })`, the connection's awareness, `createPresence` with the
    local identity. The role (edit or view) is the one recorded with the
    key; a view key switches the editor to `setReadOnly(true)` with a
    "View only" banner. The server stays the judge and closes writes
    from a view connection with `4403`.
-4. Neither a key nor an existing IndexedDB database for the id: the
-   "Board not found or incomplete link" screen with a "New board"
-   button. The session probes IndexedDB with `indexedDB.databases()`
-   where available, and otherwise opens the database and checks for an
-   empty document, so a shared board opened once keeps opening from its
-   local copy.
+4. Neither a key nor a stored board: the session opens the local
+   IndexedDB document anyway and awaits `whenLoaded`; if it loaded with
+   no meta (`createdAt === 0`), nothing was ever written under this id,
+   so it shows the "Board not found or incomplete link" screen with a
+   "New board" button. A shared board opened once keeps opening from
+   its local copy, since that copy already carries meta.
 
 ### Sharing: the local to hosted migration
 
@@ -192,8 +194,8 @@ disabled while a migration is in flight:
    is recreated on the connection's awareness, without unmounting the
    editor: `editor.setPresence` simply receives the new peer list.
 
-Links are built on demand by the dialog: `/b/<id>#k=<editKey>` or
-`/b/<id>#k=<viewKey>` according to the toggle.
+Links are built on demand by the dialog: `/b/<id>#edit=<editKey>` or
+`/b/<id>#view=<viewKey>` according to the toggle.
 
 ### Assets
 
@@ -411,3 +413,22 @@ Accounts, the dashboard, the Agents / MCP screen and the MCP server,
 server-side board deletion, the animated agent preview on the landing,
 dark mode, mobile layouts, `Y.Text` for concurrent editing of one text
 element (last commit wins), an asset upload retry queue, and analytics.
+
+## 12. Amendments
+
+### 2026-08-26
+
+Two decisions changed shape during implementation; this specification now
+describes the shipped behavior.
+
+- **Fragment naming.** The share key travels as `#edit=<key>` or
+  `#view=<key>`, not the earlier `#k=<key>`. The role is read directly
+  from which fragment name is present, rather than carried separately.
+- **"Not found" detection.** The session no longer calls
+  `indexedDB.databases()` to decide whether a board id is known. It
+  opens the local IndexedDB document unconditionally and awaits
+  `whenLoaded`; the "Board not found or incomplete link" screen shows
+  only when that document loaded with no meta (`createdAt === 0`) and no
+  key was found for the id. This reads the decision from the loaded
+  document itself instead of enumerating databases, which also sidesteps
+  browsers where `indexedDB.databases()` is unavailable.
