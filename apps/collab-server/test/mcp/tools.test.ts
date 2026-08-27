@@ -92,7 +92,9 @@ describe('tool listing', () => {
     expect(tools.map((t) => t.name).sort()).toEqual([
       'add_elements',
       'create_board',
+      'delete_elements',
       'read_board',
+      'update_elements',
     ])
   })
 })
@@ -262,5 +264,110 @@ describe('add_elements', () => {
       })),
     })
     expect(result.isError).toBe(true)
+  })
+})
+
+async function boardWithBox(client: Client) {
+  const board = await newBoard(client)
+  await call(client, 'add_elements', {
+    board: board.editUrl,
+    elements: [
+      { type: 'rectangle', id: 'box', x: 0, y: 0, width: 100, height: 50 },
+      {
+        type: 'text',
+        id: 'label',
+        x: 0,
+        y: 0,
+        width: 50,
+        height: 20,
+        text: 'a',
+      },
+    ],
+  })
+  return board
+}
+
+describe('update_elements', () => {
+  it('patches the named properties and keeps the others', async () => {
+    const client = await connect()
+    const board = await boardWithBox(client)
+    const result = await call(client, 'update_elements', {
+      board: board.editUrl,
+      updates: [
+        { id: 'box', x: 40, fillColor: '#FFEE00' },
+        { id: 'label', text: 'b' },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+    expect(jsonOf(result)).toEqual({ updated: ['box', 'label'] })
+    const read = jsonOf<{ elements: Record<string, unknown>[] }>(
+      await call(client, 'read_board', { board: board.viewUrl }),
+    )
+    const box = read.elements.find((e) => e.id === 'box')
+    expect(box).toMatchObject({ x: 40, width: 100, fillColor: '#FFEE00' })
+    expect(read.elements.find((e) => e.id === 'label')).toMatchObject({
+      text: 'b',
+    })
+  })
+
+  it('refuses the batch when an id is unknown', async () => {
+    const client = await connect()
+    const board = await boardWithBox(client)
+    const result = await call(client, 'update_elements', {
+      board: board.editUrl,
+      updates: [
+        { id: 'box', x: 1 },
+        { id: 'ghost', x: 1 },
+      ],
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe('element ghost not found')
+    const read = jsonOf<{ elements: Record<string, unknown>[] }>(
+      await call(client, 'read_board', { board: board.viewUrl }),
+    )
+    expect(read.elements.find((e) => e.id === 'box')).toMatchObject({ x: 0 })
+  })
+
+  it('refuses a view link', async () => {
+    const client = await connect()
+    const board = await boardWithBox(client)
+    const result = await call(client, 'update_elements', {
+      board: board.viewUrl,
+      updates: [{ id: 'box', x: 1 }],
+    })
+    expect(textOf(result)).toBe(
+      `board ${board.boardId} is view-only with this link`,
+    )
+  })
+})
+
+describe('delete_elements', () => {
+  it('deletes the named elements', async () => {
+    const client = await connect()
+    const board = await boardWithBox(client)
+    const result = await call(client, 'delete_elements', {
+      board: board.editUrl,
+      ids: ['label'],
+    })
+    expect(jsonOf(result)).toEqual({ deleted: ['label'] })
+    const read = jsonOf<{ elements: { id: string }[] }>(
+      await call(client, 'read_board', { board: board.viewUrl }),
+    )
+    expect(read.elements.map((e) => e.id)).toEqual(['box'])
+  })
+
+  it('refuses the batch when an id is unknown', async () => {
+    const client = await connect()
+    const board = await boardWithBox(client)
+    const result = await call(client, 'delete_elements', {
+      board: board.editUrl,
+      ids: ['box', 'ghost'],
+    })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe('element ghost not found')
+    const read = jsonOf<{ elements: { id: string }[] }>(
+      await call(client, 'read_board', { board: board.viewUrl }),
+    )
+    expect(read.elements).toHaveLength(2)
   })
 })
