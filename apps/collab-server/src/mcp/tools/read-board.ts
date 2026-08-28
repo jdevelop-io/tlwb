@@ -20,7 +20,7 @@ export const boardParam = z
 export function registerReadBoard(
   server: McpServer,
   deps: McpDeps,
-  _ip: string,
+  ip: string,
 ): void {
   server.registerTool(
     'read_board',
@@ -54,6 +54,13 @@ export function registerReadBoard(
           if (exceedsPixelBudget(elements, 1, deps.config.mcpMaxImagePixels)) {
             throw new ToolError(
               `board ${ref.boardId} is too large to render; lower scale`,
+            )
+          }
+          // Spent only once a render is certain to run, so a board
+          // refused for size costs the caller nothing.
+          if (!deps.renderLimiter.take(ip)) {
+            throw new ToolError(
+              'too many renders from this address, retry later',
             )
           }
           const png = await renderPng(elements, {

@@ -33,9 +33,21 @@ Or the whole stack: `docker compose up`.
 | `TRUST_PROXY`           | `false`    | Read the client address from `X-Forwarded-For` |
 | `PUBLIC_URL`            | `CORS_ORIGIN` | Origin the MCP `create_board` share URLs are built on |
 | `MCP_LIMIT_PER_MIN`     | `120`      | MCP requests per IP per minute         |
+| `MCP_RENDER_LIMIT_PER_MIN` | `20`    | Renders per IP per minute              |
 | `MCP_PRESENCE_MS`       | `5000`     | How long an agent stays visible after an edit |
 | `MCP_MAX_BATCH`         | `200`      | Elements or ids per MCP call           |
-| `MCP_MAX_IMAGE_PIXELS`  | `16000000` | Largest PNG an MCP render produces     |
+| `MCP_MAX_IMAGE_PIXELS`  | `4000000`  | Largest PNG an MCP render produces     |
+
+Rendering a board to PNG is synchronous native work: nothing else on
+the event loop runs while it lasts, so a render stalls every live
+WebSocket session for its duration. Measured on the shipped image, a
+board at 4 million pixels takes roughly 75 milliseconds and one at 16
+million takes 283. Two settings bound that stall: `MCP_MAX_IMAGE_PIXELS`
+caps how long a single render can last, and `MCP_RENDER_LIMIT_PER_MIN`
+caps how often one address can trigger one. Raise them together only
+where the server is not also carrying latency-sensitive collaboration
+traffic, and note that `read_board` spends the render budget only when
+it is asked for an image.
 
 Turn `TRUST_PROXY` on only when a reverse proxy you control sets
 `X-Forwarded-For`: the creation limit then keys on its last entry, the

@@ -72,6 +72,11 @@ export function createApp(deps: HttpDeps): Hono<Env> {
   const app = new Hono<Env>()
   const createLimiter: IpLimiter =
     deps.createLimiter ?? createIpLimiter(config.createLimitPerMin, 60_000, now)
+  const renderLimiter: IpLimiter = createIpLimiter(
+    config.mcpRenderLimitPerMin,
+    60_000,
+    now,
+  )
 
   app.use('/boards', cors({ origin: config.corsOrigin }))
   app.use('/boards/*', cors({ origin: config.corsOrigin }))
@@ -172,6 +177,7 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     config,
     rooms: deps.rooms,
     createLimiter,
+    renderLimiter,
     now,
     trustProxy: config.trustProxy,
   })

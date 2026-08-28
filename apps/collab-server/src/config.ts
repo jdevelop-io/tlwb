@@ -14,6 +14,8 @@ export interface Config {
   /** Origin the share URLs returned by MCP are built on. */
   publicUrl: string
   mcpLimitPerMin: number
+  /** Renders per IP per minute, stricter than `mcpLimitPerMin`. */
+  mcpRenderLimitPerMin: number
   mcpPresenceMs: number
   mcpMaxBatch: number
   mcpMaxImagePixels: number
@@ -89,8 +91,13 @@ export function loadConfig(env: Env): Config {
     trustProxy: boolean(env, 'TRUST_PROXY', false),
     publicUrl: env.PUBLIC_URL || corsOrigin,
     mcpLimitPerMin: integer(env, 'MCP_LIMIT_PER_MIN', 120),
+    mcpRenderLimitPerMin: integer(env, 'MCP_RENDER_LIMIT_PER_MIN', 20),
     mcpPresenceMs: integer(env, 'MCP_PRESENCE_MS', 5000, 0),
     mcpMaxBatch: integer(env, 'MCP_MAX_BATCH', 200),
-    mcpMaxImagePixels: integer(env, 'MCP_MAX_IMAGE_PIXELS', 16_000_000),
+    // Rasterizing is synchronous native work: nothing else on the
+    // event loop runs while it lasts, so the ceiling bounds a stall
+    // every live WebSocket session pays for. 4M pixels measures at
+    // roughly 75ms, where 16M measured at 283ms.
+    mcpMaxImagePixels: integer(env, 'MCP_MAX_IMAGE_PIXELS', 4_000_000),
   }
 }

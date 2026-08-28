@@ -21,9 +21,10 @@ describe('loadConfig', () => {
       trustProxy: false,
       publicUrl: 'http://a',
       mcpLimitPerMin: 120,
+      mcpRenderLimitPerMin: 20,
       mcpPresenceMs: 5000,
       mcpMaxBatch: 200,
-      mcpMaxImagePixels: 16_000_000,
+      mcpMaxImagePixels: 4_000_000,
     })
   })
 
@@ -77,12 +78,14 @@ describe('loadConfig', () => {
       ...minimal,
       PUBLIC_URL: 'https://tlwb.example',
       MCP_LIMIT_PER_MIN: '5',
+      MCP_RENDER_LIMIT_PER_MIN: '2',
       MCP_PRESENCE_MS: '100',
       MCP_MAX_BATCH: '3',
       MCP_MAX_IMAGE_PIXELS: '1000',
     })
     expect(config.publicUrl).toBe('https://tlwb.example')
     expect(config.mcpLimitPerMin).toBe(5)
+    expect(config.mcpRenderLimitPerMin).toBe(2)
     expect(config.mcpPresenceMs).toBe(100)
     expect(config.mcpMaxBatch).toBe(3)
     expect(config.mcpMaxImagePixels).toBe(1000)
