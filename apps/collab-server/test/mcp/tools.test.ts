@@ -59,6 +59,7 @@ async function connect(
     config,
     rooms,
     createLimiter: createIpLimiter(1000, 60_000),
+    renderLimiter: createIpLimiter(1000, 60_000),
     ...overrides,
   }
   const [clientTransport, serverTransport] =
@@ -551,6 +552,53 @@ describe('get_board_screenshot', () => {
     })
     expect(result.isError).toBe(true)
   })
+
+  it('spends the render budget, which is separate from the MCP one', async () => {
+    const client = await connect({
+      renderLimiter: createIpLimiter(1, 60_000),
+    })
+    const board = await boardWithBox(client)
+    const first = await call(client, 'get_board_screenshot', {
+      board: board.viewUrl,
+    })
+    expect(first.isError).toBeFalsy()
+    const second = await call(client, 'get_board_screenshot', {
+      board: board.viewUrl,
+    })
+    expect(second.isError).toBe(true)
+    expect(textOf(second)).toBe(
+      'too many renders from this address, retry later',
+    )
+    // The general MCP budget is untouched: a non-rendering tool on the
+    // same board still answers.
+    const text = await call(client, 'read_board', { board: board.viewUrl })
+    expect(text.isError).toBeFalsy()
+  })
+
+  it('leaves the render budget alone when the board is too large', async () => {
+    const client = await connect({
+      renderLimiter: createIpLimiter(1, 60_000),
+    })
+    const big = await newBoard(client)
+    await call(client, 'add_elements', {
+      board: big.editUrl,
+      elements: [{ type: 'rectangle', x: 0, y: 0, width: 1000, height: 1000 }],
+    })
+    const refused = await call(client, 'get_board_screenshot', {
+      board: big.viewUrl,
+    })
+    expect(refused.isError).toBe(true)
+    expect(textOf(refused)).toBe(
+      `board ${big.boardId} is too large to render; lower scale`,
+    )
+    // A refusal for size must not have cost a token: a board that fits
+    // still renders afterwards.
+    const small = await boardWithBox(client)
+    const ok = await call(client, 'get_board_screenshot', {
+      board: small.viewUrl,
+    })
+    expect(ok.isError).toBeFalsy()
+  })
 })
 
 describe('read_board with image', () => {
@@ -563,6 +611,32 @@ describe('read_board with image', () => {
     })
     expect(result.content.map((c) => c.type)).toEqual(['text', 'image'])
     expect(jsonOf<{ elements: unknown[] }>(result).elements).toHaveLength(2)
+  })
+
+  it('spends the render budget only when an image is asked for', async () => {
+    const client = await connect({
+      renderLimiter: createIpLimiter(1, 60_000),
+    })
+    const board = await boardWithBox(client)
+    // Three text-only reads: none of them may spend a token.
+    for (let i = 0; i < 3; i++) {
+      const text = await call(client, 'read_board', { board: board.viewUrl })
+      expect(text.isError).toBeFalsy()
+      expect(text.content.map((c) => c.type)).toEqual(['text'])
+    }
+    const withImage = await call(client, 'read_board', {
+      board: board.viewUrl,
+      image: true,
+    })
+    expect(withImage.isError).toBeFalsy()
+    const second = await call(client, 'read_board', {
+      board: board.viewUrl,
+      image: true,
+    })
+    expect(second.isError).toBe(true)
+    expect(textOf(second)).toBe(
+      'too many renders from this address, retry later',
+    )
   })
 })
 

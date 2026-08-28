@@ -61,6 +61,7 @@ async function connect(): Promise<Client> {
     config,
     rooms,
     createLimiter: createIpLimiter(1000, 60_000),
+    renderLimiter: createIpLimiter(1000, 60_000),
   }
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()

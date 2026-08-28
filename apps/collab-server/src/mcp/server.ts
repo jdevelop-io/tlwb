@@ -17,6 +17,12 @@ export interface McpDeps {
   rooms: RoomRegistry
   /** The board creation bucket, shared with `POST /boards`. */
   createLimiter: IpLimiter
+  /**
+   * The render bucket, spent only by the two tools that rasterize.
+   * Rasterizing blocks the event loop for its whole duration, so the
+   * general MCP limit is too generous to bound it on its own.
+   */
+  renderLimiter: IpLimiter
   now?: () => number
 }
 
