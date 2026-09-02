@@ -19,6 +19,7 @@
     "@napi-rs/canvas": "^1.0.8",
     "@tlwb/engine": "workspace:*",
     "@tlwb/store-yjs": "workspace:*",
+    "better-auth": "^1.7.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.4",
     "lib0": "^0.2.117",

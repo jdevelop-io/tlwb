@@ -144,3 +144,18 @@ describe('POST /boards', () => {
     )
   })
 })
+
+describe('GET /auth/*', () => {
+  it('serves better-auth when configured and 404s when not', async () => {
+    const appWithAuth = app({
+      AUTH_SECRET: 'test-secret-at-least-32-characters!!',
+      GITHUB_CLIENT_ID: 'gid',
+      GITHUB_CLIENT_SECRET: 'gsec',
+    })
+    const ok = await appWithAuth.request('/auth/ok')
+    expect(ok.status).toBe(200)
+    const appWithoutAuth = app()
+    const missing = await appWithoutAuth.request('/auth/ok')
+    expect(missing.status).toBe(404)
+  })
+})

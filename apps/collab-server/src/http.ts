@@ -4,6 +4,7 @@ import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
+import { type Auth, createAuth } from './accounts/auth'
 import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
 import { findBoard } from './db/boards'
@@ -22,6 +23,8 @@ export interface HttpDeps {
   now?: () => number
   /** Shared with the MCP `create_board` tool; created here when absent. */
   createLimiter?: IpLimiter
+  /** Created from config when absent; explicitly `null` to disable it. */
+  auth?: Auth | null
 }
 
 type Env = { Bindings: HttpBindings }
@@ -77,6 +80,19 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     60_000,
     now,
   )
+  const auth = deps.auth === undefined ? createAuth({ db, config }) : deps.auth
+  if (auth) {
+    // Reusing `createLimiter`'s budget for `/auth/*` is deliberate: both
+    // are account-shaped write endpoints; a dedicated bucket is not
+    // worth a new knob.
+    app.use('/auth/*', async (c, next) => {
+      if (!createLimiter.take(clientIp(c, config.trustProxy))) {
+        return c.json({ error: 'too many requests' }, 429)
+      }
+      await next()
+    })
+    app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
+  }
 
   app.use('/boards', cors({ origin: config.corsOrigin }))
   app.use('/boards/*', cors({ origin: config.corsOrigin }))
