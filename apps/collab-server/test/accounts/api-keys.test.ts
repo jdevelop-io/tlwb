@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
+  API_KEY_PREFIX,
   issueApiKey,
   resolveApiKey,
   revokeApiKey,
@@ -52,6 +53,13 @@ describe('issueApiKey / resolveApiKey / revokeApiKey', () => {
     expect(await resolveApiKey(database.db, 'no-prefix')).toBeNull()
     const userA = await createUser()
     const key = await issueApiKey(database.db, userA)
+    // A real, otherwise-valid key hash presented without its prefix must
+    // still resolve to null: this is what actually exercises the prefix
+    // guard. 'no-prefix' above matches no row either way, prefixed or
+    // not, so it would pass even with the guard deleted.
+    expect(
+      await resolveApiKey(database.db, key.slice(API_KEY_PREFIX.length)),
+    ).toBeNull()
     await revokeApiKey(database.db, userA)
     expect(await resolveApiKey(database.db, key)).toBeNull()
   })
