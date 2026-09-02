@@ -24,6 +24,7 @@ import { log } from './log'
 import { createMcpApp } from './mcp'
 import { createIpLimiter, type IpLimiter } from './rate-limit'
 import type { RoomRegistry } from './rooms'
+import { boardThumbnail, ThumbnailBudgetExceededError } from './thumbnail'
 
 export interface HttpDeps {
   db: Db
@@ -249,6 +250,38 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     return c.json({
       boards: result,
       cap: user.plan === 'free' ? config.freeBoardCap : null,
+    })
+  })
+
+  app.get('/me/boards/:boardId/thumbnail', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    const board = await findBoard(db, c.req.param('boardId'))
+    if (!board || board.ownerId !== user.id) {
+      return c.json(
+        { error: board ? 'not your board' : 'unknown board' },
+        board ? 403 : 404,
+      )
+    }
+    let png: Buffer | null
+    try {
+      png = await boardThumbnail(db, config, board.id, () =>
+        renderLimiter.take(clientIp(c, config.trustProxy)),
+      )
+    } catch (error) {
+      if (error instanceof ThumbnailBudgetExceededError) {
+        return c.json({ error: 'too many renders, retry later' }, 429)
+      }
+      throw error
+    }
+    if (!png) {
+      return c.body(null, 204)
+    }
+    return c.body(new Uint8Array(png), 200, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'private, max-age=60',
     })
   })
 
