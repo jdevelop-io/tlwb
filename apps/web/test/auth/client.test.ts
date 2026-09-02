@@ -21,7 +21,18 @@ describe('fetchSession', () => {
     })
   })
 
-  it('resolves null on a non-200 response', async () => {
+  it('resolves null on a non-200 response, even with a well-formed body', async () => {
+    expect(
+      await fetchSession(async () =>
+        Response.json(
+          { user: { name: 'Ada', email: 'a@x.io' } },
+          { status: 500 },
+        ),
+      ),
+    ).toBeNull()
+  })
+
+  it('resolves null on a 404 (a deployment without accounts configured)', async () => {
     expect(
       await fetchSession(async () => new Response('', { status: 404 })),
     ).toBeNull()

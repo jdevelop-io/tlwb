@@ -32,10 +32,7 @@ export async function fetchSession(
     if (response.status !== 200) {
       return null
     }
-    const body = (await response.json()) as SessionResponse | null
-    if (!body) {
-      return null
-    }
+    const body = (await response.json()) as SessionResponse
     return {
       name: body.user.name,
       email: body.user.email,
@@ -43,9 +40,10 @@ export async function fetchSession(
       plan: body.user.plan === 'pro' ? 'pro' : 'free',
     }
   } catch {
-    // Covers a thrown network error and any malformed response body:
-    // a deployment without accounts configured must read as signed
-    // out, never as an error.
+    // Covers a thrown network error and any malformed response body
+    // (including a null body from a signed-out session): a deployment
+    // without accounts configured must read as signed out, never as
+    // an error.
     return null
   }
 }
