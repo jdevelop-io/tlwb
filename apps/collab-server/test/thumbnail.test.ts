@@ -105,6 +105,28 @@ async function seedBoard(boardId: string): Promise<Y.Doc> {
   return doc
 }
 
+/** Seeds a board with one 1000x1000 rectangle: over any low
+ * MCP_MAX_IMAGE_PIXELS a test configures, same as the MCP screenshot
+ * tool's own oversized-board tests. */
+async function seedOversizedBoard(boardId: string): Promise<void> {
+  const doc = createBoardDoc()
+  createYjsBoardStore(doc).applyChanges([
+    {
+      kind: 'create',
+      element: createElement('rectangle', {
+        index: 'a0',
+        id: 'big',
+        x: 0,
+        y: 0,
+        width: 1000,
+        height: 1000,
+      }),
+    },
+  ])
+  await compactBoard(database.db, boardId, Y.encodeStateAsUpdate(doc), 1)
+  doc.destroy()
+}
+
 describe('boardThumbnail', () => {
   it('renders, caches, and serves a PNG for a board with content', async () => {
     const config = testConfig()
@@ -182,6 +204,17 @@ describe('boardThumbnail', () => {
     await expect(
       boardThumbnail(database.db, config, boardId, () => false),
     ).rejects.toBeInstanceOf(ThumbnailBudgetExceededError)
+  })
+
+  it('answers null for a board over the pixel budget, without spending a render budget', async () => {
+    const config = testConfig({ MCP_MAX_IMAGE_PIXELS: '100000' })
+    const boardId = await ownedBoard()
+    await seedOversizedBoard(boardId)
+
+    const png = await boardThumbnail(database.db, config, boardId, () => {
+      throw new Error('render budget must not be spent over the pixel budget')
+    })
+    expect(png).toBeNull()
   })
 
   it('answers undefined-safe null for an unknown board', async () => {
@@ -315,5 +348,32 @@ describe('GET /me/boards/:boardId/thumbnail', () => {
     expect(await secondResponse.json()).toEqual({
       error: 'too many renders, retry later',
     })
+  })
+
+  it('leaves the render limiter alone when a board is over the pixel budget', async () => {
+    const a = app({
+      MCP_RENDER_LIMIT_PER_MIN: '1',
+      MCP_MAX_IMAGE_PIXELS: '100000',
+    })
+    const userA = await createUser('Ada', `ada-${randomUUID()}@example.com`)
+    const cookie = await cookieFor(userA)
+    const big = await ownedBoard(userA)
+    const small = await ownedBoard(userA)
+    await seedOversizedBoard(big)
+    await seedBoard(small)
+
+    const bigResponse = await a.request(
+      `http://server/me/boards/${big}/thumbnail`,
+      { headers: { cookie } },
+    )
+    expect(bigResponse.status).toBe(204)
+
+    // A refusal for size must not have cost a token: a board that fits
+    // still renders afterwards, with the single token untouched.
+    const smallResponse = await a.request(
+      `http://server/me/boards/${small}/thumbnail`,
+      { headers: { cookie } },
+    )
+    expect(smallResponse.status).toBe(200)
   })
 })
