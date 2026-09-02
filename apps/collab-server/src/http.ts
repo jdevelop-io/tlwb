@@ -4,10 +4,12 @@ import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
+import type Stripe from 'stripe'
 import { z } from 'zod'
 import { issueApiKey, revokeApiKey } from './accounts/api-keys'
 import { type Auth, createAuth, sessionUser } from './accounts/auth'
 import { monthOf, readUsage } from './accounts/quota'
+import { createBillingApp } from './billing/routes'
 import { readBoardStore } from './board-read'
 import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
@@ -37,6 +39,8 @@ export interface HttpDeps {
   createLimiter?: IpLimiter
   /** Created from config when absent; explicitly `null` to disable it. */
   auth?: Auth | null
+  /** Injected by tests; created from config.billing when absent. */
+  stripe?: Stripe
 }
 
 type Env = { Bindings: HttpBindings }
@@ -120,6 +124,13 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       await next()
     })
     app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
+  }
+
+  if (config.billing) {
+    app.route(
+      '/billing',
+      createBillingApp({ db, config, auth, stripe: deps.stripe }),
+    )
   }
 
   app.use('/boards', cors({ origin: config.corsOrigin }))
