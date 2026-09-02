@@ -48,9 +48,10 @@ function waitFor(check: () => boolean, timeoutMs = 5_000): Promise<void> {
 async function serve(overrides: Record<string, string> = {}, ping?: number) {
   const boardId = randomUUID()
   const editKey = generateKey()
+  const viewKey = generateKey()
   await createBoard(database.db, boardId, {
     editKeyHash: hashKey(editKey),
-    viewKeyHash: hashKey(generateKey()),
+    viewKeyHash: hashKey(viewKey),
   })
   const config = loadConfig({
     DATABASE_URL: url,
@@ -76,6 +77,7 @@ async function serve(overrides: Record<string, string> = {}, ping?: number) {
     boardId,
     port,
     config,
+    viewKey,
     url: `ws://localhost:${port}/ws/${boardId}?token=${editKey}`,
     async close() {
       await rooms.shutdown()
@@ -238,6 +240,46 @@ describe('WebSocket ownership', () => {
 
       client.close()
       doc.destroy()
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('marks a board shared when a key-based visitor connects to it', async () => {
+    const server = await serve()
+    try {
+      const ownerId = randomUUID()
+      await database.db.insert(user).values({
+        id: ownerId,
+        name: 'Owner',
+        email: `${ownerId}@example.com`,
+      })
+      await database.db
+        .update(boards)
+        .set({ ownerId })
+        .where(eq(boards.id, server.boardId))
+
+      // The view key, not the owner's own session: exactly the "someone
+      // else using a share link" case `foreignKey` exists to detect.
+      const client = new WsClient(
+        `ws://localhost:${server.port}/ws/${server.boardId}?token=${server.viewKey}`,
+      )
+      await new Promise<void>((resolve, reject) => {
+        client.on('open', () => resolve())
+        client.on('error', reject)
+      })
+
+      // markShared fires fire-and-forget after the connection resolves,
+      // so poll for the write instead of asserting right after connect.
+      await waitForAsync(async () => {
+        const [row] = await database.db
+          .select({ sharedAt: boards.sharedAt })
+          .from(boards)
+          .where(eq(boards.id, server.boardId))
+        return row?.sharedAt != null
+      })
+
+      client.close()
     } finally {
       await server.close()
     }
