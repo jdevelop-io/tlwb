@@ -2,13 +2,14 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { issueBoard } from '../../issue-board'
 import { withBoard } from '../agent-client'
+import { assertCaller, type Caller } from '../caller'
 import { agentDeps, type McpDeps, shareUrls } from '../server'
 import { guarded, jsonResult, ToolError } from '../tool-error'
 
 export function registerCreateBoard(
   server: McpServer,
   deps: McpDeps,
-  ip: string,
+  caller: Caller,
 ): void {
   const now = deps.now ?? Date.now
   server.registerTool(
@@ -33,7 +34,13 @@ export function registerCreateBoard(
         tool: 'create_board',
       }
       return guarded(context, async () => {
-        if (!deps.createLimiter.take(ip)) {
+        await assertCaller(deps, caller)
+        // A keyed caller is bounded by their monthly quota instead: the
+        // per-address creation limiter only guards anonymous callers.
+        if (
+          caller.kind === 'anonymous' &&
+          !deps.createLimiter.take(caller.ip)
+        ) {
           throw new ToolError(
             'too many boards created from this address, retry later',
           )

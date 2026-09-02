@@ -65,7 +65,7 @@ async function connect(): Promise<Client> {
   }
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()
-  const server = createMcpServer(deps, '10.0.0.1')
+  const server = createMcpServer(deps, { kind: 'anonymous', ip: '10.0.0.1' })
   await server.connect(serverTransport)
   const client = new Client({ name: 'test', version: '0' })
   await client.connect(clientTransport)

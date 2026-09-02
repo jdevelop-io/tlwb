@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { eq } from 'drizzle-orm'
 import {
   afterAll,
   afterEach,
@@ -10,8 +12,11 @@ import {
   it,
   vi,
 } from 'vitest'
+import { issueApiKey } from '../../src/accounts/api-keys'
 import { type Config, loadConfig } from '../../src/config'
 import { connectDatabase } from '../../src/db/client'
+import { boards, user } from '../../src/db/schema'
+import { createApp } from '../../src/http'
 import { createMcpServer, type McpDeps } from '../../src/mcp/server'
 import {
   MAX_POINTS_PER_ELEMENT,
@@ -64,7 +69,7 @@ async function connect(
   }
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()
-  const server = createMcpServer(deps, ip)
+  const server = createMcpServer(deps, { kind: 'anonymous', ip })
   await server.connect(serverTransport)
   const client = new Client({ name: 'test', version: '0' })
   await client.connect(clientTransport)
@@ -721,5 +726,166 @@ describe('relative share URLs (CORS_ORIGIN=*, no PUBLIC_URL)', () => {
       elements: [{ type: 'rectangle', x: 0, y: 0, width: 1, height: 1 }],
     })
     expect(added.isError).toBeFalsy()
+  })
+})
+
+// These exercise the Authorization header itself, which only the HTTP
+// route (`mcp/index.ts`) parses: driven through the Hono app end to end,
+// the same way `mcp/http.test.ts` drives a plain `tools/list`.
+describe('keyed callers', () => {
+  function httpApp(overrides: Record<string, string> = {}) {
+    const httpConfig = loadConfig({
+      DATABASE_URL: url,
+      CORS_ORIGIN: 'http://web.test',
+      ROOM_IDLE_MS: '50',
+      TRUST_PROXY: 'true',
+      ...overrides,
+    })
+    return createApp({
+      db: database.db,
+      config: httpConfig,
+      rooms: createRooms({ db: database.db, config: httpConfig }),
+    })
+  }
+
+  function mcpRequest(
+    params: Record<string, unknown>,
+    options: { ip?: string; bearer?: string } = {},
+  ): Request {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      'x-forwarded-for': options.ip ?? '10.5.5.5',
+    }
+    if (options.bearer) {
+      headers.authorization = `Bearer ${options.bearer}`
+    }
+    return new Request('http://server/mcp', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params,
+      }),
+    })
+  }
+
+  async function toolResult(response: Response): Promise<CallToolResult> {
+    const text = await response.text()
+    const line = text.split('\n').find((l) => l.startsWith('data:')) ?? text
+    return JSON.parse(line.replace(/^data:\s*/, '')).result as CallToolResult
+  }
+
+  async function seedUser(plan: 'free' | 'pro' = 'free'): Promise<string> {
+    const id = randomUUID()
+    await database.db
+      .insert(user)
+      .values({ id, name: 'Agent Owner', email: `${id}@example.com`, plan })
+    return id
+  }
+
+  it('a valid API key spends the quota and an exhausted one errors', async () => {
+    const userId = await seedUser()
+    const key = await issueApiKey(database.db, userId)
+    const app = httpApp({ MCP_QUOTA_FREE: '1' })
+
+    const first = await toolResult(
+      await app.request(
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+      ),
+    )
+    expect(first.isError).toBeFalsy()
+
+    const second = await toolResult(
+      await app.request(
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+      ),
+    )
+    expect(second.isError).toBe(true)
+    expect((second.content[0] as { text: string }).text).toBe(
+      'monthly quota reached, resets on the 1st',
+    )
+  })
+
+  it('an invalid API key errors every tool', async () => {
+    const app = httpApp()
+    for (const call of [
+      { name: 'create_board', arguments: {} },
+      { name: 'read_board', arguments: { board: 'irrelevant' } },
+    ]) {
+      const result = await toolResult(
+        await app.request(mcpRequest(call, { bearer: 'tlwb_wrong' })),
+      )
+      expect(result.isError).toBe(true)
+      expect((result.content[0] as { text: string }).text).toBe(
+        'invalid API key',
+      )
+    }
+  })
+
+  it('a keyed call marks the board as agent-touched', async () => {
+    const userId = await seedUser()
+    const key = await issueApiKey(database.db, userId)
+    const app = httpApp()
+
+    const created = await toolResult(
+      await app.request(mcpRequest({ name: 'create_board', arguments: {} })),
+    )
+    const board = JSON.parse((created.content[0] as { text: string }).text) as {
+      boardId: string
+      editUrl: string
+    }
+
+    const read = await toolResult(
+      await app.request(
+        mcpRequest(
+          { name: 'read_board', arguments: { board: board.editUrl } },
+          { bearer: key },
+        ),
+      ),
+    )
+    expect(read.isError).toBeFalsy()
+
+    const [row] = await database.db
+      .select({ agentAt: boards.agentAt })
+      .from(boards)
+      .where(eq(boards.id, board.boardId))
+    expect(row?.agentAt).not.toBeNull()
+  })
+
+  it('skips the per-IP limiter that would otherwise block a second call', async () => {
+    const userId = await seedUser()
+    const key = await issueApiKey(database.db, userId)
+    const app = httpApp({ MCP_LIMIT_PER_MIN: '1' })
+
+    const first = await app.request(
+      mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+    )
+    expect(first.status).toBe(200)
+    const second = await app.request(
+      mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+    )
+    expect(second.status).toBe(200)
+  })
+
+  it('is not bounded by the board-creation limiter, unlike an anonymous caller', async () => {
+    const userId = await seedUser()
+    const key = await issueApiKey(database.db, userId)
+    const app = httpApp({ CREATE_LIMIT_PER_MIN: '1' })
+
+    const first = await toolResult(
+      await app.request(
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+      ),
+    )
+    expect(first.isError).toBeFalsy()
+    const second = await toolResult(
+      await app.request(
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+      ),
+    )
+    expect(second.isError).toBeFalsy()
   })
 })

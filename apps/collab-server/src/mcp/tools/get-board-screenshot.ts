@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { withBoard } from '../agent-client'
 import { parseBoardRef } from '../board-ref'
+import { assertCaller, type Caller } from '../caller'
 import {
   exceedsPixelBudget,
   imageBlock,
@@ -22,7 +23,7 @@ export const scaleParam = z
 export function registerGetBoardScreenshot(
   server: McpServer,
   deps: McpDeps,
-  ip: string,
+  caller: Caller,
 ): void {
   server.registerTool(
     'get_board_screenshot',
@@ -36,6 +37,7 @@ export function registerGetBoardScreenshot(
         tool: 'get_board_screenshot',
       }
       return guarded(context, async () => {
+        await assertCaller(deps, caller)
         const ref = parseBoardRef(board)
         context.boardId = ref.boardId
         return withBoard(agentDeps(deps), ref, 'view', async (client) => {
@@ -52,7 +54,7 @@ export function registerGetBoardScreenshot(
           }
           // Spent only once a render is certain to run, so a board
           // refused for size costs the caller nothing.
-          if (!deps.renderLimiter.take(ip)) {
+          if (!deps.renderLimiter.take(caller.ip)) {
             throw new ToolError(
               'too many renders from this address, retry later',
             )

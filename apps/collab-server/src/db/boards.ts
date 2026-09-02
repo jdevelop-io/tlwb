@@ -143,6 +143,17 @@ export async function markShared(db: Db, boardId: string): Promise<void> {
     .where(and(eq(boards.id, boardId), isNull(boards.sharedAt)))
 }
 
+/**
+ * Records that a board has been touched by an agent over MCP, once: only
+ * the first call writes `agentAt`, mirroring `markShared`.
+ */
+export async function markAgentSeen(db: Db, boardId: string): Promise<void> {
+  await db
+    .update(boards)
+    .set({ agentAt: new Date() })
+    .where(and(eq(boards.id, boardId), isNull(boards.agentAt)))
+}
+
 /** Durability before relay: returns the sequence number once written. */
 export async function appendUpdate(
   db: Db,

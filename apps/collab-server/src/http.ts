@@ -5,7 +5,9 @@ import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { issueApiKey, revokeApiKey } from './accounts/api-keys'
 import { type Auth, createAuth, sessionUser } from './accounts/auth'
+import { monthOf, readUsage } from './accounts/quota'
 import { readBoardStore } from './board-read'
 import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
@@ -282,6 +284,36 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     return c.body(new Uint8Array(png), 200, {
       'Content-Type': 'image/png',
       'Cache-Control': 'private, max-age=60',
+    })
+  })
+
+  app.post('/me/api-key', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    return c.json({ key: await issueApiKey(db, user.id) }, 201)
+  })
+
+  app.delete('/me/api-key', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    await revokeApiKey(db, user.id)
+    return c.body(null, 204)
+  })
+
+  app.get('/me/usage', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    const month = monthOf(now())
+    return c.json({
+      month,
+      count: await readUsage(db, user.id, month),
+      limit: user.plan === 'pro' ? config.mcpQuotaPro : config.mcpQuotaFree,
     })
   })
 

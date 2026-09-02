@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { BoardChange, BoardElement, ElementProps } from '@tlwb/engine'
 import { withBoard } from '../agent-client'
 import { parseBoardRef } from '../board-ref'
+import { assertCaller, type Caller } from '../caller'
 import { agentDeps, type McpDeps } from '../server'
 import { guarded, jsonResult, ToolError } from '../tool-error'
 import { agentNameParam, elementPatchSchema, presenceFor } from './elements'
@@ -10,7 +11,7 @@ import { boardParam } from './read-board'
 export function registerUpdateElements(
   server: McpServer,
   deps: McpDeps,
-  _ip: string,
+  caller: Caller,
 ): void {
   server.registerTool(
     'update_elements',
@@ -28,6 +29,7 @@ export function registerUpdateElements(
         tool: 'update_elements',
       }
       return guarded(context, async () => {
+        await assertCaller(deps, caller)
         const ref = parseBoardRef(board)
         context.boardId = ref.boardId
         return withBoard(agentDeps(deps), ref, 'edit', async (client) => {
