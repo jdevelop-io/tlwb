@@ -238,6 +238,17 @@ describe('WebSocket ownership', () => {
       // update landing without one is the edit role taking effect.
       expect(closeCode).toBeNull()
 
+      // The owner visiting their own board is not the "someone else
+      // used a share link" case: markShared must stay a no-op here. A
+      // false positive is a silent write, not a timeout, so give the
+      // fire-and-forget call a short grace period before checking.
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      const [row] = await database.db
+        .select({ sharedAt: boards.sharedAt })
+        .from(boards)
+        .where(eq(boards.id, server.boardId))
+      expect(row?.sharedAt).toBeNull()
+
       client.close()
       doc.destroy()
     } finally {
