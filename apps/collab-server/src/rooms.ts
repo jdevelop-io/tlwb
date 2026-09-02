@@ -11,6 +11,8 @@ export interface RoomRegistry {
   acquire(boardId: string): Promise<Room | undefined>
   /** Called when a connection left; starts the idle timer on an empty room. */
   release(boardId: string): void
+  /** Closes a live room's connections and drops it, for a deleted board. */
+  evict(boardId: string): Promise<void>
   shutdown(): Promise<void>
 }
 
@@ -93,7 +95,7 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
     return { room, compact, idleTimer: null }
   }
 
-  async function evict(boardId: string, entry: Entry): Promise<void> {
+  async function evictIdle(boardId: string, entry: Entry): Promise<void> {
     // Removed first so a connection arriving now loads a fresh room
     // instead of waiting on this eviction. That fresh load's two SELECTs
     // run inside loadBoard's own transaction, so it cannot observe this
@@ -168,7 +170,7 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
           entry.idleTimer = setTimeout(() => {
             entry.idleTimer = null
             if (!stopped && entry.room.connectionCount() === 0) {
-              void evict(boardId, entry)
+              void evictIdle(boardId, entry)
             }
           }, config.roomIdleMs)
         },
@@ -176,6 +178,27 @@ export function createRooms(deps: { db: Db; config: Config }): RoomRegistry {
           log({ event: 'release failed', boardId, error: String(error) })
         },
       )
+    },
+    async evict(boardId) {
+      const pending = entries.get(boardId)
+      if (!pending) {
+        return
+      }
+      entries.delete(boardId)
+      const entry = await pending.catch(() => undefined)
+      if (!entry) {
+        return
+      }
+      if (entry.idleTimer) {
+        clearTimeout(entry.idleTimer)
+      }
+      // No compaction: the board's rows are about to be deleted, so
+      // snapshotting them first is pointless work on the way out.
+      entry.room.closeAll(CLOSE.unknownBoard, 'board deleted')
+      await entry.room.drain()
+      entry.room.destroy()
+      entry.room.doc.destroy()
+      log({ event: 'room evicted', boardId, reason: 'board deleted' })
     },
     async shutdown() {
       stopped = true

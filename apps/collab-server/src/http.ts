@@ -6,13 +6,16 @@ import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { type Auth, createAuth, sessionUser } from './accounts/auth'
+import { readBoardStore } from './board-read'
 import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
 import {
   type BoardRecord,
   claimBoard,
   countOwnedBoards,
+  deleteBoardRows,
   findBoard,
+  listOwnedBoards,
 } from './db/boards'
 import type { Db } from './db/client'
 import { issueBoard } from './issue-board'
@@ -206,6 +209,64 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       }
     }
     return c.json({ adopted, skipped })
+  })
+
+  app.get('/me', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    return c.json({
+      user: {
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        plan: user.plan,
+      },
+      billing: config.billing !== null,
+    })
+  })
+
+  app.get('/me/boards', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    const owned = await listOwnedBoards(db, user.id)
+    const result = []
+    // ponytail: one doc replay per board per listing; cache names in a
+    // column if dashboards ever hold hundreds of boards.
+    for (const board of owned) {
+      const read = await readBoardStore(db, board.id)
+      result.push({
+        id: board.id,
+        name: read?.store.getMeta().name ?? 'Untitled',
+        updatedAt: board.updatedAt.toISOString(),
+        shared: board.sharedAt !== null,
+        agent: board.agentAt !== null,
+      })
+    }
+    return c.json({
+      boards: result,
+      cap: user.plan === 'free' ? config.freeBoardCap : null,
+    })
+  })
+
+  app.delete('/boards/:boardId', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    const board = await findBoard(db, c.req.param('boardId'))
+    if (!board) {
+      return c.json({ error: 'unknown board' }, 404)
+    }
+    if (board.ownerId !== user.id) {
+      return c.json({ error: 'not your board' }, 403)
+    }
+    await deps.rooms.evict(board.id)
+    await deleteBoardRows(db, board.id)
+    return c.body(null, 204)
   })
 
   const HASH = /^[a-f0-9]{64}$/

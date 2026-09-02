@@ -90,6 +90,7 @@ async function setup(
     release: (id) => {
       released.push(id)
     },
+    evict: async () => {},
     shutdown: async () => {},
   }
   const deps = { db: database.db, rooms, presenceMs: 0 }
@@ -239,6 +240,7 @@ describe('withBoard', () => {
     const rooms: RoomRegistry = {
       acquire: async (id) => (id === boardId ? fakeRoom : undefined),
       release: () => {},
+      evict: async () => {},
       shutdown: async () => {},
     }
     const deps = { db: database.db, rooms, presenceMs: 0 }
@@ -302,6 +304,7 @@ describe('withBoard', () => {
       release: (id) => {
         released.push(id)
       },
+      evict: async () => {},
       shutdown: async () => {},
     }
     const deps = { db: database.db, rooms, presenceMs: 0 }

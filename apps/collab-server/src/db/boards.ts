@@ -1,13 +1,20 @@
-import { and, asc, count, eq, gt, isNull, lte } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, isNull, lte } from 'drizzle-orm'
 import type { KeyHashes } from '../keys'
 import type { Db } from './client'
-import { boards, boardUpdates } from './schema'
+import { assets, boards, boardUpdates } from './schema'
 
 export interface BoardRecord {
   id: string
   editKeyHash: Buffer
   viewKeyHash: Buffer
   ownerId: string | null
+}
+
+export interface OwnedBoard {
+  id: string
+  updatedAt: Date
+  sharedAt: Date | null
+  agentAt: Date | null
 }
 
 export interface LoadedBoard {
@@ -58,6 +65,31 @@ export async function countOwnedBoards(
     .from(boards)
     .where(eq(boards.ownerId, ownerId))
   return row?.value ?? 0
+}
+
+export async function listOwnedBoards(
+  db: Db,
+  ownerId: string,
+): Promise<OwnedBoard[]> {
+  return db
+    .select({
+      id: boards.id,
+      updatedAt: boards.updatedAt,
+      sharedAt: boards.sharedAt,
+      agentAt: boards.agentAt,
+    })
+    .from(boards)
+    .where(eq(boards.ownerId, ownerId))
+    .orderBy(desc(boards.updatedAt))
+}
+
+/** Purges a board and everything it owns: its updates, its assets, itself. */
+export async function deleteBoardRows(db: Db, boardId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.delete(boardUpdates).where(eq(boardUpdates.boardId, boardId))
+    await tx.delete(assets).where(eq(assets.boardId, boardId))
+    await tx.delete(boards).where(eq(boards.id, boardId))
+  })
 }
 
 export async function findBoard(

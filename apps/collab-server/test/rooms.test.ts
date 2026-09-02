@@ -137,6 +137,7 @@ describe('attachWebSocket against a failing registry', () => {
         throw new Error('boom')
       },
       release: () => {},
+      evict: async () => {},
       shutdown: async () => {},
     }
     const server = http.createServer()
@@ -401,5 +402,46 @@ describe('idle timer vs shutdown race', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('evict', () => {
+  it("closes a live room's connections and a later acquire reloads from the database", async () => {
+    let loads = 0
+    const db = stubDb([
+      () => {
+        loads += 1
+        return { snapshot: null, snapshotSeq: 0, updates: [] }
+      },
+      () => {
+        loads += 1
+        return { snapshot: null, snapshotSeq: 0, updates: [] }
+      },
+    ])
+    const rooms = createRooms({ db, config: config() })
+    const first = await rooms.acquire('board-1')
+    if (!first) {
+      throw new Error('expected a room')
+    }
+    const alice = editor()
+    first.join(alice)
+
+    await rooms.evict('board-1')
+
+    expect(alice.closed).toBe(CLOSE.unknownBoard)
+    expect(loads).toBe(1)
+
+    const second = await rooms.acquire('board-1')
+    expect(second).toBeDefined()
+    expect(second).not.toBe(first)
+    expect(loads).toBe(2)
+
+    await rooms.shutdown()
+  })
+
+  it('does nothing for a board that was never loaded', async () => {
+    const db = stubDb([])
+    const rooms = createRooms({ db, config: config() })
+    await expect(rooms.evict('never-loaded')).resolves.toBeUndefined()
   })
 })
