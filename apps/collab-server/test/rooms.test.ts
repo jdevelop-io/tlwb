@@ -141,7 +141,12 @@ describe('attachWebSocket against a failing registry', () => {
     }
     const server = http.createServer()
     await new Promise<void>((resolve) => server.listen(0, resolve))
-    attachWebSocket(server, { db: database.db, config: config(), rooms })
+    attachWebSocket(server, {
+      db: database.db,
+      config: config(),
+      rooms,
+      auth: null,
+    })
     const port = (server.address() as AddressInfo).port
 
     let unhandled: unknown = null

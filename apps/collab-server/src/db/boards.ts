@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, lte } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, lte } from 'drizzle-orm'
 import type { KeyHashes } from '../keys'
 import type { Db } from './client'
 import { boards, boardUpdates } from './schema'
@@ -7,6 +7,7 @@ export interface BoardRecord {
   id: string
   editKeyHash: Buffer
   viewKeyHash: Buffer
+  ownerId: string | null
 }
 
 export interface LoadedBoard {
@@ -41,10 +42,23 @@ export async function findBoard(
       id: boards.id,
       editKeyHash: boards.editKeyHash,
       viewKeyHash: boards.viewKeyHash,
+      ownerId: boards.ownerId,
     })
     .from(boards)
     .where(eq(boards.id, id))
   return row
+}
+
+/**
+ * Records that a board has been shared, once: only the first call
+ * writes `sharedAt`, so an already-shared board is untouched and the
+ * timestamp keeps naming the first share, not the most recent one.
+ */
+export async function markShared(db: Db, boardId: string): Promise<void> {
+  await db
+    .update(boards)
+    .set({ sharedAt: new Date() })
+    .where(and(eq(boards.id, boardId), isNull(boards.sharedAt)))
 }
 
 /** Durability before relay: returns the sequence number once written. */

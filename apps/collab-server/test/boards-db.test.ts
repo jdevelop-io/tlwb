@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import {
@@ -7,8 +8,10 @@ import {
   createBoard,
   findBoard,
   loadBoard,
+  markShared,
 } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
+import { boards, user } from '../src/db/schema'
 import { generateKey, hashKey } from '../src/keys'
 
 const url = process.env.DATABASE_URL as string
@@ -39,6 +42,38 @@ describe('boards', () => {
     expect(found?.editKeyHash.equals(keys.editKeyHash)).toBe(true)
     expect(found?.viewKeyHash.equals(keys.viewKeyHash)).toBe(true)
     expect(await findBoard(database.db, randomUUID())).toBeUndefined()
+  })
+
+  it('findBoard returns the owner', async () => {
+    const id = randomUUID()
+    await createBoard(database.db, id, hashes())
+    expect((await findBoard(database.db, id))?.ownerId).toBeNull()
+    const ownerId = randomUUID()
+    await database.db.insert(user).values({
+      id: ownerId,
+      name: 'Owner',
+      email: `${ownerId}@example.com`,
+    })
+    await database.db.update(boards).set({ ownerId }).where(eq(boards.id, id))
+    expect((await findBoard(database.db, id))?.ownerId).toBe(ownerId)
+  })
+
+  it('markShared sets sharedAt only on the first call', async () => {
+    const id = randomUUID()
+    await createBoard(database.db, id, hashes())
+    await markShared(database.db, id)
+    const [firstRow] = await database.db
+      .select({ sharedAt: boards.sharedAt })
+      .from(boards)
+      .where(eq(boards.id, id))
+    expect(firstRow?.sharedAt).not.toBeNull()
+    const firstSharedAt = firstRow?.sharedAt
+    await markShared(database.db, id)
+    const [secondRow] = await database.db
+      .select({ sharedAt: boards.sharedAt })
+      .from(boards)
+      .where(eq(boards.id, id))
+    expect(secondRow?.sharedAt).toEqual(firstSharedAt)
   })
 
   it('loads an empty board as no snapshot and no updates', async () => {

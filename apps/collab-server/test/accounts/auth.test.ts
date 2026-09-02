@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createAuth, sessionUser } from '../../src/accounts/auth'
 import { loadConfig } from '../../src/config'
 import { connectDatabase, type Database } from '../../src/db/client'
+import { session, user } from '../../src/db/schema'
+import { sessionCookie } from '../session-cookie'
 
 const url =
   process.env.DATABASE_URL ?? 'postgres://tlwb:tlwb@localhost:5432/tlwb'
@@ -44,5 +47,32 @@ describe('createAuth', () => {
 
   it('resolves null against a disabled auth', async () => {
     expect(await sessionUser(null, new Headers())).toBeNull()
+  })
+
+  it('normalizes plan, image and stripeCustomerId from a real session', async () => {
+    const config = loadConfig(env)
+    const auth = createAuth({ db: database.db, config })
+    const userId = randomUUID()
+    await database.db.insert(user).values({
+      id: userId,
+      name: 'Real User',
+      email: `${userId}@example.com`,
+    })
+    const token = randomUUID()
+    await database.db.insert(session).values({
+      id: randomUUID(),
+      token,
+      userId,
+      expiresAt: new Date(Date.now() + 3_600_000),
+    })
+    const cookie = sessionCookie(token, config.accounts?.secret as string)
+    expect(await sessionUser(auth, new Headers({ cookie }))).toEqual({
+      id: userId,
+      name: 'Real User',
+      email: `${userId}@example.com`,
+      image: null,
+      plan: 'free',
+      stripeCustomerId: null,
+    })
   })
 })

@@ -4,10 +4,10 @@ import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
-import { type Auth, createAuth } from './accounts/auth'
+import { type Auth, createAuth, sessionUser } from './accounts/auth'
 import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
-import { findBoard } from './db/boards'
+import { type BoardRecord, findBoard } from './db/boards'
 import type { Db } from './db/client'
 import { issueBoard } from './issue-board'
 import { type Role, resolveRole } from './keys'
@@ -69,6 +69,22 @@ function normalizeMime(mime: string): string | null {
   return cleaned && IMAGE_TYPES.has(cleaned) ? cleaned : null
 }
 
+/**
+ * A session belonging to the board's owner always grants edit, no key
+ * needed; anyone else falls back to the token the request presented.
+ * Side effect free.
+ */
+export function roleFor(
+  board: BoardRecord,
+  token: string | null,
+  userId: string | null,
+): Role | null {
+  if (userId && board.ownerId === userId) {
+    return 'edit'
+  }
+  return token ? resolveRole(token, board) : null
+}
+
 export function createApp(deps: HttpDeps): Hono<Env> {
   const { db, config } = deps
   const now = deps.now ?? Date.now
@@ -127,16 +143,18 @@ export function createApp(deps: HttpDeps): Hono<Env> {
 
   const HASH = /^[a-f0-9]{64}$/
 
-  async function roleFromBearer(
+  async function requestRole(
     c: Context<Env>,
     boardId: string,
   ): Promise<Role | null> {
-    const token = c.req.header('authorization')?.match(/^Bearer (.+)$/)?.[1]
-    if (!token) {
+    const board = await findBoard(db, boardId)
+    if (!board) {
       return null
     }
-    const board = await findBoard(db, boardId)
-    return board ? resolveRole(token, board) : null
+    const token =
+      c.req.header('authorization')?.match(/^Bearer (.+)$/)?.[1] ?? null
+    const user = await sessionUser(auth, c.req.raw.headers)
+    return roleFor(board, token, user?.id ?? null)
   }
 
   app.put(
@@ -147,7 +165,7 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     }),
     async (c) => {
       const { boardId, hash } = c.req.param()
-      if ((await roleFromBearer(c, boardId)) !== 'edit') {
+      if ((await requestRole(c, boardId)) !== 'edit') {
         return c.json({ error: 'edit key required' }, 401)
       }
       // Stored without the client's parameters, so nothing it wrote is
@@ -171,7 +189,7 @@ export function createApp(deps: HttpDeps): Hono<Env> {
 
   app.get('/boards/:boardId/assets/:hash', async (c) => {
     const { boardId, hash } = c.req.param()
-    if ((await roleFromBearer(c, boardId)) === null) {
+    if ((await requestRole(c, boardId)) === null) {
       return c.json({ error: 'a board key is required' }, 401)
     }
     const asset = await getAsset(db, boardId, hash)

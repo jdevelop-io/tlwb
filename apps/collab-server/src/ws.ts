@@ -1,10 +1,13 @@
 import type { Server as HttpServer, IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { type RawData, type WebSocket, WebSocketServer } from 'ws'
+import type { Auth } from './accounts/auth'
+import { sessionUser } from './accounts/auth'
 import type { Config } from './config'
-import { findBoard } from './db/boards'
+import { findBoard, markShared } from './db/boards'
 import type { Db } from './db/client'
-import { type Role, resolveRole } from './keys'
+import { roleFor } from './http'
+import type { Role } from './keys'
 import { log } from './log'
 import { CLOSE } from './protocol'
 import { createTokenBucket } from './rate-limit'
@@ -15,6 +18,7 @@ export interface WsDeps {
   db: Db
   config: Config
   rooms: RoomRegistry
+  auth: Auth | null
   /** Overridden by the tests only; production runs on PING_INTERVAL_MS. */
   pingIntervalMs?: number
 }
@@ -51,6 +55,17 @@ function parseUpgrade(request: IncomingMessage): Upgrade | null {
   return { boardId: match[1], token: url.searchParams.get('token') ?? '' }
 }
 
+/** Node's raw header map, reshaped into the `Headers` `sessionUser` reads. */
+function nodeHeaders(request: IncomingMessage): Headers {
+  return new Headers(
+    Object.entries(request.headers).flatMap(([key, value]) =>
+      typeof value === 'string'
+        ? [[key, value]]
+        : (value ?? []).map((entry) => [key, entry]),
+    ),
+  )
+}
+
 function toBytes(data: RawData): Uint8Array {
   return Array.isArray(data)
     ? new Uint8Array(Buffer.concat(data))
@@ -84,12 +99,23 @@ export function attachWebSocket(
     maxPayload: config.maxMessageBytes,
   })
 
-  async function resolve(upgrade: Upgrade): Promise<Role | number> {
+  async function resolve(
+    upgrade: Upgrade,
+    headers: Headers,
+  ): Promise<{ role: Role; foreignKey: boolean } | number> {
     const board = await findBoard(db, upgrade.boardId)
     if (!board) {
       return CLOSE.unknownBoard
     }
-    return resolveRole(upgrade.token, board) ?? CLOSE.unauthorized
+    const user = await sessionUser(deps.auth, headers)
+    const role = roleFor(board, upgrade.token || null, user?.id ?? null)
+    if (!role) {
+      return CLOSE.unauthorized
+    }
+    // A key-based connection on an owned board is someone else using a
+    // share link: that is what the dashboard's "shared" badge reports.
+    const foreignKey = board.ownerId !== null && user?.id !== board.ownerId
+    return { role, foreignKey }
   }
 
   async function connect(
@@ -242,7 +268,7 @@ export function attachWebSocket(
           })
         })
 
-        void resolve(upgrade)
+        void resolve(upgrade, nodeHeaders(request))
           .then((outcome) => {
             if (typeof outcome === 'number') {
               ws.close(
@@ -258,10 +284,13 @@ export function attachWebSocket(
               })
               return
             }
+            if (outcome.foreignKey) {
+              void markShared(db, upgrade.boardId).catch(() => {})
+            }
             return connect(
               ws,
               upgrade,
-              outcome,
+              outcome.role,
               pending,
               (fn) => {
                 deliver = fn

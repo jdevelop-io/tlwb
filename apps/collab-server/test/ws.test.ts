@@ -1,14 +1,21 @@
 import { randomUUID } from 'node:crypto'
 import * as http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { createElement } from '@tlwb/engine'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { WebSocket as WsClient } from 'ws'
+import * as Y from 'yjs'
+import { createAuth } from '../src/accounts/auth'
 import { loadConfig } from '../src/config'
-import { createBoard } from '../src/db/boards'
+import { createBoard, loadBoard } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
+import { boards, session as sessionTable, user } from '../src/db/schema'
 import { generateKey, hashKey } from '../src/keys'
+import { encodeUpdate } from '../src/protocol'
 import { createRooms } from '../src/rooms'
 import { attachWebSocket } from '../src/ws'
+import { sessionCookie } from './session-cookie'
 
 const url = process.env.DATABASE_URL as string
 let database: Awaited<ReturnType<typeof connectDatabase>>
@@ -53,21 +60,50 @@ async function serve(overrides: Record<string, string> = {}, ping?: number) {
   const server = http.createServer()
   await new Promise<void>((resolve) => server.listen(0, resolve))
   const rooms = createRooms({ db: database.db, config })
+  // Null unless the caller's overrides supply AUTH_SECRET: every
+  // existing call keeps today's token-only behaviour untouched.
+  const auth = createAuth({ db: database.db, config })
   const wss = attachWebSocket(server, {
     db: database.db,
     config,
     rooms,
+    auth,
     pingIntervalMs: ping,
   })
   const port = (server.address() as AddressInfo).port
   return {
     wss,
+    boardId,
+    port,
+    config,
     url: `ws://localhost:${port}/ws/${boardId}?token=${editKey}`,
     async close() {
       await rooms.shutdown()
       await new Promise<void>((resolve) => server.close(() => resolve()))
     },
   }
+}
+
+/** Polls an async condition, for state that lands via a DB write. */
+function waitForAsync(
+  check: () => Promise<boolean>,
+  timeoutMs = 5_000,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const started = Date.now()
+    const tick = () => {
+      check().then((done) => {
+        if (done) {
+          resolve()
+        } else if (Date.now() - started > timeoutMs) {
+          reject(new Error('timed out'))
+        } else {
+          setTimeout(tick, 10)
+        }
+      }, reject)
+    }
+    tick()
+  })
 }
 
 describe('WebSocket keepalive', () => {
@@ -124,6 +160,84 @@ describe('WebSocket payload cap', () => {
       client.send(new Uint8Array(2048))
       await waitFor(() => closeCode !== null)
       expect(closeCode).toBe(1009)
+    } finally {
+      await server.close()
+    }
+  })
+})
+
+const AUTH_ENV = {
+  AUTH_SECRET: 'test-secret-at-least-32-characters!!',
+  GITHUB_CLIENT_ID: 'gid',
+  GITHUB_CLIENT_SECRET: 'gsec',
+}
+
+describe('WebSocket ownership', () => {
+  it('grants the owning session edit access without a key', async () => {
+    const server = await serve(AUTH_ENV)
+    try {
+      const ownerId = randomUUID()
+      const token = randomUUID()
+      await database.db.insert(user).values({
+        id: ownerId,
+        name: 'Owner',
+        email: `${ownerId}@example.com`,
+      })
+      await database.db.insert(sessionTable).values({
+        id: randomUUID(),
+        token,
+        userId: ownerId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+      })
+      await database.db
+        .update(boards)
+        .set({ ownerId })
+        .where(eq(boards.id, server.boardId))
+
+      const cookie = sessionCookie(
+        token,
+        server.config.accounts?.secret as string,
+      )
+
+      // Verify the cookie format empirically against Better Auth's own
+      // session endpoint before trusting it over the WebSocket upgrade.
+      const auth = createAuth({ db: database.db, config: server.config })
+      const liveSession = await auth?.api.getSession({
+        headers: new Headers({ cookie }),
+      })
+      expect(liveSession?.user.id).toBe(ownerId)
+
+      const client = new WsClient(
+        `ws://localhost:${server.port}/ws/${server.boardId}`,
+        { headers: { cookie } },
+      )
+      let closeCode: number | null = null
+      client.on('close', (code) => {
+        closeCode = code
+      })
+      await new Promise<void>((resolve, reject) => {
+        client.on('open', () => resolve())
+        client.on('error', reject)
+      })
+
+      const doc = new Y.Doc()
+      const before = Y.encodeStateVector(doc)
+      const element = createElement('rectangle', { index: 'a0', id: 'r1' })
+      doc.transact(() => {
+        doc.getMap('elements').set('r1', new Y.Map(Object.entries(element)))
+      })
+      client.send(encodeUpdate(Y.encodeStateAsUpdate(doc, before)))
+
+      await waitForAsync(async () => {
+        const loaded = await loadBoard(database.db, server.boardId)
+        return (loaded?.updates.length ?? 0) > 0
+      })
+      // A read-only connection is closed by the room; the owner's
+      // update landing without one is the edit role taking effect.
+      expect(closeCode).toBeNull()
+
+      client.close()
+      doc.destroy()
     } finally {
       await server.close()
     }

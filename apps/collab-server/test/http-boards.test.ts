@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { loadConfig } from '../src/config'
 import { findBoard } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
-import { createApp } from '../src/http'
+import { createApp, roleFor } from '../src/http'
 import { hashKey } from '../src/keys'
 import { createRooms } from '../src/rooms'
 
@@ -157,5 +157,30 @@ describe('GET /auth/*', () => {
     const appWithoutAuth = app()
     const missing = await appWithoutAuth.request('/auth/ok')
     expect(missing.status).toBe(404)
+  })
+})
+
+describe('roleFor', () => {
+  const board = {
+    id: 'b1',
+    editKeyHash: hashKey('edit-key'),
+    viewKeyHash: hashKey('view-key'),
+    ownerId: 'user-1',
+  }
+
+  it('owner session grants edit without a key', () => {
+    expect(roleFor(board, null, 'user-1')).toBe('edit')
+  })
+
+  it('another user falls back to the key', () => {
+    expect(roleFor(board, 'view-key', 'user-2')).toBe('view')
+  })
+
+  it('no key and no ownership is refused', () => {
+    expect(roleFor(board, null, 'user-2')).toBeNull()
+  })
+
+  it('owner wins over a weaker key', () => {
+    expect(roleFor(board, 'view-key', 'user-1')).toBe('edit')
   })
 })
