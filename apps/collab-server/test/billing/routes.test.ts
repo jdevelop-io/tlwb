@@ -401,6 +401,38 @@ describe('POST /billing/webhook', () => {
     expect(await planOf(userA)).toBe('free')
   })
 
+  it('treats checkout.session.completed as active, not free, for a subscriber who just paid', async () => {
+    const { stripe } = createStripeStub()
+    const a = app(stripe)
+    const customerId = `cus_checkout_${randomUUID()}`
+    const userA = await createUser(
+      'Ada',
+      `ada-${randomUUID()}@example.com`,
+      'pro',
+      customerId,
+    )
+    // A Checkout Session's own `status` is 'open' | 'complete' |
+    // 'expired', never a subscription status: reading it as one would
+    // downgrade the subscriber who just paid.
+    const request = signedRequest(
+      stripe,
+      WEBHOOK_SECRET,
+      JSON.stringify({
+        id: 'evt_checkout_completed',
+        type: 'checkout.session.completed',
+        data: { object: { customer: customerId, status: 'complete' } },
+      }),
+    )
+
+    const response = await a.request('http://server/billing/webhook', {
+      method: 'POST',
+      headers: request.headers,
+      body: request.body,
+    })
+    expect(response.status).toBe(200)
+    expect(await planOf(userA)).toBe('pro')
+  })
+
   it('answers 200 without writing anything for an unknown customer', async () => {
     const { stripe } = createStripeStub()
     const a = app(stripe)

@@ -99,14 +99,15 @@ export function createBillingApp(deps: BillingDeps): Hono {
         : undefined
       if (user) {
         // The absolute state, not a delta: replays and reordering land
-        // on the same answer.
+        // on the same answer. A completed checkout is always active (it
+        // carries no subscription status); a deleted subscription is
+        // always inactive; an update goes by its own status.
         const active =
-          event.type !== 'customer.subscription.deleted' &&
-          ('status' in event.data.object
-            ? ACTIVE_STATUSES.has(
-                (event.data.object as { status: string }).status,
-              )
-            : true)
+          event.type === 'checkout.session.completed' ||
+          (event.type === 'customer.subscription.updated' &&
+            ACTIVE_STATUSES.has(
+              (event.data.object as { status: string }).status,
+            ))
         await setPlan(deps.db, user.id, active ? 'pro' : 'free')
         log({ event: 'plan updated', userId: user.id, active })
       }
