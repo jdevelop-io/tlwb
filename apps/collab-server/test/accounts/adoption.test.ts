@@ -200,6 +200,45 @@ describe('POST /boards/adopt', () => {
     expect(response.status).toBe(401)
     expect(await response.json()).toEqual({ error: 'sign in required' })
   })
+
+  it('rejects an invalid body', async () => {
+    const a = app()
+    const userA = await createUser()
+    const cookie = await cookieFor(userA)
+
+    const response = await a.request('http://server/boards/adopt', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ boards: [{ boardId: 'x', editKey: '' }] }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'invalid body' })
+  })
+
+  it('adopts boards up to the cap in one call, then skips the rest', async () => {
+    const a = app({ FREE_BOARD_CAP: '2' })
+    const userA = await createUser()
+    const cookie = await cookieFor(userA)
+    await ownedBoard(userA)
+    const first = await issueAnonymousBoard(a)
+    const second = await issueAnonymousBoard(a)
+    const third = await issueAnonymousBoard(a)
+
+    const response = await adopt(a, cookie, [
+      { boardId: first.boardId, editKey: first.editKey },
+      { boardId: second.boardId, editKey: second.editKey },
+      { boardId: third.boardId, editKey: third.editKey },
+    ])
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      adopted: [first.boardId],
+      skipped: [second.boardId, third.boardId],
+    })
+    expect((await findBoard(database.db, first.boardId))?.ownerId).toBe(userA)
+    expect((await findBoard(database.db, second.boardId))?.ownerId).toBeNull()
+  })
 })
 
 describe('POST /boards with an account', () => {
@@ -234,6 +273,8 @@ describe('POST /boards with an account', () => {
       headers: { cookie },
     })
     expect(response.status).toBe(201)
+    const { boardId } = await response.json()
+    expect((await findBoard(database.db, boardId))?.ownerId).toBe(userA)
   })
 })
 
