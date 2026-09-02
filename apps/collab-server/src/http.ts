@@ -4,10 +4,11 @@ import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
-import type Stripe from 'stripe'
+import Stripe from 'stripe'
 import { z } from 'zod'
 import { issueApiKey, revokeApiKey } from './accounts/api-keys'
 import { type Auth, createAuth, sessionUser } from './accounts/auth'
+import { accountCleanup } from './accounts/cleanup'
 import { monthOf, readUsage } from './accounts/quota'
 import { createBillingApp } from './billing/routes'
 import { readBoardStore } from './board-read'
@@ -112,7 +113,15 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     60_000,
     now,
   )
-  const auth = deps.auth === undefined ? createAuth({ db, config }) : deps.auth
+  // Built once and shared with the billing routes below: the deletion
+  // cleanup hook needs it whether or not `/billing` ends up mounted.
+  const stripe: Stripe | null =
+    deps.stripe ??
+    (config.billing ? new Stripe(config.billing.secretKey) : null)
+  const auth =
+    deps.auth === undefined
+      ? createAuth({ db, config, beforeDelete: accountCleanup(db, stripe) })
+      : deps.auth
   if (auth) {
     // Reusing `createLimiter`'s budget for `/auth/*` is deliberate: both
     // are account-shaped write endpoints; a dedicated bucket is not
@@ -129,7 +138,7 @@ export function createApp(deps: HttpDeps): Hono<Env> {
   if (config.billing) {
     app.route(
       '/billing',
-      createBillingApp({ db, config, auth, stripe: deps.stripe }),
+      createBillingApp({ db, config, auth, stripe: stripe ?? undefined }),
     )
   }
 

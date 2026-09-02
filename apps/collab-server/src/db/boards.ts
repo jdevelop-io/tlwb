@@ -56,6 +56,18 @@ export async function claimBoard(
   return rows.length > 0
 }
 
+/**
+ * Re-anonymizes every board `ownerId` owns by clearing `owner_id`,
+ * without touching the board rows or their keys: share links keep
+ * resolving exactly as they did before.
+ */
+export async function disownBoards(db: Db, ownerId: string): Promise<void> {
+  await db
+    .update(boards)
+    .set({ ownerId: null })
+    .where(eq(boards.ownerId, ownerId))
+}
+
 export async function countOwnedBoards(
   db: Db,
   ownerId: string,
