@@ -4,10 +4,16 @@ import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
+import { z } from 'zod'
 import { type Auth, createAuth, sessionUser } from './accounts/auth'
 import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
-import { type BoardRecord, findBoard } from './db/boards'
+import {
+  type BoardRecord,
+  claimBoard,
+  countOwnedBoards,
+  findBoard,
+} from './db/boards'
 import type { Db } from './db/client'
 import { issueBoard } from './issue-board'
 import { type Role, resolveRole } from './keys'
@@ -134,11 +140,72 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     if (!createLimiter.take(clientIp(c, config.trustProxy))) {
       return c.json({ error: 'too many boards created' }, 429)
     }
-    const issued = await issueBoard(db)
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (user && user.plan === 'free') {
+      // ponytail: read-then-insert races can overshoot the cap by a
+      // concurrent request or two; a serialized check is not worth it
+      // for a fair-use limit.
+      if ((await countOwnedBoards(db, user.id)) >= config.freeBoardCap) {
+        return c.json({ error: 'board limit reached' }, 403)
+      }
+    }
+    const issued = await issueBoard(db, user?.id)
     if (!issued) {
       return c.json({ error: 'internal error' }, 500)
     }
     return c.json(issued, 201)
+  })
+
+  const adoptBody = z.object({
+    boards: z
+      .array(
+        z.object({
+          boardId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+          editKey: z.string().min(1).max(128),
+        }),
+      )
+      .max(50),
+  })
+
+  app.post('/boards/adopt', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    const parsed = adoptBody.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) {
+      return c.json({ error: 'invalid body' }, 400)
+    }
+    const adopted: string[] = []
+    const skipped: string[] = []
+    for (const entry of parsed.data.boards) {
+      const board = await findBoard(db, entry.boardId)
+      if (!board || resolveRole(entry.editKey, board) !== 'edit') {
+        skipped.push(entry.boardId)
+        continue
+      }
+      if (board.ownerId === user.id) {
+        adopted.push(entry.boardId)
+        continue
+      }
+      if (board.ownerId !== null) {
+        skipped.push(entry.boardId)
+        continue
+      }
+      const capped =
+        user.plan === 'free' &&
+        (await countOwnedBoards(db, user.id)) >= config.freeBoardCap
+      if (capped) {
+        skipped.push(entry.boardId)
+        continue
+      }
+      if (await claimBoard(db, entry.boardId, user.id)) {
+        adopted.push(entry.boardId)
+      } else {
+        skipped.push(entry.boardId)
+      }
+    }
+    return c.json({ adopted, skipped })
   })
 
   const HASH = /^[a-f0-9]{64}$/

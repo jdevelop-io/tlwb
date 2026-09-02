@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull, lte } from 'drizzle-orm'
+import { and, asc, count, eq, gt, isNull, lte } from 'drizzle-orm'
 import type { KeyHashes } from '../keys'
 import type { Db } from './client'
 import { boards, boardUpdates } from './schema'
@@ -20,6 +20,7 @@ export async function createBoard(
   db: Db,
   id: string,
   hashes: KeyHashes,
+  ownerId?: string,
 ): Promise<'created' | 'exists'> {
   const rows = await db
     .insert(boards)
@@ -27,10 +28,36 @@ export async function createBoard(
       id,
       editKeyHash: Buffer.from(hashes.editKeyHash),
       viewKeyHash: Buffer.from(hashes.viewKeyHash),
+      ownerId,
     })
     .onConflictDoNothing()
     .returning({ id: boards.id })
   return rows.length > 0 ? 'created' : 'exists'
+}
+
+/** Claims an unowned board for `ownerId`; true only if this call did it. */
+export async function claimBoard(
+  db: Db,
+  boardId: string,
+  ownerId: string,
+): Promise<boolean> {
+  const rows = await db
+    .update(boards)
+    .set({ ownerId })
+    .where(and(eq(boards.id, boardId), isNull(boards.ownerId)))
+    .returning({ id: boards.id })
+  return rows.length > 0
+}
+
+export async function countOwnedBoards(
+  db: Db,
+  ownerId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(boards)
+    .where(eq(boards.ownerId, ownerId))
+  return row?.value ?? 0
 }
 
 export async function findBoard(

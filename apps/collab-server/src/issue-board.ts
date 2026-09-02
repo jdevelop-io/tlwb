@@ -13,14 +13,23 @@ export interface IssuedBoard {
  * A new hosted board: a server-issued id (16 random bytes, base64url,
  * 22 characters) and two keys shown once and stored hashed. Null on the
  * one-in-2^128 id collision, which is not worth a retry loop.
+ * `ownerId` lands in the insert, owning the board at birth.
  */
-export async function issueBoard(db: Db): Promise<IssuedBoard | null> {
+export async function issueBoard(
+  db: Db,
+  ownerId?: string,
+): Promise<IssuedBoard | null> {
   const boardId = randomBytes(16).toString('base64url')
   const editKey = generateKey()
   const viewKey = generateKey()
-  const outcome = await createBoard(db, boardId, {
-    editKeyHash: hashKey(editKey),
-    viewKeyHash: hashKey(viewKey),
-  })
+  const outcome = await createBoard(
+    db,
+    boardId,
+    {
+      editKeyHash: hashKey(editKey),
+      viewKeyHash: hashKey(viewKey),
+    },
+    ownerId,
+  )
   return outcome === 'exists' ? null : { boardId, editKey, viewKey }
 }
