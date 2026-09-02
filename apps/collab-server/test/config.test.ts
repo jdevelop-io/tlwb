@@ -25,6 +25,11 @@ describe('loadConfig', () => {
       mcpPresenceMs: 5000,
       mcpMaxBatch: 200,
       mcpMaxImagePixels: 4_000_000,
+      accounts: null,
+      billing: null,
+      freeBoardCap: 10,
+      mcpQuotaFree: 1000,
+      mcpQuotaPro: 50000,
     })
   })
 
@@ -89,5 +94,78 @@ describe('loadConfig', () => {
     expect(config.mcpPresenceMs).toBe(100)
     expect(config.mcpMaxBatch).toBe(3)
     expect(config.mcpMaxImagePixels).toBe(1000)
+  })
+})
+
+describe('accounts config', () => {
+  const base = { DATABASE_URL: 'postgres://x', CORS_ORIGIN: '*' }
+
+  it('is null when AUTH_SECRET is absent', () => {
+    expect(loadConfig(base).accounts).toBeNull()
+  })
+
+  it('requires at least one provider when AUTH_SECRET is set', () => {
+    expect(() => loadConfig({ ...base, AUTH_SECRET: 's' })).toThrow(ConfigError)
+  })
+
+  it('loads the configured providers', () => {
+    const config = loadConfig({
+      ...base,
+      AUTH_SECRET: 's',
+      GITHUB_CLIENT_ID: 'gid',
+      GITHUB_CLIENT_SECRET: 'gsec',
+    })
+    expect(config.accounts).toEqual({
+      secret: 's',
+      github: { clientId: 'gid', clientSecret: 'gsec' },
+      google: null,
+    })
+  })
+
+  it('refuses a half-configured provider', () => {
+    expect(() =>
+      loadConfig({ ...base, AUTH_SECRET: 's', GITHUB_CLIENT_ID: 'gid' }),
+    ).toThrow(ConfigError)
+  })
+})
+
+describe('billing config', () => {
+  const base = { DATABASE_URL: 'postgres://x', CORS_ORIGIN: '*' }
+
+  it('is null when STRIPE_SECRET_KEY is absent', () => {
+    expect(loadConfig(base).billing).toBeNull()
+  })
+
+  it('requires the webhook secret and both prices once enabled', () => {
+    expect(() => loadConfig({ ...base, STRIPE_SECRET_KEY: 'sk' })).toThrow(
+      ConfigError,
+    )
+  })
+
+  it('loads a full billing block', () => {
+    const config = loadConfig({
+      ...base,
+      STRIPE_SECRET_KEY: 'sk',
+      STRIPE_WEBHOOK_SECRET: 'wh',
+      STRIPE_PRICE_MONTHLY: 'price_m',
+      STRIPE_PRICE_YEARLY: 'price_y',
+    })
+    expect(config.billing).toEqual({
+      secretKey: 'sk',
+      webhookSecret: 'wh',
+      priceMonthly: 'price_m',
+      priceYearly: 'price_y',
+    })
+  })
+})
+
+describe('freemium limits', () => {
+  const base = { DATABASE_URL: 'postgres://x', CORS_ORIGIN: '*' }
+
+  it('defaults the cap and quotas', () => {
+    const config = loadConfig(base)
+    expect(config.freeBoardCap).toBe(10)
+    expect(config.mcpQuotaFree).toBe(1000)
+    expect(config.mcpQuotaPro).toBe(50000)
   })
 })

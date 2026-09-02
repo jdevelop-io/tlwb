@@ -1,3 +1,16 @@
+export interface AccountsConfig {
+  secret: string
+  github: { clientId: string; clientSecret: string } | null
+  google: { clientId: string; clientSecret: string } | null
+}
+
+export interface BillingConfig {
+  secretKey: string
+  webhookSecret: string
+  priceMonthly: string
+  priceYearly: string
+}
+
 export interface Config {
   databaseUrl: string
   port: number
@@ -19,6 +32,11 @@ export interface Config {
   mcpPresenceMs: number
   mcpMaxBatch: number
   mcpMaxImagePixels: number
+  accounts: AccountsConfig | null
+  billing: BillingConfig | null
+  freeBoardCap: number
+  mcpQuotaFree: number
+  mcpQuotaPro: number
 }
 
 export class ConfigError extends Error {
@@ -66,6 +84,47 @@ function boolean(env: Env, name: string, fallback: boolean): boolean {
   return raw === 'true'
 }
 
+function provider(
+  env: Env,
+  idName: string,
+  secretName: string,
+): { clientId: string; clientSecret: string } | null {
+  const clientId = env[idName]
+  const clientSecret = env[secretName]
+  if (!clientId && !clientSecret) {
+    return null
+  }
+  if (!clientId || !clientSecret) {
+    throw new ConfigError(`${idName} and ${secretName} go together`)
+  }
+  return { clientId, clientSecret }
+}
+
+function accountsConfig(env: Env): AccountsConfig | null {
+  const secret = env.AUTH_SECRET
+  if (!secret) {
+    return null
+  }
+  const github = provider(env, 'GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET')
+  const google = provider(env, 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET')
+  if (!github && !google) {
+    throw new ConfigError('AUTH_SECRET needs at least one OAuth provider')
+  }
+  return { secret, github, google }
+}
+
+function billingConfig(env: Env): BillingConfig | null {
+  if (!env.STRIPE_SECRET_KEY) {
+    return null
+  }
+  return {
+    secretKey: env.STRIPE_SECRET_KEY,
+    webhookSecret: required(env, 'STRIPE_WEBHOOK_SECRET'),
+    priceMonthly: required(env, 'STRIPE_PRICE_MONTHLY'),
+    priceYearly: required(env, 'STRIPE_PRICE_YEARLY'),
+  }
+}
+
 /** Reads and validates the environment; throws ConfigError on the first problem. */
 export function loadConfig(env: Env): Config {
   // Always required, wildcard included: a wide-open API must be
@@ -99,5 +158,10 @@ export function loadConfig(env: Env): Config {
     // every live WebSocket session pays for. 4M pixels measures at
     // roughly 75ms, where 16M measured at 283ms.
     mcpMaxImagePixels: integer(env, 'MCP_MAX_IMAGE_PIXELS', 4_000_000),
+    accounts: accountsConfig(env),
+    billing: billingConfig(env),
+    freeBoardCap: integer(env, 'FREE_BOARD_CAP', 10),
+    mcpQuotaFree: integer(env, 'MCP_QUOTA_FREE', 1000),
+    mcpQuotaPro: integer(env, 'MCP_QUOTA_PRO', 50000),
   }
 }
