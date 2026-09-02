@@ -401,14 +401,17 @@ describe('POST /billing/webhook', () => {
     expect(await planOf(userA)).toBe('free')
   })
 
-  it('treats checkout.session.completed as active, not free, for a subscriber who just paid', async () => {
+  it('flips checkout.session.completed to pro, not just leaves a pro user alone', async () => {
     const { stripe } = createStripeStub()
     const a = app(stripe)
     const customerId = `cus_checkout_${randomUUID()}`
+    // Starting on 'free' and asserting the flip to 'pro' is deliberate:
+    // starting on 'pro' would still pass even if the outer type filter
+    // dropped this event entirely and setPlan were never called.
     const userA = await createUser(
       'Ada',
       `ada-${randomUUID()}@example.com`,
-      'pro',
+      'free',
       customerId,
     )
     // A Checkout Session's own `status` is 'open' | 'complete' |
