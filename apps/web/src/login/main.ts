@@ -1,8 +1,10 @@
 import { authClient } from '../auth/client'
+import { resolveCallbackURL } from './callback-url'
 import './login.css'
 
-const callbackURL =
-  new URLSearchParams(location.search).get('from') ?? '/dashboard'
+const callbackURL = resolveCallbackURL(
+  new URLSearchParams(location.search).get('from'),
+)
 
 // The OAuth return lands on /dashboard, which runs adoption on load.
 document.getElementById('github')?.addEventListener('click', () => {
