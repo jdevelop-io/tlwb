@@ -32,4 +32,14 @@ describe('schema migration', () => {
     `)
     expect(rows.length).toBe(5)
   })
+
+  it('indexes the three hot lookups: boards.owner_id, api_keys.key_hash, user.stripe_customer_id', async () => {
+    const rows = await database.db.execute(sql`
+      select indexname from pg_indexes
+      where indexname in
+        ('boards_owner_id_idx', 'api_keys_key_hash_idx',
+         'user_stripe_customer_id_idx')
+    `)
+    expect(rows.length).toBe(3)
+  })
 })
