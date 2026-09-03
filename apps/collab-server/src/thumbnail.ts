@@ -1,4 +1,4 @@
-import { createCanvas, loadImage } from '@napi-rs/canvas'
+import { exportBounds } from '@tlwb/engine'
 import { readBoardStore } from './board-read'
 import type { Config } from './config'
 import { readThumbnail, writeThumbnail } from './db/boards'
@@ -42,28 +42,27 @@ export async function boardThumbnail(
   if (elements.length === 0) {
     return null
   }
-  if (exceedsPixelBudget(elements, 1, config.mcpMaxImagePixels)) {
+  // Targets a render close to THUMB_WIDTH wide directly, rather than
+  // rendering at the board's full resolution and shrinking afterward:
+  // rasterizing is synchronous native work that blocks the event loop
+  // for every live session, so its cost must track the thumbnail's
+  // output size, not the board's extent.
+  const scale = THUMB_WIDTH / exportBounds(elements).width
+  if (exceedsPixelBudget(elements, scale, config.mcpMaxImagePixels)) {
     return null
   }
   if (!takeRenderBudget()) {
     throw new ThumbnailBudgetExceededError()
   }
-  const full = await renderPng(elements, {
-    scale: 1,
+  const rendered = await renderPng(elements, {
+    scale,
     maxPixels: config.mcpMaxImagePixels,
     resolveImage: await loadImages(db, boardId, elements),
   })
-  if (!full) {
+  if (!rendered) {
     return null
   }
-  const image = await loadImage(Buffer.from(full))
-  const height = Math.max(
-    1,
-    Math.round((image.height / image.width) * THUMB_WIDTH),
-  )
-  const canvas = createCanvas(THUMB_WIDTH, height)
-  canvas.getContext('2d').drawImage(image, 0, 0, THUMB_WIDTH, height)
-  const png = canvas.toBuffer('image/png')
+  const png = Buffer.from(rendered)
   await writeThumbnail(db, boardId, png, read.latestSeq)
   return png
 }

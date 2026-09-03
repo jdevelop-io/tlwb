@@ -217,6 +217,42 @@ describe('boardThumbnail', () => {
     expect(png).toBeNull()
   })
 
+  it('renders a board whose full resolution would blow the pixel budget, once scaled toward THUMB_WIDTH', async () => {
+    // A 3000x2000 board is ~6M pixels at full scale, over the default
+    // 4M-pixel budget, but well under it once scaled to land near 400
+    // pixels wide (roughly 400x267, ~107K pixels): the budget check and
+    // the render itself must both use the thumbnail's target scale, not
+    // scale 1, or a board this size never gets a thumbnail at all.
+    const config = testConfig()
+    const boardId = await ownedBoard()
+    const doc = createBoardDoc()
+    createYjsBoardStore(doc).applyChanges([
+      {
+        kind: 'create',
+        element: createElement('rectangle', {
+          index: 'a0',
+          id: 'big',
+          x: 0,
+          y: 0,
+          width: 3000,
+          height: 2000,
+        }),
+      },
+    ])
+    await compactBoard(database.db, boardId, Y.encodeStateAsUpdate(doc), 1)
+    doc.destroy()
+
+    const png = await boardThumbnail(database.db, config, boardId)
+
+    expect(png).not.toBeNull()
+    expect([...(png as Buffer).subarray(0, 4)]).toEqual(PNG_SIGNATURE)
+    // The IHDR chunk's width, big-endian, at byte offset 16: close to
+    // THUMB_WIDTH, nowhere near the board's own ~3032px extent.
+    const width = (png as Buffer).readUInt32BE(16)
+    expect(width).toBeGreaterThan(THUMB_WIDTH - 5)
+    expect(width).toBeLessThan(THUMB_WIDTH + 5)
+  })
+
   it('answers undefined-safe null for an unknown board', async () => {
     const config = testConfig()
     const png = await boardThumbnail(database.db, config, randomUUID())
