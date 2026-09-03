@@ -98,7 +98,15 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
         // Keep whatever list is already on screen; the grid stays usable.
       }
     }
-    void deps.adopt().then(() => refreshBoards())
+    void (async () => {
+      try {
+        await deps.adopt()
+      } catch {
+        // adopt() must never block the board list from loading.
+      } finally {
+        await refreshBoards()
+      }
+    })()
     return () => {
       cancelled = true
     }
@@ -175,8 +183,12 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
   }
 
   const signOut = async (): Promise<void> => {
-    await deps.signOut()
-    deps.navigate('/')
+    try {
+      await deps.signOut()
+      deps.navigate('/')
+    } catch {
+      setToast('Could not sign out, try again')
+    }
   }
 
   if (!me) {

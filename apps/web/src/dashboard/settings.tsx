@@ -28,7 +28,7 @@ export function Settings(props: {
   } | null>(null)
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [portalError, setPortalError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -75,12 +75,12 @@ export function Settings(props: {
   }
 
   const manageBilling = async (): Promise<void> => {
-    setPortalError(null)
+    setError(null)
     try {
       const url = await deps.openPortal()
       location.assign(url)
     } catch {
-      setPortalError('Could not open billing, try again')
+      setError('Could not open billing, try again')
     }
   }
 
@@ -95,8 +95,13 @@ export function Settings(props: {
     ) {
       return
     }
-    await deps.deleteUser()
-    deps.navigate('/')
+    setError(null)
+    try {
+      await deps.deleteUser()
+      deps.navigate('/')
+    } catch {
+      setError('Could not delete the account, try again')
+    }
   }
 
   return (
@@ -110,7 +115,7 @@ export function Settings(props: {
           </button>
         ) : null}
       </p>
-      {portalError ? <p className="settings-error">{portalError}</p> : null}
+      {error ? <p className="settings-error">{error}</p> : null}
 
       <div className="settings-api-key">
         <h3>MCP API key</h3>

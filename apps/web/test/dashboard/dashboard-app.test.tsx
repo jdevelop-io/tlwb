@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readKeys } from '../../src/board/session/keys'
 import { ServerError } from '../../src/board/session/server'
 import type { DashboardBoard, MeResponse } from '../../src/dashboard/api'
 import type { DashboardDeps } from '../../src/dashboard/dashboard-app'
@@ -92,6 +93,19 @@ describe('DashboardApp', () => {
     ).toBeInTheDocument()
   })
 
+  it('still loads the board list when adopt() rejects', async () => {
+    const deps = makeDeps({
+      adopt: vi.fn(async () => {
+        throw new Error('adoption blew up')
+      }),
+      fetchBoards: async () => ({ boards: [board()], cap: 10 }),
+    })
+    render(<DashboardApp deps={deps} />)
+    expect(
+      await screen.findByRole('link', { name: 'Sprint plan' }),
+    ).toBeInTheDocument()
+  })
+
   it('hides the gauge and upgrade on pro', async () => {
     const deps = makeDeps({
       fetchMe: async () => ({ ...me, user: { ...me.user, plan: 'pro' } }),
@@ -181,6 +195,25 @@ describe('DashboardApp', () => {
     expect(container.querySelector('.thumbnail-fallback')).toBeInTheDocument()
   })
 
+  it('creates a board, stores its keys, and navigates to it', async () => {
+    const navigate = vi.fn()
+    const createHostedBoard = vi.fn(async () => ({
+      boardId: 'freshly-made',
+      editKey: 'edit-key',
+      viewKey: 'view-key',
+    }))
+    const deps = makeDeps({ createHostedBoard, navigate })
+    render(<DashboardApp deps={deps} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'New board' }))
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith('/b/freshly-made'),
+    )
+    expect(readKeys('freshly-made')).toEqual({
+      editKey: 'edit-key',
+      viewKey: 'view-key',
+    })
+  })
+
   it('shows the cap message with an Upgrade link on a 403 create', async () => {
     const createHostedBoard = vi.fn(async () => {
       throw new ServerError(403)
@@ -225,6 +258,55 @@ describe('DashboardApp', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New board' }))
     await screen.findByText('Could not create the board, try again')
     expect(screen.queryByText('You have reached your board limit.')).toBeNull()
+  })
+
+  it('starts a monthly checkout and redirects to its url', async () => {
+    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
+    const startCheckout = vi.fn(async () => 'https://stripe.example/monthly')
+    const deps = makeDeps({
+      fetchBoards: async () => ({ boards: [], cap: 10 }),
+      startCheckout,
+    })
+    render(<DashboardApp deps={deps} />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Upgrade monthly' }),
+    )
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith('month'))
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith('https://stripe.example/monthly'),
+    )
+  })
+
+  it('starts a yearly checkout with the yearly interval', async () => {
+    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
+    const startCheckout = vi.fn(async () => 'https://stripe.example/yearly')
+    const deps = makeDeps({
+      fetchBoards: async () => ({ boards: [], cap: 10 }),
+      startCheckout,
+    })
+    render(<DashboardApp deps={deps} />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Upgrade yearly' }),
+    )
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith('year'))
+    expect(assign).toHaveBeenCalledWith('https://stripe.example/yearly')
+  })
+
+  it('opens the billing portal for its url', async () => {
+    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
+    const openPortal = vi.fn(
+      async () => 'https://stripe.example/portal-session',
+    )
+    const deps = makeDeps({
+      fetchMe: async () => ({ ...me, user: { ...me.user, plan: 'pro' } }),
+      openPortal,
+    })
+    render(<DashboardApp deps={deps} />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Manage billing' }),
+    )
+    await waitFor(() => expect(openPortal).toHaveBeenCalledOnce())
+    expect(assign).toHaveBeenCalledWith('https://stripe.example/portal-session')
   })
 
   it('signs out and navigates home', async () => {
@@ -321,5 +403,38 @@ describe('DashboardApp', () => {
     await vi.waitFor(() =>
       expect(screen.queryByText('Payment confirming…')).toBeNull(),
     )
+  })
+
+  it('gives up polling after the timeout but leaves the notice standing', async () => {
+    history.pushState(null, '', '/dashboard?checkout=success')
+    vi.useFakeTimers()
+    const fetchMe = vi.fn(async () => me)
+    const deps = makeDeps({ fetchMe })
+    render(<DashboardApp deps={deps} />)
+    await vi.waitFor(() =>
+      expect(screen.getByText('Payment confirming…')).toBeInTheDocument(),
+    )
+    await vi.advanceTimersByTimeAsync(30000)
+    const callsAtTimeout = fetchMe.mock.calls.length
+    expect(screen.getByText('Payment confirming…')).toBeInTheDocument()
+
+    await vi.advanceTimersByTimeAsync(9000)
+    expect(fetchMe.mock.calls.length).toBe(callsAtTimeout)
+    expect(screen.getByText('Payment confirming…')).toBeInTheDocument()
+  })
+
+  it('reports a failed account deletion as an error instead of failing silently', async () => {
+    const deleteUser = vi.fn(async () => {
+      throw new Error('down')
+    })
+    const navigate = vi.fn()
+    window.confirm = vi.fn(() => true)
+    const deps = makeDeps({ deleteUser, navigate })
+    render(<DashboardApp deps={deps} />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete account' }),
+    )
+    await screen.findByText('Could not delete the account, try again')
+    expect(navigate).not.toHaveBeenCalled()
   })
 })
