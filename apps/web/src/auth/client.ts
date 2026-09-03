@@ -23,15 +23,42 @@ interface SessionResponse {
   }
 }
 
-/** null when signed out OR when the deployment has no accounts. */
+/**
+ * Thrown instead of resolving `null` on a throttled session check: the
+ * caller does not actually know this visitor is signed out, only that
+ * the read was refused, and must not silently treat the two the same.
+ */
+export class SessionRateLimitedError extends Error {
+  constructor() {
+    super('session check was rate limited')
+    this.name = 'SessionRateLimitedError'
+  }
+}
+
+/**
+ * null when signed out OR when the deployment has no accounts. Throws
+ * `SessionRateLimitedError` on a 429, distinct from both: a throttled
+ * read must never be read by a caller as a confirmed sign-out.
+ */
 export async function fetchSession(
   fetchFn: typeof fetch = fetch,
 ): Promise<Me | null> {
+  let response: Response
   try {
-    const response = await fetchFn('/api/auth/get-session')
-    if (response.status !== 200) {
-      return null
-    }
+    response = await fetchFn('/api/auth/get-session')
+  } catch {
+    // A thrown network error: a deployment without accounts configured
+    // (or one genuinely unreachable) must read as signed out, never as
+    // an error.
+    return null
+  }
+  if (response.status === 429) {
+    throw new SessionRateLimitedError()
+  }
+  if (response.status !== 200) {
+    return null
+  }
+  try {
     const body = (await response.json()) as SessionResponse
     return {
       name: body.user.name,
@@ -40,10 +67,8 @@ export async function fetchSession(
       plan: body.user.plan === 'pro' ? 'pro' : 'free',
     }
   } catch {
-    // Covers a thrown network error and any malformed response body
-    // (including a null body from a signed-out session): a deployment
-    // without accounts configured must read as signed out, never as
-    // an error.
+    // A malformed response body, including a null body from a
+    // signed-out session: reads as signed out, not as an error.
     return null
   }
 }

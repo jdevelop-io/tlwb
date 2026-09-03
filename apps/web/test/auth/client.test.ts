@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fetchSession } from '../../src/auth/client'
+import { fetchSession, SessionRateLimitedError } from '../../src/auth/client'
 
 describe('fetchSession', () => {
   it('maps a session payload to Me', async () => {
@@ -48,6 +48,12 @@ describe('fetchSession', () => {
         throw new Error('offline')
       }),
     ).toBeNull()
+  })
+
+  it('throws SessionRateLimitedError on a 429, never resolving null', async () => {
+    await expect(
+      fetchSession(async () => new Response('', { status: 429 })),
+    ).rejects.toBeInstanceOf(SessionRateLimitedError)
   })
 
   it('defaults a missing plan to free', async () => {

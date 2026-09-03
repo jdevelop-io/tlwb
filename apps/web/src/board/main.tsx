@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { createRoot } from 'react-dom/client'
-import { fetchSession } from '../auth/client'
+import { fetchSession, SessionRateLimitedError } from '../auth/client'
 import { BoardApp } from './components/board-app'
 import { NotFound } from './components/not-found'
 import { openBoardSession } from './session/board-session'
@@ -42,13 +42,27 @@ async function main(): Promise<void> {
     writeKeys(boardId, { ...readKeys(boardId), ...fromFragment })
     history.replaceState(null, '', `/b/${boardId}`)
   }
-  const me = await mePromise
+  // A throttled session check is not a confirmed sign-out: treated as
+  // "might be signed in" so the owner-connect attempt below still asks
+  // the server, which knows the truth from the session cookie, rather
+  // than silently downgrading this visitor to anonymous.
+  let me: Awaited<typeof mePromise> = null
+  let signedIn = false
+  try {
+    me = await mePromise
+    signedIn = me !== null
+  } catch (error) {
+    if (!(error instanceof SessionRateLimitedError)) {
+      throw error
+    }
+    signedIn = true
+  }
   const identity = identityFor(loadIdentity(), me)
   const session = await openBoardSession({
     boardId,
     fresh,
     identity,
-    signedIn: me !== null,
+    signedIn,
   })
   if (session === 'not-found') {
     createRoot(root).render(<NotFound />)

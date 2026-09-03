@@ -44,5 +44,11 @@ if (target) {
 
 const sessionTarget = document.getElementById('session-link')
 if (sessionTarget instanceof HTMLAnchorElement) {
-  void fetchSession().then((me) => renderSession(sessionTarget, me))
+  // A throttled check leaves the static "Sign in" markup standing
+  // rather than risk asserting a wrong state either way; the editor
+  // itself is the place that cannot afford to guess wrong (see
+  // `board/main.tsx`).
+  void fetchSession()
+    .then((me) => renderSession(sessionTarget, me))
+    .catch(() => undefined)
 }
