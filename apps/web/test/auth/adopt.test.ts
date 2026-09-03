@@ -1,4 +1,5 @@
 import { createElement } from '@tlwb/engine'
+import * as storeYjs from '@tlwb/store-yjs'
 import {
   createAssetStore,
   createBoardDoc,
@@ -18,7 +19,10 @@ import { listRecents, touchRecent } from '../../src/board/session/recents'
 const identity = { name: 'Ada', color: '#1971C2' }
 
 beforeEach(() => localStorage.clear())
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 
 /**
  * Writes a board straight into IndexedDB the way a never-hosted board
@@ -165,6 +169,51 @@ describe('hostLocalBoard', () => {
     // failed.
     expect(
       await openBoardSession({ boardId: 'srv003xx', fresh: false, identity }),
+    ).toBe('not-found')
+  })
+
+  it('still cleans up the hosted mirror when closing the source persistence rejects', async () => {
+    await seedLocalBoard('local004', { name: 'Boom2', withImage: true })
+    touchRecent({ id: 'local004', name: 'Boom2', updatedAt: 1 })
+
+    const realPersistBoard = storeYjs.persistBoard
+    vi.spyOn(storeYjs, 'persistBoard').mockImplementation((doc, boardId) => {
+      const persistence = realPersistBoard(doc, boardId)
+      // Only the source binding's close fails: the underlying database
+      // open/close reject scenario `persistBoard`'s own docs call out
+      // (private browsing, quota) can strike either binding
+      // independently.
+      return boardId === 'local004'
+        ? {
+            ...persistence,
+            destroy: () => Promise.reject(new Error('close failed')),
+          }
+        : persistence
+    })
+
+    const createHostedBoard = vi.fn(async () => ({
+      boardId: 'srv004xx',
+      editKey: 'e4',
+      viewKey: 'v4',
+    }))
+    const uploadAsset = vi.fn(async () => {
+      throw new Error('415')
+    })
+
+    const result = await hostLocalBoard('local004', {
+      createHostedBoard,
+      uploadAsset,
+    })
+
+    // A rejecting close on the source binding does not throw out of
+    // hostLocalBoard...
+    expect(result).toBeNull()
+    // ...and does not skip cleaning up the hosted mirror this attempt
+    // leaked: that rollback runs (and completes) before the source
+    // close is even attempted.
+    expect(readKeys('srv004xx')).toBeNull()
+    expect(
+      await openBoardSession({ boardId: 'srv004xx', fresh: false, identity }),
     ).toBe('not-found')
   })
 })

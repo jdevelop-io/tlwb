@@ -47,6 +47,21 @@ export interface HostLocalBoardDeps {
 }
 
 /**
+ * Awaits one teardown call without letting its failure escape or block
+ * whatever else needs tearing down. IndexedDB opening (and therefore
+ * closing) can genuinely reject -- private browsing, quota -- and this
+ * runs on every dashboard load, so one failing close must never skip
+ * the others or turn into an exception of its own.
+ */
+async function settle(action: Promise<unknown> | undefined): Promise<void> {
+  try {
+    await action
+  } catch {
+    // Best-effort: nothing to report here, nothing to escalate to.
+  }
+}
+
+/**
  * Hosts one local (never-hosted) recents entry, returns its Adoptable,
  * or null when the local database is empty or hosting fails. The share
  * flow without a live session: it opens the local doc straight from
@@ -63,11 +78,6 @@ export async function hostLocalBoard(
   const storage = deps.storage ?? localStorage
   const now = deps.now ?? Date.now
 
-  // Hoisted above the try so a mid-flow failure can still close (and,
-  // for the newly hosted id, clear) whatever this attempt opened.
-  // Without this, adoption running again on the next dashboard load
-  // finds the source recents entry untouched, retries from scratch,
-  // and leaks another orphaned hosted board and database each time.
   let persistence: BoardPersistence | null = null
   let hostedPersistence: BoardPersistence | null = null
   let localAssets: AssetStore | null = null
@@ -80,27 +90,39 @@ export async function hostLocalBoard(
 
     if (store.listElements().length === 0 && store.getMeta().createdAt === 0) {
       // Nothing worth hosting: never-created or already-emptied board.
-      await persistence.destroy()
+      await settle(persistence?.destroy())
       return null
     }
 
     const hosted = await createHostedBoard()
     hostedPersistence = persistBoard(doc, hosted.boardId)
-    await hostedPersistence.whenLoaded
 
-    localAssets = createAssetStore(localId)
-    const hashes = new Set(
-      store
-        .listElements()
-        .flatMap((element) =>
-          element.type === 'image' ? [element.assetHash] : [],
-        ),
-    )
-    for (const hash of hashes) {
-      const blob = await localAssets.get(hash)
-      if (blob) {
-        await uploadAsset(hosted.boardId, hash, blob, hosted.editKey)
+    // Only this region -- the newly hosted mirror and its assets -- is
+    // ever rolled back. The source persistence is left alone (a retry
+    // should find the original board untouched), and nothing past this
+    // block rolls anything back at all: once the board is adopted
+    // below, a failure closing a connection must not delete a mirror
+    // the keys, alias and recents already point at.
+    try {
+      await hostedPersistence.whenLoaded
+      localAssets = createAssetStore(localId)
+      const hashes = new Set(
+        store
+          .listElements()
+          .flatMap((element) =>
+            element.type === 'image' ? [element.assetHash] : [],
+          ),
+      )
+      for (const hash of hashes) {
+        const blob = await localAssets.get(hash)
+        if (blob) {
+          await uploadAsset(hosted.boardId, hash, blob, hosted.editKey)
+        }
       }
+    } catch (error) {
+      await settle(hostedPersistence?.clear())
+      await settle(localAssets?.destroy())
+      throw error
     }
 
     const keys: StoredKeys = {
@@ -115,19 +137,15 @@ export async function hostLocalBoard(
       storage,
     )
 
-    await persistence.destroy()
-    await hostedPersistence.destroy()
-    await localAssets.destroy()
+    await settle(persistence?.destroy())
+    await settle(hostedPersistence?.destroy())
+    await settle(localAssets?.destroy())
 
     return { boardId: hosted.boardId, editKey: hosted.editKey }
   } catch {
-    // The source database stays intact for a retry; the local mirror
-    // this attempt created under the new id is cleared rather than
-    // left as an orphaned partial database (the server-side board it
-    // is attached to cannot be un-created from here).
-    await persistence?.destroy()
-    await hostedPersistence?.clear()
-    await localAssets?.destroy()
+    // Whatever the inner region above already rolled back stays rolled
+    // back; this only closes the source binding this attempt opened.
+    await settle(persistence?.destroy())
     return null
   }
 }
