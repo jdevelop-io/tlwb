@@ -1,6 +1,7 @@
 import type { Editor, PendingImage } from '@tlwb/engine'
 import { createEditor } from '@tlwb/engine'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import type { Me } from '../../auth/client'
 import { useCloseCode } from '../hooks/use-close-code'
 import { usePeers } from '../hooks/use-peers'
 import { useSession } from '../hooks/use-session'
@@ -35,8 +36,12 @@ export function useEditor(): EditorContextValue {
   return value
 }
 
-export function BoardApp(props: { session: BoardSession; identity: Identity }) {
-  const { session } = props
+export function BoardApp(props: {
+  session: BoardSession
+  identity: Identity
+  me: Me | null
+}) {
+  const { session, me } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const pendingRef = useRef<PendingImage | null>(null)
@@ -146,7 +151,7 @@ export function BoardApp(props: { session: BoardSession; identity: Identity }) {
       />
       {editor ? (
         <EditorContext.Provider value={{ editor, session }}>
-          <TopBar session={session} />
+          <TopBar session={session} me={me} />
           <Toolbar
             editor={editor}
             onPickImage={() => fileRef.current?.click()}

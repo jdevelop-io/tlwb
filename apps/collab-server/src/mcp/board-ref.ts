@@ -1,4 +1,4 @@
-import { findBoard } from '../db/boards'
+import { findBoard, markAgentSeen } from '../db/boards'
 import type { Db } from '../db/client'
 import { type Role, resolveRole } from '../keys'
 import { ToolError } from './tool-error'
@@ -56,5 +56,9 @@ export async function resolveBoardRole(db: Db, ref: BoardRef): Promise<Role> {
   if (!role) {
     throw new ToolError(`key does not match board ${ref.boardId}`)
   }
+  // Fire and forget: an agent touching a board is worth recording for
+  // the owner's dashboard, but no tool result should wait on it or fail
+  // because of it.
+  void markAgentSeen(db, ref.boardId).catch(() => {})
   return role
 }

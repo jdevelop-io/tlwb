@@ -13,6 +13,7 @@ import {
   createLocalAwareness,
   createPresence,
   createYjsBoardStore,
+  PERMANENT_CLOSE_CODES,
   persistBoard,
 } from '@tlwb/store-yjs'
 import type { Identity } from './identity'
@@ -52,9 +53,18 @@ export interface BoardSessionOptions {
   /** Just created from `/b/new`: write the meta instead of probing. */
   fresh: boolean
   identity: Identity
+  /**
+   * A signed-in visitor: with no local key and no local copy of this
+   * board, still worth a keyless connection attempt, since the server
+   * grants the owner's session edit access with no key at all. Ignored
+   * whenever a key or a local copy already answers the question.
+   */
+  signedIn?: boolean
   connect?: typeof connectBoard
   storage?: Storage
   now?: () => number
+  /** Overrides `OWNER_CONNECT_TIMEOUT_MS`; a test-only seam. */
+  ownerConnectTimeoutMs?: number
 }
 
 export interface BoardSession {
@@ -91,6 +101,15 @@ export interface BoardSession {
 
 const RECENTS_DEBOUNCE_MS = 1_000
 
+/**
+ * How long the keyless owner-connect dial waits for a first outcome
+ * before giving up. Without a ceiling, an unreachable server or a
+ * close code the provider keeps retrying (never permanent, never
+ * `connected`) leaves the promise below unsettled forever: the page
+ * stays blank, since `openBoardSession` never returns.
+ */
+const OWNER_CONNECT_TIMEOUT_MS = 5_000
+
 export async function openBoardSession(
   options: BoardSessionOptions,
 ): Promise<BoardSession | 'not-found'> {
@@ -109,12 +128,22 @@ export async function openBoardSession(
     storageMode = 'memory'
   }
 
+  // Set once, only for the cold-start case below: no key and no local
+  // copy either, so the only thing left to ask is the server, and only
+  // a signed-in visitor stands any chance of an owner's session
+  // granting them in. A share-link visitor still carries a key by this
+  // point, so this never applies to them.
+  let ownerConnect = false
+
   if (options.fresh) {
     store.setMeta({ name: 'Untitled', createdAt: now() })
   } else if (!keys && store.getMeta().createdAt === 0) {
-    // Nothing stored here and no key to fetch it with.
-    await persistence?.clear()
-    return 'not-found'
+    if (!options.signedIn) {
+      // Nothing stored here and no key to fetch it with.
+      await persistence?.clear()
+      return 'not-found'
+    }
+    ownerConnect = true
   }
 
   let assets = createAssetStore(boardId)
@@ -133,7 +162,7 @@ export async function openBoardSession(
   const notify = (): void => {
     snapshot = {
       boardId,
-      role: roleOf(keys),
+      role: ownerConnect ? 'edit' : roleOf(keys),
       storage: storageMode,
       status,
       closeCode,
@@ -180,15 +209,20 @@ export async function openBoardSession(
   /**
    * Tears the current connection down and starts a fresh one for
    * whatever role the session is now in: a socket carrying the current
-   * token, or none at all for a local role. Every key transition
-   * (`adoptHosting`, `becomeViewer`, `forgetKeys`) goes through this, so
-   * a stale socket never outlives the token it was opened with. A no-op
-   * once the session is destroyed, so a late transition cannot open a
-   * new socket on a torn-down session.
+   * token, one carrying no token at all for a visitor whose session
+   * alone might grant them in (`ownerConnect`), or none for a local
+   * role. Every key transition (`adoptHosting`, `becomeViewer`,
+   * `forgetKeys`) goes through this, so a stale socket never outlives
+   * the token it was opened with. A no-op once the session is
+   * destroyed, so a late transition cannot open a new socket on a
+   * torn-down session. Returns the connection it just opened (or null
+   * for local mode), so the very first call can await its outcome from
+   * a plain local rather than narrowing the outer `connection` variable,
+   * which this function itself mutates.
    */
-  function restartConnection(): void {
+  function restartConnection(): BoardConnection | null {
     if (destroyed) {
-      return
+      return null
     }
     teardownConnection()
     presence?.destroy()
@@ -196,19 +230,24 @@ export async function openBoardSession(
     localAwareness = null
     closeCode = null
     const token = keys ? tokenOf(keys) : null
-    if (!token) {
+    if (!token && !ownerConnect) {
       localAwareness = createLocalAwareness(doc)
       attachPresence(localAwareness)
       status = 'local'
-      return
+      return null
     }
-    connection = connectFn(doc, { url: socketUrl(), boardId, token })
-    status = connection.getStatus()
-    const stopStatus = connection.subscribeStatus((next) => {
+    const opened = connectFn(doc, {
+      url: socketUrl(),
+      boardId,
+      token: token ?? undefined,
+    })
+    connection = opened
+    status = opened.getStatus()
+    const stopStatus = opened.subscribeStatus((next) => {
       status = next
       notify()
     })
-    const stopClose = connection.subscribeClose((code) => {
+    const stopClose = opened.subscribeClose((code) => {
       closeCode = code
       notify()
     })
@@ -216,11 +255,69 @@ export async function openBoardSession(
       stopStatus()
       stopClose()
     }
-    attachPresence(connection.awareness)
+    attachPresence(opened.awareness)
+    return opened
   }
 
-  restartConnection()
+  /** Tears down everything opened above and settles on 'not-found'. */
+  async function abandonAsNotFound(): Promise<'not-found'> {
+    ownerConnect = false
+    teardownConnection()
+    presence?.destroy()
+    localAwareness?.destroy()
+    await persistence?.destroy()
+    await assets.destroy()
+    return 'not-found'
+  }
+
+  const dialed = restartConnection()
   refreshUpload()
+
+  if (ownerConnect && dialed) {
+    // Wait for the very first outcome of the keyless dial above before
+    // handing back a session: the server either grants edit (the
+    // visitor really does own this board) or permanently refuses the
+    // socket (they do not), and only the second case falls back to the
+    // same 'not-found' an anonymous visitor with no key gets. A
+    // transient close (a network blip, a server restart) is not a
+    // refusal: the provider already retries those on its own (see
+    // `shouldReconnect` in `connectBoard`), so this keeps waiting for
+    // either a later 'connected' or a later permanent close instead of
+    // giving up on the first hiccup.
+    const conn = dialed
+    let stopStatus: () => void = () => undefined
+    let stopClose: () => void = () => undefined
+    const granted = await new Promise<boolean>((resolve) => {
+      const settle = (result: boolean): void => {
+        clearTimeout(timer)
+        stopStatus()
+        stopClose()
+        resolve(result)
+      }
+      // A few seconds is generous for a real connection outcome and
+      // short enough that a visitor never stares at a blank page: past
+      // it, this falls back to the same not-found an anonymous visitor
+      // with no key gets, exactly like a permanent close would.
+      const timer = setTimeout(
+        () => settle(false),
+        options.ownerConnectTimeoutMs ?? OWNER_CONNECT_TIMEOUT_MS,
+      )
+      stopStatus = conn.subscribeStatus((next: ConnectionStatus) => {
+        if (next === 'connected') {
+          settle(true)
+        }
+      })
+      stopClose = conn.subscribeClose((code) => {
+        if (code === null || !PERMANENT_CLOSE_CODES.has(code)) {
+          return
+        }
+        settle(false)
+      })
+    })
+    if (!granted) {
+      return await abandonAsNotFound()
+    }
+  }
 
   let recentsTimer: ReturnType<typeof setTimeout> | null = null
   const touch = (): void => {
@@ -285,6 +382,11 @@ export async function openBoardSession(
     },
     forgetKeys() {
       keys = null
+      // The server just told this connection (key-based or the owner's
+      // session alone) that it is no longer good: give up on both
+      // rather than immediately redialling with the session and
+      // risking a reconnect loop against a board that keeps refusing.
+      ownerConnect = false
       clearKeys(boardId, storage)
       refreshUpload()
       restartConnection()

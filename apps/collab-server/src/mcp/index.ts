@@ -2,8 +2,10 @@ import { StreamableHTTPTransport } from '@hono/mcp'
 import type { HttpBindings } from '@hono/node-server'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import { API_KEY_PREFIX, resolveApiKey } from '../accounts/api-keys'
 import { clientIp } from '../http'
 import { createIpLimiter } from '../rate-limit'
+import type { Caller } from './caller'
 import { createMcpServer, type McpDeps } from './server'
 
 type Env = { Bindings: HttpBindings }
@@ -34,10 +36,22 @@ export function createMcpApp(
     }),
     async (c) => {
       const ip = clientIp(c, deps.trustProxy)
-      if (c.req.method === 'POST' && !limiter.take(ip)) {
+      const bearer = c.req.header('authorization')?.match(/^Bearer (.+)$/)?.[1]
+      let caller: Caller = { kind: 'anonymous', ip }
+      if (bearer?.startsWith(API_KEY_PREFIX)) {
+        const keyed = await resolveApiKey(deps.db, bearer)
+        caller = keyed
+          ? { kind: 'keyed', ip, ...keyed }
+          : { kind: 'invalid', ip }
+      }
+      if (
+        c.req.method === 'POST' &&
+        caller.kind !== 'keyed' &&
+        !limiter.take(ip)
+      ) {
         return c.json({ error: 'too many requests' }, 429)
       }
-      const server = createMcpServer(deps, ip)
+      const server = createMcpServer(deps, caller)
       const transport = new StreamableHTTPTransport()
       await server.connect(transport)
       return transport.handleRequest(c)

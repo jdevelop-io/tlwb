@@ -1,4 +1,6 @@
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { Me } from '../../auth/client'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
 import { BoardMenu } from './board-menu'
@@ -21,8 +23,8 @@ function useBoardName(session: BoardSession): string {
   return name
 }
 
-export function TopBar(props: { session: BoardSession }) {
-  const { session } = props
+export function TopBar(props: { session: BoardSession; me: Me | null }) {
+  const { session, me } = props
   const snapshot = useSession(session)
   const name = useBoardName(session)
   const [draft, setDraft] = useState<string | null>(null)
@@ -64,17 +66,26 @@ export function TopBar(props: { session: BoardSession }) {
 
   return (
     <header className="top-bar">
+      <a href={me ? '/dashboard' : '/'} className="logo">
+        tlwb
+      </a>
       <button
         ref={menuButtonRef}
         type="button"
-        className="logo"
+        className="menu-toggle"
         aria-label="tlwb menu"
         aria-expanded={menuOpen}
         onClick={() => setMenuOpen((open) => !open)}
       >
-        tlwb
+        <ChevronDown size={16} />
       </button>
-      {menuOpen ? <BoardMenu currentId={snapshot.boardId} /> : null}
+      {menuOpen ? (
+        <BoardMenu
+          currentId={snapshot.boardId}
+          me={me}
+          hosted={snapshot.role !== 'local'}
+        />
+      ) : null}
       <input
         className="board-name"
         aria-label="Board name"

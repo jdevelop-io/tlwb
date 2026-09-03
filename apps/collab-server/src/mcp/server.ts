@@ -4,6 +4,7 @@ import type { Db } from '../db/client'
 import type { IpLimiter } from '../rate-limit'
 import type { RoomRegistry } from '../rooms'
 import type { AgentDeps } from './agent-client'
+import type { Caller } from './caller'
 import { registerAddElements } from './tools/add-elements'
 import { registerCreateBoard } from './tools/create-board'
 import { registerDeleteElements } from './tools/delete-elements'
@@ -50,16 +51,17 @@ export function shareUrls(
 }
 
 /**
- * One server per request: the transport is stateless, and the calling
- * address is captured here for the tools that limit per address.
+ * One server per request: the transport is stateless, and the caller
+ * (its address, and its API key identity if any) is captured here for
+ * the tools that limit or meter per caller.
  */
-export function createMcpServer(deps: McpDeps, ip: string): McpServer {
+export function createMcpServer(deps: McpDeps, caller: Caller): McpServer {
   const server = new McpServer({ name: 'tlwb', version: '0.0.0' })
-  registerCreateBoard(server, deps, ip)
-  registerReadBoard(server, deps, ip)
-  registerAddElements(server, deps, ip)
-  registerUpdateElements(server, deps, ip)
-  registerDeleteElements(server, deps, ip)
-  registerGetBoardScreenshot(server, deps, ip)
+  registerCreateBoard(server, deps, caller)
+  registerReadBoard(server, deps, caller)
+  registerAddElements(server, deps, caller)
+  registerUpdateElements(server, deps, caller)
+  registerDeleteElements(server, deps, caller)
+  registerGetBoardScreenshot(server, deps, caller)
   return server
 }

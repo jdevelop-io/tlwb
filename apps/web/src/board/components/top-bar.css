@@ -27,7 +27,25 @@
   background: none;
   font: 700 22px var(--font-hand);
   color: var(--accent);
+  text-decoration: none;
+}
+
+.menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--muted);
   cursor: pointer;
+}
+
+.menu-toggle:hover {
+  background: var(--paper);
 }
 
 .board-menu {
@@ -52,6 +70,28 @@
 
 .board-menu a:hover {
   background: var(--paper);
+}
+
+.board-menu button {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.board-menu button:hover:not(:disabled) {
+  background: var(--paper);
+}
+
+.board-menu button:disabled {
+  color: var(--muted);
+  cursor: default;
 }
 
 .board-menu ul {

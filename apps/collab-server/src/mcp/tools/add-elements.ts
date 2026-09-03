@@ -9,6 +9,7 @@ import {
 } from '@tlwb/engine'
 import { withBoard } from '../agent-client'
 import { parseBoardRef } from '../board-ref'
+import { assertCaller, type Caller } from '../caller'
 import { agentDeps, type McpDeps } from '../server'
 import { guarded, jsonResult, ToolError } from '../tool-error'
 import {
@@ -31,7 +32,7 @@ function build(input: ElementInput, index: string): BoardElement {
 export function registerAddElements(
   server: McpServer,
   deps: McpDeps,
-  _ip: string,
+  caller: Caller,
 ): void {
   server.registerTool(
     'add_elements',
@@ -49,6 +50,7 @@ export function registerAddElements(
         tool: 'add_elements',
       }
       return guarded(context, async () => {
+        await assertCaller(deps, caller)
         const ref = parseBoardRef(board)
         context.boardId = ref.boardId
         if (elements.some((element) => element.type === 'image')) {

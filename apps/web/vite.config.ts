@@ -7,18 +7,30 @@ import {
   type ViteDevServer,
 } from 'vite'
 
-/** `/b/<id>` is one page; the dev and preview servers must serve it. */
-function boardRoutes(): Plugin {
+/**
+ * Multi-page app routes the dev and preview servers must serve:
+ * `/b/<id>` for a board, and the fixed pages below.
+ */
+function pageRoutes(): Plugin {
+  const pages: Record<string, string> = {
+    '/login': '/login.html',
+    '/dashboard': '/dashboard.html',
+  }
   const rewrite = (server: ViteDevServer | PreviewServer): void => {
     server.middlewares.use((req, _res, next) => {
       if (req.url?.startsWith('/b/')) {
         req.url = '/board.html'
+      } else {
+        const page = pages[req.url?.split('?')[0] ?? '']
+        if (page) {
+          req.url = page
+        }
       }
       next()
     })
   }
   return {
-    name: 'tlwb-board-routes',
+    name: 'tlwb-page-routes',
     configureServer: rewrite,
     configurePreviewServer: rewrite,
   }
@@ -38,13 +50,15 @@ const proxy = {
 }
 
 export default defineConfig({
-  plugins: [react(), boardRoutes()],
+  plugins: [react(), pageRoutes()],
   appType: 'mpa',
   build: {
     rollupOptions: {
       input: {
         landing: resolve(__dirname, 'index.html'),
         board: resolve(__dirname, 'board.html'),
+        login: resolve(__dirname, 'login.html'),
+        dashboard: resolve(__dirname, 'dashboard.html'),
       },
     },
   },

@@ -11,4 +11,4 @@ export type {
   ConnectionStatus,
   ConnectOptions,
 } from './sync'
-export { connectBoard } from './sync'
+export { connectBoard, PERMANENT_CLOSE_CODES } from './sync'

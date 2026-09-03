@@ -27,7 +27,7 @@
 	# wholesale, so a heuristically cached document could keep pointing
 	# at assets that no longer exist. Always revalidate; the ETag makes
 	# that cheap.
-	@html path / /*.html /b/*
+	@html path / /*.html /b/* /login /dashboard
 	header @html Cache-Control "no-cache"
 
 	@board path /b/*

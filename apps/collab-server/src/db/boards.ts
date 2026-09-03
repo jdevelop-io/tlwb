@@ -1,12 +1,20 @@
-import { and, asc, eq, gt, lte } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, isNull, lte } from 'drizzle-orm'
 import type { KeyHashes } from '../keys'
 import type { Db } from './client'
-import { boards, boardUpdates } from './schema'
+import { assets, boards, boardUpdates } from './schema'
 
 export interface BoardRecord {
   id: string
   editKeyHash: Buffer
   viewKeyHash: Buffer
+  ownerId: string | null
+}
+
+export interface OwnedBoard {
+  id: string
+  updatedAt: Date
+  sharedAt: Date | null
+  agentAt: Date | null
 }
 
 export interface LoadedBoard {
@@ -19,6 +27,7 @@ export async function createBoard(
   db: Db,
   id: string,
   hashes: KeyHashes,
+  ownerId?: string,
 ): Promise<'created' | 'exists'> {
   const rows = await db
     .insert(boards)
@@ -26,10 +35,96 @@ export async function createBoard(
       id,
       editKeyHash: Buffer.from(hashes.editKeyHash),
       viewKeyHash: Buffer.from(hashes.viewKeyHash),
+      ownerId,
     })
     .onConflictDoNothing()
     .returning({ id: boards.id })
   return rows.length > 0 ? 'created' : 'exists'
+}
+
+/** Claims an unowned board for `ownerId`; true only if this call did it. */
+export async function claimBoard(
+  db: Db,
+  boardId: string,
+  ownerId: string,
+): Promise<boolean> {
+  const rows = await db
+    .update(boards)
+    .set({ ownerId })
+    .where(and(eq(boards.id, boardId), isNull(boards.ownerId)))
+    .returning({ id: boards.id })
+  return rows.length > 0
+}
+
+/**
+ * Re-anonymizes every board `ownerId` owns by clearing `owner_id`,
+ * without touching the board rows or their keys: share links keep
+ * resolving exactly as they did before.
+ */
+export async function disownBoards(db: Db, ownerId: string): Promise<void> {
+  await db
+    .update(boards)
+    .set({ ownerId: null })
+    .where(eq(boards.ownerId, ownerId))
+}
+
+export async function countOwnedBoards(
+  db: Db,
+  ownerId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(boards)
+    .where(eq(boards.ownerId, ownerId))
+  return row?.value ?? 0
+}
+
+export async function listOwnedBoards(
+  db: Db,
+  ownerId: string,
+): Promise<OwnedBoard[]> {
+  return db
+    .select({
+      id: boards.id,
+      updatedAt: boards.updatedAt,
+      sharedAt: boards.sharedAt,
+      agentAt: boards.agentAt,
+    })
+    .from(boards)
+    .where(eq(boards.ownerId, ownerId))
+    .orderBy(desc(boards.updatedAt))
+}
+
+export async function readThumbnail(
+  db: Db,
+  boardId: string,
+): Promise<{ thumbnail: Buffer | null; thumbnailSeq: number | null }> {
+  const [row] = await db
+    .select({ thumbnail: boards.thumbnail, thumbnailSeq: boards.thumbnailSeq })
+    .from(boards)
+    .where(eq(boards.id, boardId))
+  return row ?? { thumbnail: null, thumbnailSeq: null }
+}
+
+export async function writeThumbnail(
+  db: Db,
+  boardId: string,
+  png: Uint8Array,
+  seq: number,
+): Promise<void> {
+  await db
+    .update(boards)
+    .set({ thumbnail: Buffer.from(png), thumbnailSeq: seq })
+    .where(eq(boards.id, boardId))
+}
+
+/** Purges a board and everything it owns: its updates, its assets, itself. */
+export async function deleteBoardRows(db: Db, boardId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.delete(boardUpdates).where(eq(boardUpdates.boardId, boardId))
+    await tx.delete(assets).where(eq(assets.boardId, boardId))
+    await tx.delete(boards).where(eq(boards.id, boardId))
+  })
 }
 
 export async function findBoard(
@@ -41,10 +136,34 @@ export async function findBoard(
       id: boards.id,
       editKeyHash: boards.editKeyHash,
       viewKeyHash: boards.viewKeyHash,
+      ownerId: boards.ownerId,
     })
     .from(boards)
     .where(eq(boards.id, id))
   return row
+}
+
+/**
+ * Records that a board has been shared, once: only the first call
+ * writes `sharedAt`, so an already-shared board is untouched and the
+ * timestamp keeps naming the first share, not the most recent one.
+ */
+export async function markShared(db: Db, boardId: string): Promise<void> {
+  await db
+    .update(boards)
+    .set({ sharedAt: new Date() })
+    .where(and(eq(boards.id, boardId), isNull(boards.sharedAt)))
+}
+
+/**
+ * Records that a board has been touched by an agent over MCP, once: only
+ * the first call writes `agentAt`, mirroring `markShared`.
+ */
+export async function markAgentSeen(db: Db, boardId: string): Promise<void> {
+  await db
+    .update(boards)
+    .set({ agentAt: new Date() })
+    .where(and(eq(boards.id, boardId), isNull(boards.agentAt)))
 }
 
 /** Durability before relay: returns the sequence number once written. */
