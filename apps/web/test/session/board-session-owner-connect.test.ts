@@ -91,6 +91,40 @@ describe('openBoardSession: a signed-in visitor with no key', () => {
     fake.close(4401)
     expect(await pending).toBe('not-found')
   })
+
+  it('keeps waiting through a transient close instead of treating it as a refusal', async () => {
+    const fake = fakeConnect()
+    const pending = openBoardSession({
+      boardId: 'flaky',
+      fresh: false,
+      identity,
+      signedIn: true,
+      connect: fake.connect,
+    })
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(1))
+
+    let settled: 'not-found' | 'session' | null = null
+    void pending.then((result) => {
+      settled = result === 'not-found' ? 'not-found' : 'session'
+    })
+
+    // 1006 (abnormal closure) is not in PERMANENT_CLOSE_CODES: a network
+    // blip or a server restart, the same shape of event the provider's
+    // own `shouldReconnect` already retries on its own.
+    fake.close(1006)
+    // A (wrongly) settled promise above still has to run through the
+    // abandon path's IndexedDB teardown before `pending` resolves, so a
+    // couple of microtask ticks are not a reliable enough flush; give it
+    // a real macrotask turn instead.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(settled).toBeNull()
+
+    fake.status('connected')
+    const session = await pending
+    if (session === 'not-found') throw new Error('unexpected')
+    expect(session.getSnapshot().role).toBe('edit')
+    await session.destroy()
+  })
 })
 
 describe('openBoardSession: an anonymous visitor with no key', () => {

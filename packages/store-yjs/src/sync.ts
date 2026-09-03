@@ -5,7 +5,7 @@ import type * as Y from 'yjs'
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
 /** The server says the link itself is wrong; reconnecting cannot help. */
-const PERMANENT_CLOSE_CODES = new Set([4401, 4403, 4404])
+export const PERMANENT_CLOSE_CODES = new Set([4401, 4403, 4404])
 
 export interface ConnectOptions {
   /** Collaboration server, for example `wss://collab.tlwb.app`. */

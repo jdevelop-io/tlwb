@@ -13,6 +13,7 @@ import {
   createLocalAwareness,
   createPresence,
   createYjsBoardStore,
+  PERMANENT_CLOSE_CODES,
   persistBoard,
 } from '@tlwb/store-yjs'
 import type { Identity } from './identity'
@@ -264,9 +265,14 @@ export async function openBoardSession(
   if (ownerConnect && dialed) {
     // Wait for the very first outcome of the keyless dial above before
     // handing back a session: the server either grants edit (the
-    // visitor really does own this board) or closes the socket (they
-    // do not), and only the second case falls back to the same
-    // 'not-found' an anonymous visitor with no key gets.
+    // visitor really does own this board) or permanently refuses the
+    // socket (they do not), and only the second case falls back to the
+    // same 'not-found' an anonymous visitor with no key gets. A
+    // transient close (a network blip, a server restart) is not a
+    // refusal: the provider already retries those on its own (see
+    // `shouldReconnect` in `connectBoard`), so this keeps waiting for
+    // either a later 'connected' or a later permanent close instead of
+    // giving up on the first hiccup.
     const conn = dialed
     let stopStatus: () => void = () => undefined
     let stopClose: () => void = () => undefined
@@ -278,7 +284,10 @@ export async function openBoardSession(
           resolve(true)
         }
       })
-      stopClose = conn.subscribeClose(() => {
+      stopClose = conn.subscribeClose((code) => {
+        if (code === null || !PERMANENT_CLOSE_CODES.has(code)) {
+          return
+        }
         stopStatus()
         stopClose()
         resolve(false)
