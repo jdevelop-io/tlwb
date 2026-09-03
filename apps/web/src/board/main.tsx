@@ -44,7 +44,12 @@ async function main(): Promise<void> {
   }
   const me = await mePromise
   const identity = identityFor(loadIdentity(), me)
-  const session = await openBoardSession({ boardId, fresh, identity })
+  const session = await openBoardSession({
+    boardId,
+    fresh,
+    identity,
+    signedIn: me !== null,
+  })
   if (session === 'not-found') {
     createRoot(root).render(<NotFound />)
     return

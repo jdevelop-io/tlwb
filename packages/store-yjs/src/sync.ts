@@ -11,8 +11,12 @@ export interface ConnectOptions {
   /** Collaboration server, for example `wss://collab.tlwb.app`. */
   url: string
   boardId: string
-  /** Link token; the server enforces read-only or edit from it. */
-  token: string
+  /**
+   * Link token; the server enforces read-only or edit from it.
+   * Omitted for a signed-in visitor asking the server to grant edit
+   * from their session alone, with no key at all.
+   */
+  token?: string
   /** Defaults to true. False mounts the provider without dialing. */
   connect?: boolean
 }
@@ -40,7 +44,7 @@ export function connectBoard(
 ): BoardConnection {
   const connect = options.connect ?? true
   const provider = new WebsocketProvider(options.url, options.boardId, doc, {
-    params: { token: options.token },
+    params: options.token ? { token: options.token } : {},
     connect,
     shouldReconnect: (event) => !PERMANENT_CLOSE_CODES.has(event.code),
   })
