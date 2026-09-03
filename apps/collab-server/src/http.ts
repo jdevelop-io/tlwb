@@ -113,6 +113,15 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     60_000,
     now,
   )
+  // Its own bucket, distinct from `createLimiter`: `/auth/*` carries the
+  // session check every page load makes, a read, not a board creation,
+  // and reusing the write-sized bucket 429s a signed-in visitor after a
+  // handful of page loads.
+  const authLimiter: IpLimiter = createIpLimiter(
+    config.authLimitPerMin,
+    60_000,
+    now,
+  )
   // Built once and shared with the billing routes below: the deletion
   // cleanup hook needs it whether or not `/billing` ends up mounted.
   const stripe: Stripe | null =
@@ -123,11 +132,8 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       ? createAuth({ db, config, beforeDelete: accountCleanup(db, stripe) })
       : deps.auth
   if (auth) {
-    // Reusing `createLimiter`'s budget for `/auth/*` is deliberate: both
-    // are account-shaped write endpoints; a dedicated bucket is not
-    // worth a new knob.
     app.use('/auth/*', async (c, next) => {
-      if (!createLimiter.take(clientIp(c, config.trustProxy))) {
+      if (!authLimiter.take(clientIp(c, config.trustProxy))) {
         return c.json({ error: 'too many requests' }, 429)
       }
       await next()

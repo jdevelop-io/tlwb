@@ -23,6 +23,10 @@ export interface Config {
   compactAfterUpdates: number
   rateLimitPer10s: number
   createLimitPerMin: number
+  /** `/auth/*` (session checks included): a read-sized bucket, distinct
+   * from `createLimitPerMin`, so a page load never throttles like a
+   * board creation. */
+  authLimitPerMin: number
   trustProxy: boolean
   /** Origin the share URLs returned by MCP are built on. */
   publicUrl: string
@@ -131,6 +135,20 @@ export function loadConfig(env: Env): Config {
   // something an operator wrote down, not something a forgotten
   // NODE_ENV handed them.
   const corsOrigin = required(env, 'CORS_ORIGIN')
+  const publicUrl = env.PUBLIC_URL || corsOrigin
+  const accounts = accountsConfig(env)
+  const billing = billingConfig(env)
+  if ((accounts || billing) && publicUrl === '*') {
+    // Both modules build absolute URLs on this: the OAuth redirect base
+    // and Stripe's success/cancel/return URLs. With no concrete origin
+    // they would fall back to a hardcoded localhost, or to a relative
+    // URL Stripe rejects outright, so a deployment that turns either
+    // module on without one must fail at startup, not serve a broken
+    // sign-in or checkout flow.
+    throw new ConfigError(
+      'PUBLIC_URL is required when CORS_ORIGIN is "*" and accounts or billing is configured',
+    )
+  }
   return {
     databaseUrl: required(env, 'DATABASE_URL'),
     // 0 asks the OS for an ephemeral port; the tests rely on it.
@@ -144,11 +162,12 @@ export function loadConfig(env: Env): Config {
     compactAfterUpdates: integer(env, 'COMPACT_AFTER_UPDATES', 500),
     rateLimitPer10s: integer(env, 'RATE_LIMIT_PER_10S', 200),
     createLimitPerMin: integer(env, 'CREATE_LIMIT_PER_MIN', 10),
+    authLimitPerMin: integer(env, 'AUTH_LIMIT_PER_MIN', 300),
     // Off by default: with nothing in front, X-Forwarded-For is
     // written by the client itself. The shipped Compose file turns it
     // on, where the server is only reachable through Caddy.
     trustProxy: boolean(env, 'TRUST_PROXY', false),
-    publicUrl: env.PUBLIC_URL || corsOrigin,
+    publicUrl,
     mcpLimitPerMin: integer(env, 'MCP_LIMIT_PER_MIN', 120),
     mcpRenderLimitPerMin: integer(env, 'MCP_RENDER_LIMIT_PER_MIN', 20),
     mcpPresenceMs: integer(env, 'MCP_PRESENCE_MS', 5000, 0),
@@ -158,8 +177,8 @@ export function loadConfig(env: Env): Config {
     // every live WebSocket session pays for. 4M pixels measures at
     // roughly 75ms, where 16M measured at 283ms.
     mcpMaxImagePixels: integer(env, 'MCP_MAX_IMAGE_PIXELS', 4_000_000),
-    accounts: accountsConfig(env),
-    billing: billingConfig(env),
+    accounts,
+    billing,
     freeBoardCap: integer(env, 'FREE_BOARD_CAP', 10),
     mcpQuotaFree: integer(env, 'MCP_QUOTA_FREE', 1000),
     mcpQuotaPro: integer(env, 'MCP_QUOTA_PRO', 50000),

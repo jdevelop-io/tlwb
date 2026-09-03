@@ -30,8 +30,9 @@ Or the whole stack: `docker compose up`.
 | `COMPACT_AFTER_UPDATES` | `500`      | Residual updates before compaction     |
 | `RATE_LIMIT_PER_10S`    | `200`      | Messages per connection per 10 seconds |
 | `CREATE_LIMIT_PER_MIN`  | `10`       | Board creations per IP per minute      |
+| `AUTH_LIMIT_PER_MIN`    | `300`      | `/auth/*` requests per IP per minute (session checks included; a read-sized budget, kept apart from `CREATE_LIMIT_PER_MIN`) |
 | `TRUST_PROXY`           | `false`    | Read the client address from `X-Forwarded-For` |
-| `PUBLIC_URL`            | `CORS_ORIGIN` | The server's own public origin: MCP `create_board` share URLs, OAuth callback URLs, and billing return URLs are all built on it |
+| `PUBLIC_URL`            | `CORS_ORIGIN` | The server's own public origin: MCP `create_board` share URLs, OAuth callback URLs, and billing return URLs are all built on it. Required once accounts or billing is configured if `CORS_ORIGIN` is `*` (see below) |
 | `MCP_LIMIT_PER_MIN`     | `120`      | MCP requests per IP per minute         |
 | `MCP_RENDER_LIMIT_PER_MIN` | `20`    | Renders per IP per minute              |
 | `MCP_PRESENCE_MS`       | `5000`     | How long an agent stays visible after an edit |
@@ -77,6 +78,20 @@ equivalent) is a startup error. Without `STRIPE_SECRET_KEY` no
 every account then stays on the free plan. Setting `STRIPE_SECRET_KEY`
 without `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MONTHLY`, and
 `STRIPE_PRICE_YEARLY` together is also a startup error.
+
+The account, billing, and session routes (`/auth/*`, `/billing/*`,
+`/me*`) are same-origin only: they carry no CORS headers of their own
+and rely on the browser sending the session cookie because the web app
+and this server sit behind the same public origin (Caddy, in the
+shipped deployment). Serving the web app from a different origin than
+this server is not a supported configuration for accounts or billing.
+
+Both modules build absolute URLs (the OAuth redirect base, Stripe's
+success, cancel, and return URLs), so once either is configured, this
+server needs a concrete public origin to build them on: either a
+`CORS_ORIGIN` that names one, or `PUBLIC_URL` set explicitly. Turning
+on accounts or billing with `CORS_ORIGIN=*` and no `PUBLIC_URL` is a
+startup error rather than a deployment that half works.
 
 To offer sign-in, register an OAuth app with each provider and put its
 callback URL at `<origin>/api/auth/callback/github` (GitHub) or

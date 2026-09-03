@@ -18,6 +18,7 @@ describe('loadConfig', () => {
       compactAfterUpdates: 500,
       rateLimitPer10s: 200,
       createLimitPerMin: 10,
+      authLimitPerMin: 300,
       trustProxy: false,
       publicUrl: 'http://a',
       mcpLimitPerMin: 120,
@@ -111,6 +112,7 @@ describe('accounts config', () => {
   it('loads the configured providers', () => {
     const config = loadConfig({
       ...base,
+      PUBLIC_URL: 'https://tlwb.example',
       AUTH_SECRET: 's',
       GITHUB_CLIENT_ID: 'gid',
       GITHUB_CLIENT_SECRET: 'gsec',
@@ -145,6 +147,7 @@ describe('billing config', () => {
   it('loads a full billing block', () => {
     const config = loadConfig({
       ...base,
+      PUBLIC_URL: 'https://tlwb.example',
       STRIPE_SECRET_KEY: 'sk',
       STRIPE_WEBHOOK_SECRET: 'wh',
       STRIPE_PRICE_MONTHLY: 'price_m',
@@ -156,6 +159,61 @@ describe('billing config', () => {
       priceMonthly: 'price_m',
       priceYearly: 'price_y',
     })
+  })
+})
+
+describe('public origin requirement', () => {
+  const base = { DATABASE_URL: 'postgres://x', CORS_ORIGIN: '*' }
+
+  it('fails naming the problem when accounts is on with no concrete origin', () => {
+    expect(() =>
+      loadConfig({
+        ...base,
+        AUTH_SECRET: 's',
+        GITHUB_CLIENT_ID: 'gid',
+        GITHUB_CLIENT_SECRET: 'gsec',
+      }),
+    ).toThrow(ConfigError)
+  })
+
+  it('fails naming the problem when billing is on with no concrete origin', () => {
+    expect(() =>
+      loadConfig({
+        ...base,
+        STRIPE_SECRET_KEY: 'sk',
+        STRIPE_WEBHOOK_SECRET: 'wh',
+        STRIPE_PRICE_MONTHLY: 'price_m',
+        STRIPE_PRICE_YEARLY: 'price_y',
+      }),
+    ).toThrow(ConfigError)
+  })
+
+  it('is satisfied by PUBLIC_URL even with a wildcard CORS_ORIGIN', () => {
+    expect(() =>
+      loadConfig({
+        ...base,
+        PUBLIC_URL: 'https://tlwb.example',
+        AUTH_SECRET: 's',
+        GITHUB_CLIENT_ID: 'gid',
+        GITHUB_CLIENT_SECRET: 'gsec',
+      }),
+    ).not.toThrow()
+  })
+
+  it('is satisfied by a concrete CORS_ORIGIN with no PUBLIC_URL', () => {
+    expect(() =>
+      loadConfig({
+        DATABASE_URL: 'postgres://x',
+        CORS_ORIGIN: 'https://tlwb.example',
+        AUTH_SECRET: 's',
+        GITHUB_CLIENT_ID: 'gid',
+        GITHUB_CLIENT_SECRET: 'gsec',
+      }),
+    ).not.toThrow()
+  })
+
+  it('never fires with neither accounts nor billing configured', () => {
+    expect(() => loadConfig(base)).not.toThrow()
   })
 })
 
