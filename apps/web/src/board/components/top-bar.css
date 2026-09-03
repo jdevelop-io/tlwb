@@ -28,7 +28,24 @@
   font: 700 22px var(--font-hand);
   color: var(--accent);
   text-decoration: none;
+}
+
+.menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--muted);
   cursor: pointer;
+}
+
+.menu-toggle:hover {
+  background: var(--paper);
 }
 
 .board-menu {

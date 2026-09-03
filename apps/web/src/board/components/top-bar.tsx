@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Me } from '../../auth/client'
 import { useSession } from '../hooks/use-session'
@@ -28,7 +29,7 @@ export function TopBar(props: { session: BoardSession; me: Me | null }) {
   const name = useBoardName(session)
   const [draft, setDraft] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuButtonRef = useRef<HTMLAnchorElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const cancelledRef = useRef(false)
 
   const commit = (): void => {
@@ -65,19 +66,19 @@ export function TopBar(props: { session: BoardSession; me: Me | null }) {
 
   return (
     <header className="top-bar">
-      <a
-        ref={menuButtonRef}
-        href={me ? '/dashboard' : '/'}
-        className="logo"
-        aria-label="tlwb menu"
-        aria-expanded={menuOpen}
-        onClick={(event) => {
-          event.preventDefault()
-          setMenuOpen((open) => !open)
-        }}
-      >
+      <a href={me ? '/dashboard' : '/'} className="logo">
         tlwb
       </a>
+      <button
+        ref={menuButtonRef}
+        type="button"
+        className="menu-toggle"
+        aria-label="tlwb menu"
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((open) => !open)}
+      >
+        <ChevronDown size={16} />
+      </button>
       {menuOpen ? (
         <BoardMenu
           currentId={snapshot.boardId}
