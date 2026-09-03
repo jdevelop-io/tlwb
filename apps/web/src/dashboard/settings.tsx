@@ -55,10 +55,15 @@ export function Settings(props: {
   }
 
   const revokeKey = async (): Promise<void> => {
+    setError(null)
     try {
       await deps.revokeApiKey()
-    } finally {
       setApiKey(null)
+    } catch {
+      // The key is still live server-side: it must stay visible rather
+      // than let the user believe a failed revocation actually worked,
+      // a security-relevant distinction on this path.
+      setError('Could not revoke the key, try again')
     }
   }
 

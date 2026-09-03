@@ -349,6 +349,28 @@ describe('DashboardApp', () => {
     expect(screen.queryByText('sk_live_secret')).toBeNull()
   })
 
+  it('keeps the key visible and reports an error when revoke fails', async () => {
+    const createApiKey = vi.fn(async () => 'sk_live_secret')
+    const revokeApiKey = vi.fn(async () => {
+      throw new Error('down')
+    })
+    const deps = makeDeps({ createApiKey, revokeApiKey })
+    render(<DashboardApp deps={deps} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate key' }))
+    await screen.findByText('sk_live_secret')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    await waitFor(() => expect(revokeApiKey).toHaveBeenCalledOnce())
+
+    // A failed revocation must never read as a successful one: the key
+    // the user believes might be compromised stays visible, with the
+    // failure surfaced instead of swallowed.
+    expect(screen.getByText('sk_live_secret')).toBeInTheDocument()
+    expect(
+      screen.getByText('Could not revoke the key, try again'),
+    ).toBeInTheDocument()
+  })
+
   it('shows the monthly usage from fetchUsage', async () => {
     const deps = makeDeps({
       fetchUsage: vi.fn(async () => ({
