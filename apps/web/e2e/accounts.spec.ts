@@ -29,7 +29,13 @@ function boardIdFrom(url: string): string {
   return id
 }
 
-test('adopt, dashboard, cap', async ({ page, context, browser }) => {
+test('adopt, dashboard, cap', async ({
+  page,
+  context,
+  browser,
+  baseURL,
+  viewport,
+}) => {
   // 1. Anonymously: create a board and draw on it, with no session
   // cookie anywhere yet -- the board is created ownerless.
   await page.goto('/')
@@ -99,7 +105,11 @@ test('adopt, dashboard, cap', async ({ page, context, browser }) => {
   // never held this board's keys in localStorage: only the account
   // session can grant edit here, so this proves ownership -- not a
   // leftover local key -- is what makes it editable.
-  const ownerContext = await browser.newContext()
+  // A raw newContext() call still inherits baseURL and viewport from
+  // the project config (Playwright wires that in for any context created
+  // during a test, not just the context/page fixtures), but passing them
+  // explicitly here means this test does not depend on that.
+  const ownerContext = await browser.newContext({ baseURL, viewport })
   try {
     await addSessionCookie(ownerContext, seeded.token)
     const ownerPage = await ownerContext.newPage()
