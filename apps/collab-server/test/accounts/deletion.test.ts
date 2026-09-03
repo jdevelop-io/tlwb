@@ -46,11 +46,16 @@ async function ownedBoard(ownerId: string): Promise<{
 }
 
 /**
- * A stub matching only the two Stripe methods the cleanup calls;
- * `list` filters by `status` the way the real API does, so a call that
- * forgets to ask for `status: 'active'` gets back the wrong set.
+ * A stub matching only the two Stripe methods the cleanup calls.
+ * `list` paginates `pageSize` at a time via `starting_after`, the way
+ * the real API does, so a call that reads only the first page misses
+ * subscriptions past it; a call that forgets `status: 'all'` gets back
+ * the wrong set.
  */
-function createStripeStub(subscriptions: { id: string; status: string }[]) {
+function createStripeStub(
+  subscriptions: { id: string; status: Stripe.Subscription.Status }[],
+  pageSize = 100,
+) {
   const state = {
     listCalls: [] as Record<string, unknown>[],
     cancelCalls: [] as string[],
@@ -59,9 +64,15 @@ function createStripeStub(subscriptions: { id: string; status: string }[]) {
     subscriptions: {
       list: async (params: Record<string, unknown>) => {
         state.listCalls.push(params)
-        return {
-          data: subscriptions.filter((sub) => sub.status === params.status),
-        }
+        const pool =
+          params.status === 'all'
+            ? subscriptions
+            : subscriptions.filter((sub) => sub.status === params.status)
+        const start = params.starting_after
+          ? pool.findIndex((sub) => sub.id === params.starting_after) + 1
+          : 0
+        const data = pool.slice(start, start + pageSize)
+        return { data, has_more: start + pageSize < pool.length }
       },
       cancel: async (id: string) => {
         state.cancelCalls.push(id)
@@ -72,10 +83,13 @@ function createStripeStub(subscriptions: { id: string; status: string }[]) {
 }
 
 describe('accountCleanup', () => {
-  it('re-anonymizes boards, revokes the api key, cancels the subscription', async () => {
+  it('re-anonymizes boards, revokes the api key, cancels every non-terminal subscription', async () => {
     const { state, stripe } = createStripeStub([
       { id: 'sub_1', status: 'active' },
       { id: 'sub_2', status: 'canceled' },
+      { id: 'sub_3', status: 'trialing' },
+      { id: 'sub_4', status: 'past_due' },
+      { id: 'sub_5', status: 'incomplete_expired' },
     ])
     const userA = await createUser('cus_1')
     const boardA1 = await ownedBoard(userA)
@@ -103,11 +117,56 @@ describe('accountCleanup', () => {
 
     expect(await resolveApiKey(database.db, key)).toBeNull()
 
-    // Only the active subscription is cancelled: the list call asked
-    // for `status: 'active'`, and the canceled one it filtered out
-    // never reaches `cancel`.
-    expect(state.listCalls).toEqual([{ customer: 'cus_1', status: 'active' }])
-    expect(state.cancelCalls).toEqual(['sub_1'])
+    // Every subscription not already terminal is cancelled, a
+    // trialing or past-due one included: only the already-canceled and
+    // the never-started `incomplete_expired` one are left alone. The
+    // list call asked for every status, not just `active`.
+    expect(state.listCalls).toEqual([
+      { customer: 'cus_1', status: 'all', starting_after: undefined },
+    ])
+    expect(state.cancelCalls.sort()).toEqual(['sub_1', 'sub_3', 'sub_4'])
+  })
+
+  it('paginates through every page of subscriptions', async () => {
+    const subs = Array.from({ length: 3 }, (_, i) => ({
+      id: `sub_${i}`,
+      status: 'active' as const,
+    }))
+    const { state, stripe } = createStripeStub(subs, 1)
+    const userA = await createUser('cus_page')
+
+    await accountCleanup(database.db, stripe)(userA)
+
+    expect(state.listCalls).toEqual([
+      { customer: 'cus_page', status: 'all', starting_after: undefined },
+      { customer: 'cus_page', status: 'all', starting_after: 'sub_0' },
+      { customer: 'cus_page', status: 'all', starting_after: 'sub_1' },
+    ])
+    expect(state.cancelCalls.sort()).toEqual(['sub_0', 'sub_1', 'sub_2'])
+  })
+
+  it('still disowns boards and revokes the key when the billing step throws', async () => {
+    const stripe = {
+      subscriptions: {
+        list: async () => {
+          throw new Error('stripe is down')
+        },
+        cancel: async () => undefined,
+      },
+    } as unknown as Stripe
+    const userA = await createUser('cus_down')
+    const board = await ownedBoard(userA)
+    const key = await issueApiKey(database.db, userA)
+
+    // A Stripe outage must not throw out of the cleanup: the rest of
+    // the deletion still runs, and the hook itself still resolves so
+    // Better Auth actually deletes the user row.
+    await expect(
+      accountCleanup(database.db, stripe)(userA),
+    ).resolves.toBeUndefined()
+
+    expect((await findBoard(database.db, board.boardId))?.ownerId).toBeNull()
+    expect(await resolveApiKey(database.db, key)).toBeNull()
   })
 
   it('tolerates a user with nothing to clean', async () => {
