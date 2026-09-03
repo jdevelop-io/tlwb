@@ -1,3 +1,4 @@
+import type { AssetStore, BoardPersistence } from '@tlwb/store-yjs'
 import {
   createAssetStore,
   createBoardDoc,
@@ -62,10 +63,19 @@ export async function hostLocalBoard(
   const storage = deps.storage ?? localStorage
   const now = deps.now ?? Date.now
 
+  // Hoisted above the try so a mid-flow failure can still close (and,
+  // for the newly hosted id, clear) whatever this attempt opened.
+  // Without this, adoption running again on the next dashboard load
+  // finds the source recents entry untouched, retries from scratch,
+  // and leaks another orphaned hosted board and database each time.
+  let persistence: BoardPersistence | null = null
+  let hostedPersistence: BoardPersistence | null = null
+  let localAssets: AssetStore | null = null
+
   try {
     const doc = createBoardDoc()
     const store = createYjsBoardStore(doc)
-    const persistence = persistBoard(doc, localId)
+    persistence = persistBoard(doc, localId)
     await persistence.whenLoaded
 
     if (store.listElements().length === 0 && store.getMeta().createdAt === 0) {
@@ -75,10 +85,10 @@ export async function hostLocalBoard(
     }
 
     const hosted = await createHostedBoard()
-    const hostedPersistence = persistBoard(doc, hosted.boardId)
+    hostedPersistence = persistBoard(doc, hosted.boardId)
     await hostedPersistence.whenLoaded
 
-    const localAssets = createAssetStore(localId)
+    localAssets = createAssetStore(localId)
     const hashes = new Set(
       store
         .listElements()
@@ -111,6 +121,13 @@ export async function hostLocalBoard(
 
     return { boardId: hosted.boardId, editKey: hosted.editKey }
   } catch {
+    // The source database stays intact for a retry; the local mirror
+    // this attempt created under the new id is cleared rather than
+    // left as an orphaned partial database (the server-side board it
+    // is attached to cannot be un-created from here).
+    await persistence?.destroy()
+    await hostedPersistence?.clear()
+    await localAssets?.destroy()
     return null
   }
 }

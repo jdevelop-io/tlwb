@@ -11,8 +11,11 @@ import {
   collectAdoptables,
   hostLocalBoard,
 } from '../../src/auth/adopt'
+import { openBoardSession } from '../../src/board/session/board-session'
 import { readAlias, readKeys, writeKeys } from '../../src/board/session/keys'
 import { listRecents, touchRecent } from '../../src/board/session/recents'
+
+const identity = { name: 'Ada', color: '#1971C2' }
 
 beforeEach(() => localStorage.clear())
 afterEach(() => vi.unstubAllGlobals())
@@ -129,6 +132,41 @@ describe('hostLocalBoard', () => {
     const result = await hostLocalBoard('local002', { createHostedBoard })
     expect(result).toBeNull()
   })
+
+  it('clears the leaked hosted database when an upload fails after hosting', async () => {
+    await seedLocalBoard('local003', { name: 'Partial', withImage: true })
+    touchRecent({ id: 'local003', name: 'Partial', updatedAt: 1 })
+
+    const createHostedBoard = vi.fn(async () => ({
+      boardId: 'srv003xx',
+      editKey: 'e3',
+      viewKey: 'v3',
+    }))
+    const uploadAsset = vi.fn(async () => {
+      throw new Error('415')
+    })
+
+    const result = await hostLocalBoard('local003', {
+      createHostedBoard,
+      uploadAsset,
+    })
+
+    expect(result).toBeNull()
+    // Nothing under the new id was left behind, and the source recents
+    // entry is untouched, ready for a retry.
+    expect(readKeys('srv003xx')).toBeNull()
+    expect(readAlias('local003')).toBeNull()
+    expect(listRecents().map((r) => r.id)).toEqual(['local003'])
+
+    // The local mirror this attempt opened under the new id was
+    // cleared rather than left as an orphaned partial database: without
+    // that cleanup, reopening it would find the migrated meta and
+    // element that whenLoaded had already synced in before the upload
+    // failed.
+    expect(
+      await openBoardSession({ boardId: 'srv003xx', fresh: false, identity }),
+    ).toBe('not-found')
+  })
 })
 
 describe('adoptBrowserBoards', () => {
@@ -176,6 +214,17 @@ describe('adoptBrowserBoards', () => {
     expect(result).toEqual({ adopted: [], skipped: [] })
     expect(readKeys('hosted02')).toEqual({ editKey: 'e2', viewKey: 'v2' })
     expect(listRecents().map((r) => r.id)).toEqual(['hosted02'])
+  })
+
+  it('resolves rather than throwing when the adoption request itself fails', async () => {
+    touchRecent({ id: 'hosted03', name: 'H3', updatedAt: 1 })
+    writeKeys('hosted03', { editKey: 'e3', viewKey: 'v3' })
+
+    const fetchFn = vi.fn(async () => {
+      throw new Error('network down')
+    })
+    const result = await adoptBrowserBoards({ fetchFn })
+    expect(result).toEqual({ adopted: [], skipped: [] })
   })
 
   it('does nothing and never calls fetch when there is nothing to adopt', async () => {
