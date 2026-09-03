@@ -142,6 +142,9 @@ importers:
       happy-dom:
         specifier: ^18.0.1
         version: 18.0.1
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
