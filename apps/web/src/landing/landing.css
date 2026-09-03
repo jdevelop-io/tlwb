@@ -16,6 +16,7 @@
 
 .sign-in {
   color: var(--muted);
+  text-decoration: none;
 }
 
 main {

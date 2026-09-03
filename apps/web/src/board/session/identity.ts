@@ -1,3 +1,4 @@
+import type { Me } from '../../auth/client'
 import { STROKE_COLORS } from './palette'
 
 export interface Identity {
@@ -46,4 +47,14 @@ export function saveIdentity(
   storage: Storage = localStorage,
 ): void {
   storage.setItem(KEY, JSON.stringify(identity))
+}
+
+/**
+ * Presence identity for the seam between the browser identity and the
+ * account: signed in, the account name replaces the local one but the
+ * chosen marker color stays; signed out (or no accounts on this
+ * deployment), the local identity is unchanged.
+ */
+export function identityFor(identity: Identity, me: Me | null): Identity {
+  return me ? { name: me.name, color: identity.color } : identity
 }

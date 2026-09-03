@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Me } from '../../auth/client'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
 import { BoardMenu } from './board-menu'
@@ -21,13 +22,13 @@ function useBoardName(session: BoardSession): string {
   return name
 }
 
-export function TopBar(props: { session: BoardSession }) {
-  const { session } = props
+export function TopBar(props: { session: BoardSession; me: Me | null }) {
+  const { session, me } = props
   const snapshot = useSession(session)
   const name = useBoardName(session)
   const [draft, setDraft] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const menuButtonRef = useRef<HTMLAnchorElement>(null)
   const cancelledRef = useRef(false)
 
   const commit = (): void => {
@@ -64,17 +65,26 @@ export function TopBar(props: { session: BoardSession }) {
 
   return (
     <header className="top-bar">
-      <button
+      <a
         ref={menuButtonRef}
-        type="button"
+        href={me ? '/dashboard' : '/'}
         className="logo"
         aria-label="tlwb menu"
         aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((open) => !open)}
+        onClick={(event) => {
+          event.preventDefault()
+          setMenuOpen((open) => !open)
+        }}
       >
         tlwb
-      </button>
-      {menuOpen ? <BoardMenu currentId={snapshot.boardId} /> : null}
+      </a>
+      {menuOpen ? (
+        <BoardMenu
+          currentId={snapshot.boardId}
+          me={me}
+          hosted={snapshot.role !== 'local'}
+        />
+      ) : null}
       <input
         className="board-name"
         aria-label="Board name"
