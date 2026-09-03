@@ -63,6 +63,8 @@ export interface BoardSessionOptions {
   connect?: typeof connectBoard
   storage?: Storage
   now?: () => number
+  /** Overrides `OWNER_CONNECT_TIMEOUT_MS`; a test-only seam. */
+  ownerConnectTimeoutMs?: number
 }
 
 export interface BoardSession {
@@ -98,6 +100,15 @@ export interface BoardSession {
 }
 
 const RECENTS_DEBOUNCE_MS = 1_000
+
+/**
+ * How long the keyless owner-connect dial waits for a first outcome
+ * before giving up. Without a ceiling, an unreachable server or a
+ * close code the provider keeps retrying (never permanent, never
+ * `connected`) leaves the promise below unsettled forever: the page
+ * stays blank, since `openBoardSession` never returns.
+ */
+const OWNER_CONNECT_TIMEOUT_MS = 5_000
 
 export async function openBoardSession(
   options: BoardSessionOptions,
@@ -277,20 +288,30 @@ export async function openBoardSession(
     let stopStatus: () => void = () => undefined
     let stopClose: () => void = () => undefined
     const granted = await new Promise<boolean>((resolve) => {
+      const settle = (result: boolean): void => {
+        clearTimeout(timer)
+        stopStatus()
+        stopClose()
+        resolve(result)
+      }
+      // A few seconds is generous for a real connection outcome and
+      // short enough that a visitor never stares at a blank page: past
+      // it, this falls back to the same not-found an anonymous visitor
+      // with no key gets, exactly like a permanent close would.
+      const timer = setTimeout(
+        () => settle(false),
+        options.ownerConnectTimeoutMs ?? OWNER_CONNECT_TIMEOUT_MS,
+      )
       stopStatus = conn.subscribeStatus((next: ConnectionStatus) => {
         if (next === 'connected') {
-          stopStatus()
-          stopClose()
-          resolve(true)
+          settle(true)
         }
       })
       stopClose = conn.subscribeClose((code) => {
         if (code === null || !PERMANENT_CLOSE_CODES.has(code)) {
           return
         }
-        stopStatus()
-        stopClose()
-        resolve(false)
+        settle(false)
       })
     })
     if (!granted) {

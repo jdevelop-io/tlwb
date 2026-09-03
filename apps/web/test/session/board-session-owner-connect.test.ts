@@ -125,6 +125,34 @@ describe('openBoardSession: a signed-in visitor with no key', () => {
     expect(session.getSnapshot().role).toBe('edit')
     await session.destroy()
   })
+
+  it('falls back to not-found after a timeout instead of waiting forever', async () => {
+    const fake = fakeConnect()
+    const pending = openBoardSession({
+      boardId: 'unreachable',
+      fresh: false,
+      identity,
+      signedIn: true,
+      connect: fake.connect,
+      // A short override: proves the fallback actually fires without a
+      // real multi-second wait in the suite.
+      ownerConnectTimeoutMs: 300,
+    })
+    await vi.waitFor(() => expect(fake.calls).toHaveLength(1))
+
+    let settled: 'not-found' | 'session' | null = null
+    void pending.then((result) => {
+      settled = result === 'not-found' ? 'not-found' : 'session'
+    })
+
+    // Neither 'connected' nor a permanent close ever arrives (the
+    // server is unreachable, or every close the provider gets is one it
+    // keeps retrying): still unsettled well short of the timeout.
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(settled).toBeNull()
+
+    expect(await pending).toBe('not-found')
+  })
 })
 
 describe('openBoardSession: an anonymous visitor with no key', () => {
