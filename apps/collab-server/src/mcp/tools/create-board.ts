@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { countOwnedBoards } from '../../db/boards'
 import { issueBoard } from '../../issue-board'
 import { withBoard } from '../agent-client'
 import { assertCaller, type Caller } from '../caller'
@@ -45,7 +46,17 @@ export function registerCreateBoard(
             'too many boards created from this address, retry later',
           )
         }
-        const issued = await issueBoard(deps.db)
+        // The same free-plan cap `POST /boards` enforces: without it, a
+        // keyed caller could create boards no dashboard ever lists and
+        // no cap ever counts.
+        if (caller.kind === 'keyed' && caller.plan === 'free') {
+          const owned = await countOwnedBoards(deps.db, caller.userId)
+          if (owned >= deps.config.freeBoardCap) {
+            throw new ToolError('board limit reached')
+          }
+        }
+        const ownerId = caller.kind === 'keyed' ? caller.userId : undefined
+        const issued = await issueBoard(deps.db, ownerId)
         if (!issued) {
           throw new Error('board id collision')
         }

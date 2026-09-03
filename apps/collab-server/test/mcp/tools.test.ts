@@ -888,4 +888,50 @@ describe('keyed callers', () => {
     )
     expect(second.isError).toBeFalsy()
   })
+
+  it('owns every board it creates and is bounded by the free cap', async () => {
+    const userId = await seedUser()
+    const key = await issueApiKey(database.db, userId)
+    const app = httpApp({ FREE_BOARD_CAP: '1' })
+
+    const first = await toolResult(
+      await app.request(
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+      ),
+    )
+    expect(first.isError).toBeFalsy()
+    const board = JSON.parse((first.content[0] as { text: string }).text) as {
+      boardId: string
+    }
+    const [row] = await database.db
+      .select({ ownerId: boards.ownerId })
+      .from(boards)
+      .where(eq(boards.id, board.boardId))
+    expect(row?.ownerId).toBe(userId)
+
+    const second = await toolResult(
+      await app.request(
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+      ),
+    )
+    expect(second.isError).toBe(true)
+    expect((second.content[0] as { text: string }).text).toBe(
+      'board limit reached',
+    )
+  })
+
+  it('lets a pro-plan keyed caller create past the free cap', async () => {
+    const userId = await seedUser('pro')
+    const key = await issueApiKey(database.db, userId)
+    const app = httpApp({ FREE_BOARD_CAP: '1' })
+
+    for (let i = 0; i < 2; i += 1) {
+      const result = await toolResult(
+        await app.request(
+          mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+        ),
+      )
+      expect(result.isError).toBeFalsy()
+    }
+  })
 })
