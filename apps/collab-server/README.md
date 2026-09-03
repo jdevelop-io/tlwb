@@ -31,12 +31,24 @@ Or the whole stack: `docker compose up`.
 | `RATE_LIMIT_PER_10S`    | `200`      | Messages per connection per 10 seconds |
 | `CREATE_LIMIT_PER_MIN`  | `10`       | Board creations per IP per minute      |
 | `TRUST_PROXY`           | `false`    | Read the client address from `X-Forwarded-For` |
-| `PUBLIC_URL`            | `CORS_ORIGIN` | Origin the MCP `create_board` share URLs are built on |
+| `PUBLIC_URL`            | `CORS_ORIGIN` | The server's own public origin: MCP `create_board` share URLs, OAuth callback URLs, and billing return URLs are all built on it |
 | `MCP_LIMIT_PER_MIN`     | `120`      | MCP requests per IP per minute         |
 | `MCP_RENDER_LIMIT_PER_MIN` | `20`    | Renders per IP per minute              |
 | `MCP_PRESENCE_MS`       | `5000`     | How long an agent stays visible after an edit |
 | `MCP_MAX_BATCH`         | `200`      | Elements or ids per MCP call           |
 | `MCP_MAX_IMAGE_PIXELS`  | `4000000`  | Largest PNG an MCP render produces     |
+| `AUTH_SECRET`           | none (accounts off) | Enables accounts; the session signing secret |
+| `GITHUB_CLIENT_ID`      | none       | GitHub OAuth app client id, together with `GITHUB_CLIENT_SECRET` |
+| `GITHUB_CLIENT_SECRET`  | none       | GitHub OAuth app client secret         |
+| `GOOGLE_CLIENT_ID`      | none       | Google OAuth client id, together with `GOOGLE_CLIENT_SECRET` |
+| `GOOGLE_CLIENT_SECRET`  | none       | Google OAuth client secret             |
+| `STRIPE_SECRET_KEY`     | none (billing off) | Enables billing; the Stripe account's secret key |
+| `STRIPE_WEBHOOK_SECRET` | required with `STRIPE_SECRET_KEY` | Signing secret for the Stripe webhook endpoint |
+| `STRIPE_PRICE_MONTHLY`  | required with `STRIPE_SECRET_KEY` | Stripe price id for the monthly subscription |
+| `STRIPE_PRICE_YEARLY`   | required with `STRIPE_SECRET_KEY` | Stripe price id for the yearly subscription |
+| `FREE_BOARD_CAP`        | `10`       | Boards a free-plan account can own at once |
+| `MCP_QUOTA_FREE`        | `1000`     | MCP tool calls a free-plan API key allows per calendar month |
+| `MCP_QUOTA_PRO`         | `50000`    | MCP tool calls a pro-plan API key allows per calendar month |
 
 Rendering a board to PNG is synchronous native work: nothing else on
 the event loop runs while it lasts, so a render stalls every live
@@ -54,6 +66,47 @@ Turn `TRUST_PROXY` on only when a reverse proxy you control sets
 one the proxy wrote. With it off, the header is ignored entirely and
 the limit keys on the socket address, because a client reaching the
 port directly writes that header itself.
+
+Accounts and billing are both optional, and each degrades on its own.
+Without `AUTH_SECRET` the server runs anonymous-only: nobody can sign
+in, boards stay unowned, and `/auth/*` answers 404. Setting
+`AUTH_SECRET` without at least one complete OAuth provider pair
+(`GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, or the Google
+equivalent) is a startup error. Without `STRIPE_SECRET_KEY` no
+`/billing` routes are mounted and `GET /me` reports `billing: false`;
+every account then stays on the free plan. Setting `STRIPE_SECRET_KEY`
+without `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MONTHLY`, and
+`STRIPE_PRICE_YEARLY` together is also a startup error.
+
+To offer sign-in, register an OAuth app with each provider and put its
+callback URL at `<origin>/api/auth/callback/github` (GitHub) or
+`<origin>/api/auth/callback/google` (Google), where `<origin>` is
+`PUBLIC_URL` (or `CORS_ORIGIN` when `PUBLIC_URL` is unset), the origin
+this server is actually reached at:
+
+- GitHub: create an OAuth app under the account or organization's
+  Developer settings, set its authorization callback URL as above, and
+  put the generated client id and secret in `GITHUB_CLIENT_ID` and
+  `GITHUB_CLIENT_SECRET`.
+- Google: create an OAuth client (application type "Web application")
+  in Google Cloud Console's Credentials page, set its authorized
+  redirect URI as above, and put the generated client id and secret in
+  `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+`AUTH_SECRET` is the signing secret for sessions; generate one with
+`openssl rand -base64 32` or similar, and keep it stable across
+restarts, since rotating it signs every existing session out.
+
+To offer billing, create a product in the Stripe dashboard with a
+monthly and a yearly recurring price, and put their ids in
+`STRIPE_PRICE_MONTHLY` and `STRIPE_PRICE_YEARLY`. Put the account's
+secret key in `STRIPE_SECRET_KEY`. Then add a webhook endpoint at
+`<origin>/api/billing/webhook`, subscribed to
+`checkout.session.completed`, `customer.subscription.updated`, and
+`customer.subscription.deleted`, and put its signing secret in
+`STRIPE_WEBHOOK_SECRET`. `FREE_BOARD_CAP`, `MCP_QUOTA_FREE`, and
+`MCP_QUOTA_PRO` tune the free-tier board limit and the MCP API key
+quotas independently of whether billing is configured.
 
 ## API
 
@@ -87,6 +140,16 @@ HTTP). Paste into any MCP client:
 
 The credential is the board's share link, passed as `board` to every
 tool: an edit link allows mutations, a view link allows reading only.
+
+An optional `Authorization: Bearer tlwb_<key>` header identifies the
+caller against a monthly quota instead of leaving it anonymous.
+Generate a key from the dashboard's settings section (it is shown once
+and cannot be retrieved again); it counts `MCP_QUOTA_FREE` or
+`MCP_QUOTA_PRO` calls per calendar month, depending on the account's
+plan. An unrecognised key answers `invalid API key`; an exhausted
+quota answers `monthly quota reached, resets on the 1st`. Without the
+header, calls stay anonymous, unmetered by any quota, and subject only
+to the per-IP `MCP_LIMIT_PER_MIN` limit.
 
 - `create_board({ name? })`: `{ boardId, editUrl, viewUrl }`.
 - `read_board({ board, image? })`: `{ meta, elements }`, plus a PNG when

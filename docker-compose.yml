@@ -32,6 +32,22 @@ services:
       # port is exposed to the network and not published: anything that
       # could reach the server directly would write that header itself.
       TRUST_PROXY: "true"
+      # Accounts, billing, and MCP quotas are optional: the server runs
+      # anonymous-only, without billing, and with the default quotas
+      # until these are set. See apps/collab-server/README.md for what
+      # each one does and where to obtain it.
+      # AUTH_SECRET: "replace-with-a-random-secret"
+      # GITHUB_CLIENT_ID: "replace-with-github-oauth-client-id"
+      # GITHUB_CLIENT_SECRET: "replace-with-github-oauth-client-secret"
+      # GOOGLE_CLIENT_ID: "replace-with-google-oauth-client-id"
+      # GOOGLE_CLIENT_SECRET: "replace-with-google-oauth-client-secret"
+      # STRIPE_SECRET_KEY: "replace-with-stripe-secret-key"
+      # STRIPE_WEBHOOK_SECRET: "replace-with-stripe-webhook-secret"
+      # STRIPE_PRICE_MONTHLY: "replace-with-monthly-price-id"
+      # STRIPE_PRICE_YEARLY: "replace-with-yearly-price-id"
+      # FREE_BOARD_CAP: "10"
+      # MCP_QUOTA_FREE: "1000"
+      # MCP_QUOTA_PRO: "50000"
     expose:
       - "3000"
     depends_on:
