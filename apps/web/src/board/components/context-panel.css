@@ -49,6 +49,7 @@
 }
 
 [data-kind="swatch"] .choice-item {
+  display: block;
   width: 24px;
   height: 24px;
   border-radius: var(--radius-full);
@@ -61,6 +62,7 @@
 }
 
 .swatch {
+  display: block;
   width: 24px;
   height: 24px;
   border-radius: var(--radius-full);

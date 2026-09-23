@@ -466,14 +466,17 @@
 }
 
 .new-token {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
   width: min(640px, calc(100vw - 32px));
 }
 
+/* Scoped to `[open]`: an unscoped `display` on a closed dialog beats
+   the user-agent's `display: none` in the cascade (author origin wins
+   over user-agent origin regardless of specificity), leaving it
+   visible in the layout even while closed. */
 .new-token[open] {
   display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .step {

@@ -1,8 +1,15 @@
 .share-dialog {
+  width: min(440px, calc(100vw - 32px));
+}
+
+/* A dialog left un-open still lays out at `display: flex` unless the
+   flex value itself is scoped to `[open]`: the native `display: none`
+   for a closed dialog is a user-agent rule, and an author rule always
+   wins the cascade over it regardless of specificity. */
+.share-dialog[open] {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  width: min(440px, calc(100vw - 32px));
 }
 
 .share-link {
