@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readKeys } from '../../src/board/session/keys'
 import { ServerError } from '../../src/board/session/server'
@@ -69,7 +75,7 @@ describe('DashboardApp', () => {
     expect(screen.queryByText('New board')).toBeNull()
   })
 
-  it('renders the grid, the gauge, and New board', async () => {
+  it('renders the grid, the sidebar gauge, and New board', async () => {
     const deps = makeDeps({
       fetchBoards: async () => ({
         boards: [
@@ -80,17 +86,18 @@ describe('DashboardApp', () => {
       }),
     })
     render(<DashboardApp deps={deps} />)
-    expect(await screen.findByText('2/10 boards')).toBeInTheDocument()
+    expect(await screen.findByText('Free · 2/10 boards')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'My boards' }),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: 'Sprint plan' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Retro' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'New board' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Upgrade monthly' }),
-    ).toBeInTheDocument()
+    // The primary "New board" button and the grid's ghost card both carry
+    // that name: the artboard repeats the call to action at the end of
+    // the row.
+    expect(screen.getAllByRole('button', { name: 'New board' })).toHaveLength(2)
   })
 
   it('still loads the board list when adopt() rejects', async () => {
@@ -113,20 +120,18 @@ describe('DashboardApp', () => {
     })
     render(<DashboardApp deps={deps} />)
     await screen.findByRole('link', { name: 'Sprint plan' })
-    expect(screen.queryByText(/\/10 boards/)).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Upgrade monthly' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Upgrade yearly' })).toBeNull()
+    expect(screen.queryByRole('progressbar')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull()
   })
 
-  it('hides the toolbar Upgrade buttons on a free account without billing', async () => {
+  it('hides the sidebar Upgrade button on a free account without billing', async () => {
     const deps = makeDeps({
       fetchMe: async () => ({ ...me, billing: false }),
       fetchBoards: async () => ({ boards: [board()], cap: 10 }),
     })
     render(<DashboardApp deps={deps} />)
-    expect(await screen.findByText('1/10 boards')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Upgrade monthly' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Upgrade yearly' })).toBeNull()
+    expect(await screen.findByText('Free · 1/10 boards')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull()
   })
 
   it('deletes a board through its card menu', async () => {
@@ -180,19 +185,44 @@ describe('DashboardApp', () => {
     render(<DashboardApp deps={deps} />)
     await screen.findByRole('link', { name: 'Shared board' })
     expect(screen.getAllByText('Shared')).toHaveLength(1)
-    expect(screen.queryByText('Agent connected')).toBeNull()
+    expect(screen.queryByText('Claude')).toBeNull()
   })
 
   it('falls back to a plain block when a thumbnail fails to load', async () => {
     const deps = makeDeps({
       fetchBoards: async () => ({ boards: [board({ id: 'b1' })], cap: 10 }),
     })
-    const { container } = render(<DashboardApp deps={deps} />)
+    render(<DashboardApp deps={deps} />)
     const img = await screen.findByAltText('Thumbnail of Sprint plan')
-    expect(container.querySelector('.thumbnail-fallback')).toBeNull()
+    expect(screen.queryByText('nothing here yet...')).toBeNull()
     fireEvent.error(img)
     expect(screen.queryByAltText('Thumbnail of Sprint plan')).toBeNull()
-    expect(container.querySelector('.thumbnail-fallback')).toBeInTheDocument()
+    expect(screen.getByText('nothing here yet...')).toBeInTheDocument()
+  })
+
+  it('shows a relative edited time on the card', async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString()
+    const deps = makeDeps({
+      fetchBoards: async () => ({
+        boards: [board({ id: 'b1', updatedAt: twoHoursAgo })],
+        cap: 10,
+      }),
+    })
+    render(<DashboardApp deps={deps} />)
+    expect(await screen.findByText('Edited 2h ago')).toBeInTheDocument()
+  })
+
+  it('shows the cap ghost card once the board count reaches the cap', async () => {
+    const boards = Array.from({ length: 10 }, (_, index) =>
+      board({ id: `b${index}`, name: `Board ${index}` }),
+    )
+    const deps = makeDeps({ fetchBoards: async () => ({ boards, cap: 10 }) })
+    render(<DashboardApp deps={deps} />)
+    expect(await screen.findByText('Board limit reached')).toBeInTheDocument()
+    expect(screen.getByText('Upgrade to create more')).toBeInTheDocument()
+    // The disabled ghost no longer offers itself as a second "New board"
+    // button: only the header's primary action remains.
+    expect(screen.getAllByRole('button', { name: 'New board' })).toHaveLength(1)
   })
 
   it('creates a board, stores its keys, and navigates to it', async () => {
@@ -204,7 +234,10 @@ describe('DashboardApp', () => {
     }))
     const deps = makeDeps({ createHostedBoard, navigate })
     render(<DashboardApp deps={deps} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'New board' }))
+    const newBoardButtons = await screen.findAllByRole('button', {
+      name: 'New board',
+    })
+    fireEvent.click(newBoardButtons[0] as HTMLElement)
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith('/b/freshly-made'),
     )
@@ -223,10 +256,17 @@ describe('DashboardApp', () => {
       createHostedBoard,
     })
     render(<DashboardApp deps={deps} />)
-    await screen.findByRole('button', { name: 'New board' })
-    fireEvent.click(screen.getByRole('button', { name: 'New board' }))
-    await screen.findByText('You have reached your board limit.')
-    expect(screen.getByRole('button', { name: 'Upgrade' })).toBeInTheDocument()
+    const newBoardButtons = await screen.findAllByRole('button', {
+      name: 'New board',
+    })
+    fireEvent.click(newBoardButtons[0] as HTMLElement)
+    const banner = await screen.findByRole('status')
+    expect(
+      within(banner).getByText('You have reached your board limit.'),
+    ).toBeInTheDocument()
+    expect(
+      within(banner).getByRole('button', { name: 'Upgrade' }),
+    ).toBeInTheDocument()
   })
 
   it('omits the Upgrade link from the cap message without billing', async () => {
@@ -239,8 +279,10 @@ describe('DashboardApp', () => {
       createHostedBoard,
     })
     render(<DashboardApp deps={deps} />)
-    await screen.findByRole('button', { name: 'New board' })
-    fireEvent.click(screen.getByRole('button', { name: 'New board' }))
+    const newBoardButtons = await screen.findAllByRole('button', {
+      name: 'New board',
+    })
+    fireEvent.click(newBoardButtons[0] as HTMLElement)
     await screen.findByText('You have reached your board limit.')
     expect(screen.queryByRole('button', { name: 'Upgrade' })).toBeNull()
   })
@@ -254,42 +296,21 @@ describe('DashboardApp', () => {
       createHostedBoard,
     })
     render(<DashboardApp deps={deps} />)
-    await screen.findByRole('button', { name: 'New board' })
-    fireEvent.click(screen.getByRole('button', { name: 'New board' }))
+    const newBoardButtons = await screen.findAllByRole('button', {
+      name: 'New board',
+    })
+    fireEvent.click(newBoardButtons[0] as HTMLElement)
     await screen.findByText('Could not create the board, try again')
     expect(screen.queryByText('You have reached your board limit.')).toBeNull()
   })
 
-  it('starts a monthly checkout and redirects to its url', async () => {
-    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
-    const startCheckout = vi.fn(async () => 'https://stripe.example/monthly')
-    const deps = makeDeps({
-      fetchBoards: async () => ({ boards: [], cap: 10 }),
-      startCheckout,
-    })
+  it('renders the agents view on its route', async () => {
+    const deps = makeDeps({ pathname: '/dashboard/agents' })
     render(<DashboardApp deps={deps} />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Upgrade monthly' }),
+    expect(await screen.findByRole('link', { name: 'Agents' })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
-    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith('month'))
-    await waitFor(() =>
-      expect(assign).toHaveBeenCalledWith('https://stripe.example/monthly'),
-    )
-  })
-
-  it('starts a yearly checkout with the yearly interval', async () => {
-    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
-    const startCheckout = vi.fn(async () => 'https://stripe.example/yearly')
-    const deps = makeDeps({
-      fetchBoards: async () => ({ boards: [], cap: 10 }),
-      startCheckout,
-    })
-    render(<DashboardApp deps={deps} />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Upgrade yearly' }),
-    )
-    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith('year'))
-    expect(assign).toHaveBeenCalledWith('https://stripe.example/yearly')
   })
 
   it('opens the billing portal for its url', async () => {
@@ -300,6 +321,7 @@ describe('DashboardApp', () => {
     const deps = makeDeps({
       fetchMe: async () => ({ ...me, user: { ...me.user, plan: 'pro' } }),
       openPortal,
+      pathname: '/dashboard/settings',
     })
     render(<DashboardApp deps={deps} />)
     fireEvent.click(
@@ -312,7 +334,11 @@ describe('DashboardApp', () => {
   it('signs out and navigates home', async () => {
     const signOut = vi.fn(async () => undefined)
     const navigate = vi.fn()
-    const deps = makeDeps({ signOut, navigate })
+    const deps = makeDeps({
+      signOut,
+      navigate,
+      pathname: '/dashboard/settings',
+    })
     render(<DashboardApp deps={deps} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(signOut).toHaveBeenCalledOnce())
@@ -322,6 +348,7 @@ describe('DashboardApp', () => {
   it('shows Manage billing only for a subscribed, billing-enabled account', async () => {
     const deps = makeDeps({
       fetchMe: async () => ({ ...me, user: { ...me.user, plan: 'pro' } }),
+      pathname: '/dashboard/settings',
     })
     render(<DashboardApp deps={deps} />)
     expect(
@@ -330,7 +357,7 @@ describe('DashboardApp', () => {
   })
 
   it('hides Manage billing for a free account', async () => {
-    const deps = makeDeps()
+    const deps = makeDeps({ pathname: '/dashboard/settings' })
     render(<DashboardApp deps={deps} />)
     await screen.findByRole('heading', { name: 'Settings' })
     expect(screen.queryByRole('button', { name: 'Manage billing' })).toBeNull()
@@ -339,7 +366,11 @@ describe('DashboardApp', () => {
   it('generates and reveals the MCP API key once, then clears it on revoke', async () => {
     const createApiKey = vi.fn(async () => 'sk_live_secret')
     const revokeApiKey = vi.fn(async () => undefined)
-    const deps = makeDeps({ createApiKey, revokeApiKey })
+    const deps = makeDeps({
+      createApiKey,
+      revokeApiKey,
+      pathname: '/dashboard/settings',
+    })
     render(<DashboardApp deps={deps} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Generate key' }))
     await screen.findByText('sk_live_secret')
@@ -354,7 +385,11 @@ describe('DashboardApp', () => {
     const revokeApiKey = vi.fn(async () => {
       throw new Error('down')
     })
-    const deps = makeDeps({ createApiKey, revokeApiKey })
+    const deps = makeDeps({
+      createApiKey,
+      revokeApiKey,
+      pathname: '/dashboard/settings',
+    })
     render(<DashboardApp deps={deps} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Generate key' }))
     await screen.findByText('sk_live_secret')
@@ -378,6 +413,7 @@ describe('DashboardApp', () => {
         count: 7,
         limit: 100,
       })),
+      pathname: '/dashboard/settings',
     })
     render(<DashboardApp deps={deps} />)
     expect(
@@ -390,7 +426,11 @@ describe('DashboardApp', () => {
     const navigate = vi.fn()
     const confirmSpy = vi.fn()
     window.confirm = confirmSpy
-    const deps = makeDeps({ deleteUser, navigate })
+    const deps = makeDeps({
+      deleteUser,
+      navigate,
+      pathname: '/dashboard/settings',
+    })
     render(<DashboardApp deps={deps} />)
     const deleteButton = await screen.findByRole('button', {
       name: 'Delete account',
@@ -451,7 +491,11 @@ describe('DashboardApp', () => {
     })
     const navigate = vi.fn()
     window.confirm = vi.fn(() => true)
-    const deps = makeDeps({ deleteUser, navigate })
+    const deps = makeDeps({
+      deleteUser,
+      navigate,
+      pathname: '/dashboard/settings',
+    })
     render(<DashboardApp deps={deps} />)
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete account' }),

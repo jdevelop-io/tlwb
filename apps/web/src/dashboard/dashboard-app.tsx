@@ -19,9 +19,10 @@ import {
   revokeApiKey,
   startCheckout,
 } from './api'
-import { BoardCard } from './board-card'
+import { BoardsView } from './boards-view'
 import './dashboard.css'
 import { Settings } from './settings'
+import { Sidebar } from './sidebar'
 
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 30000
@@ -40,6 +41,7 @@ export interface DashboardDeps {
   deleteUser: () => Promise<unknown>
   navigate: (path: string) => void
   adopt: () => Promise<unknown>
+  pathname?: string
 }
 
 const defaultDeps: DashboardDeps = {
@@ -56,6 +58,14 @@ const defaultDeps: DashboardDeps = {
   deleteUser: () => authClient.deleteUser(),
   navigate: (path: string) => location.assign(path),
   adopt: adoptBrowserBoards,
+}
+
+function viewFor(pathname: string): 'boards' | 'agents' | 'settings' {
+  return pathname.endsWith('/agents')
+    ? 'agents'
+    : pathname.endsWith('/settings')
+      ? 'settings'
+      : 'boards'
 }
 
 export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
@@ -195,77 +205,39 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
     return null
   }
 
+  const view = viewFor(deps.pathname ?? location.pathname)
+
   return (
     <div className="dashboard">
-      <header className="dashboard-header">
-        <a href="/" className="dashboard-wordmark">
-          tlwb
-        </a>
-        <div className="dashboard-user">
-          {me.user.image ? (
-            <img
-              src={me.user.image}
-              alt={`${me.user.name}'s avatar`}
-              className="dashboard-avatar"
-            />
-          ) : (
-            <span className="dashboard-avatar dashboard-avatar-initial">
-              {me.user.name.charAt(0).toUpperCase()}
-            </span>
-          )}
-          <span className="dashboard-user-name">{me.user.name}</span>
-          <button type="button" onClick={() => void signOut()}>
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      {confirming ? <Notice kind="banner">Payment confirming…</Notice> : null}
-
-      <section className="dashboard-boards">
-        <div className="dashboard-boards-toolbar">
-          <button type="button" onClick={() => void createBoard()}>
-            New board
-          </button>
-          {cap !== null ? (
-            <span className="dashboard-gauge">
-              {boards.length}/{cap} boards
-            </span>
-          ) : null}
-          {cap !== null && me.billing ? (
-            <div className="dashboard-upgrade">
-              <button type="button" onClick={() => void upgrade('month')}>
-                Upgrade monthly
-              </button>
-              <button type="button" onClick={() => void upgrade('year')}>
-                Upgrade yearly
-              </button>
-            </div>
-          ) : null}
-        </div>
-        {capMessage ? (
-          <p className="dashboard-cap-message">
-            You have reached your board limit.
-            {me.billing ? (
-              <button type="button" onClick={() => void upgrade('month')}>
-                Upgrade
-              </button>
-            ) : null}
-          </p>
-        ) : null}
-        <div className="dashboard-grid">
-          {boards.map((board) => (
-            <BoardCard
-              key={board.id}
-              board={board}
-              onDelete={(id) => void deleteBoardById(id)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <Settings user={me.user} billing={me.billing} deps={deps} />
-
+      <Sidebar
+        active={view}
+        user={me.user}
+        boardCount={boards.length}
+        cap={cap}
+        billing={me.billing}
+        onUpgrade={() => void upgrade('month')}
+      />
+      <main className="dashboard-main">
+        {confirming ? <Notice kind="banner">Payment confirming…</Notice> : null}
+        {view === 'boards' ? (
+          <BoardsView
+            me={me}
+            boards={boards}
+            cap={cap}
+            capReached={capMessage}
+            onCreate={() => void createBoard()}
+            onDelete={(id) => void deleteBoardById(id)}
+            onUpgrade={() => void upgrade('month')}
+          />
+        ) : view === 'agents' ? null : (
+          <Settings
+            user={me.user}
+            billing={me.billing}
+            deps={deps}
+            onSignOut={() => void signOut()}
+          />
+        )}
+      </main>
       {toast ? (
         <Notice kind="toast" onClose={() => setToast(null)}>
           {toast}

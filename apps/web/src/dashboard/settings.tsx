@@ -19,6 +19,7 @@ export function Settings(props: {
   user: { name: string; email: string; plan: 'free' | 'pro' }
   billing: boolean
   deps: SettingsDeps
+  onSignOut: () => void
 }) {
   const { user, billing, deps } = props
   const [usage, setUsage] = useState<{
@@ -112,6 +113,13 @@ export function Settings(props: {
   return (
     <section className="settings">
       <h2>Settings</h2>
+      <button
+        type="button"
+        className="button-secondary"
+        onClick={props.onSignOut}
+      >
+        Sign out
+      </button>
       <p className="settings-plan">
         {user.plan === 'pro' ? 'Pro plan' : 'Free plan'}
         {billing && user.plan === 'pro' ? (

@@ -15,6 +15,8 @@ function pageRoutes(): Plugin {
   const pages: Record<string, string> = {
     '/login': '/login.html',
     '/dashboard': '/dashboard.html',
+    '/dashboard/agents': '/dashboard.html',
+    '/dashboard/settings': '/dashboard.html',
     '/privacy': '/privacy.html',
     '/terms': '/terms.html',
   }
