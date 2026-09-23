@@ -4,6 +4,7 @@ import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
 import { type StoredKeys, shareLink } from '../session/keys'
 import { shareBoard } from '../session/share'
+import { AgentIcon } from './agent-icon'
 import './share-dialog.css'
 
 export function ShareDialog(props: {
@@ -11,6 +12,7 @@ export function ShareDialog(props: {
   open: boolean
   onClose: () => void
   share?: (session: BoardSession) => Promise<StoredKeys>
+  onConnectAgent?: () => void
 }) {
   const { session, open, onClose } = props
   const share = props.share ?? ((target: BoardSession) => shareBoard(target))
@@ -65,8 +67,26 @@ export function ShareDialog(props: {
   }
 
   return (
-    <dialog ref={dialogRef} className="share-dialog" onClose={onClose}>
-      <h2>Share this board</h2>
+    <dialog ref={dialogRef} className="dialog share-dialog" onClose={onClose}>
+      <header className="dialog-header">
+        <h2 className="dialog-title">Share this board</h2>
+        <button
+          type="button"
+          className="dialog-close"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </header>
       {!keys ? (
         <>
           <p>
@@ -76,7 +96,7 @@ export function ShareDialog(props: {
           {error ? <p className="error">{error}</p> : null}
           <button
             type="button"
-            className="primary"
+            className="button-primary"
             disabled={busy}
             onClick={() => void create()}
           >
@@ -85,32 +105,6 @@ export function ShareDialog(props: {
         </>
       ) : (
         <>
-          <fieldset className="share-role">
-            {keys?.editKey ? (
-              <label>
-                <input
-                  type="radio"
-                  name="role"
-                  aria-label="Can edit"
-                  checked={effectiveRole === 'edit'}
-                  onChange={() => setRole('edit')}
-                />
-                Can edit
-              </label>
-            ) : null}
-            {keys?.viewKey ? (
-              <label>
-                <input
-                  type="radio"
-                  name="role"
-                  aria-label="View only"
-                  checked={effectiveRole === 'view'}
-                  onChange={() => setRole('view')}
-                />
-                View only
-              </label>
-            ) : null}
-          </fieldset>
           <div className="share-link">
             <input
               aria-label="Share link"
@@ -120,24 +114,98 @@ export function ShareDialog(props: {
             />
             <button
               type="button"
-              onClick={() => void copy()}
+              className="share-copy"
               aria-live="polite"
+              onClick={() => void copy()}
             >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <rect
+                  x="9"
+                  y="9"
+                  width="12"
+                  height="12"
+                  rx="2"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M5 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
-          <section className="share-agents">
-            <h3>Agents</h3>
-            <p>
-              Connect Claude Code or any MCP client to this board. Coming with
-              the MCP server; see the repository README for progress.
+          <fieldset className="share-access">
+            <legend>Access</legend>
+            <div className="segmented">
+              {keys?.viewKey ? (
+                <label>
+                  <input
+                    type="radio"
+                    name="role"
+                    aria-label="Can view"
+                    checked={effectiveRole === 'view'}
+                    onChange={() => setRole('view')}
+                  />
+                  Can view
+                </label>
+              ) : null}
+              {keys?.editKey ? (
+                <label>
+                  <input
+                    type="radio"
+                    name="role"
+                    aria-label="Can edit"
+                    checked={effectiveRole === 'edit'}
+                    onChange={() => setRole('edit')}
+                  />
+                  Can edit
+                </label>
+              ) : null}
+            </div>
+            <p className="caption">
+              Anyone with the link can jump in, no account needed.
             </p>
+          </fieldset>
+          <hr className="divider" />
+          <section className="share-agent">
+            <span className="share-agent-icon">
+              <AgentIcon size={20} color="var(--color-agent)" />
+            </span>
+            <div>
+              <p className="share-agent-title">
+                Let your agent work on this board
+              </p>
+              <p className="caption">
+                It joins with its own cursor and draws live, through MCP.
+              </p>
+            </div>
           </section>
+          {props.onConnectAgent ? (
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={props.onConnectAgent}
+            >
+              Connect an agent
+            </button>
+          ) : (
+            <a className="button-secondary" href="/login">
+              Connect an agent
+            </a>
+          )}
         </>
       )}
-      <button type="button" className="close" onClick={onClose}>
-        Close
-      </button>
     </dialog>
   )
 }
