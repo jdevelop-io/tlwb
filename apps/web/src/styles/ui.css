@@ -71,7 +71,7 @@
   align-items: center;
   color: var(--color-ink);
   font-family: var(--font-hand);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
 }
 
