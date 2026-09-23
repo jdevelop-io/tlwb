@@ -48,8 +48,10 @@ export async function assertCaller(
  * The board-scope check every tool runs once it knows which board it
  * targets. A session caller (`anonymous`/`invalid`) is authorized by
  * its own session, not by a token, so it is never checked here. A
- * keyed caller with `boardIds: null` reaches every board its owner
- * owns; a non-null scope is the exact allow-list.
+ * keyed caller with `boardIds: null` reaches every board its share
+ * key resolves (the same access an anonymous caller gets from the
+ * link, see the header comment above); a non-null scope narrows that
+ * down to the exact allow-list.
  */
 export function assertBoardAllowed(caller: Caller, boardId: string): void {
   if (

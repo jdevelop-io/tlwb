@@ -7,6 +7,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -953,48 +954,83 @@ describe('keyed callers', () => {
     }
   })
 
-  it('refuses a board outside the token scope and accepts one inside', async () => {
-    const userId = await seedUser()
-    const app = httpApp()
+  describe('board scope', () => {
+    let app: ReturnType<typeof httpApp>
+    let insideId: string
+    let insideUrl: string
+    let outsideId: string
+    let outsideUrl: string
+    let key: string
 
-    async function createBoard() {
-      const created = await toolResult(
-        await app.request(mcpRequest({ name: 'create_board', arguments: {} })),
-      )
-      return JSON.parse((created.content[0] as { text: string }).text) as {
-        boardId: string
-        editUrl: string
+    beforeEach(async () => {
+      const userId = await seedUser()
+      app = httpApp()
+
+      async function createBoard() {
+        const created = await toolResult(
+          await app.request(
+            mcpRequest({ name: 'create_board', arguments: {} }),
+          ),
+        )
+        return JSON.parse((created.content[0] as { text: string }).text) as {
+          boardId: string
+          editUrl: string
+        }
       }
-    }
-    const inside = await createBoard()
-    const outside = await createBoard()
+      const inside = await createBoard()
+      const outside = await createBoard()
+      insideId = inside.boardId
+      insideUrl = inside.editUrl
+      outsideId = outside.boardId
+      outsideUrl = outside.editUrl
 
-    const { key } = await issueApiKey(database.db, userId, {
-      name: 'test',
-      boardIds: [inside.boardId],
+      const issued = await issueApiKey(database.db, userId, {
+        name: 'test',
+        boardIds: [insideId],
+      })
+      key = issued.key
     })
 
-    const denied = await toolResult(
-      await app.request(
-        mcpRequest(
-          { name: 'read_board', arguments: { board: outside.editUrl } },
-          { bearer: key },
-        ),
-      ),
-    )
-    expect(denied.isError).toBe(true)
-    expect((denied.content[0] as { text: string }).text).toBe(
-      `this token is not allowed on board ${outside.boardId}`,
+    // One entry per board-taking tool: a missed `assertBoardAllowed`
+    // call site on any one of them must fail this table, not just
+    // `read_board`'s.
+    it.each([
+      ['read_board', {}],
+      [
+        'add_elements',
+        { elements: [{ type: 'rectangle', x: 0, y: 0, width: 1, height: 1 }] },
+      ],
+      ['update_elements', { updates: [{ id: 'irrelevant' }] }],
+      ['delete_elements', { ids: ['irrelevant'] }],
+      ['get_board_screenshot', {}],
+    ])(
+      'refuses %s on a board outside the token scope',
+      async (name, extraArgs) => {
+        const result = await toolResult(
+          await app.request(
+            mcpRequest(
+              { name, arguments: { board: outsideUrl, ...extraArgs } },
+              { bearer: key },
+            ),
+          ),
+        )
+        expect(result.isError).toBe(true)
+        expect((result.content[0] as { text: string }).text).toBe(
+          `this token is not allowed on board ${outsideId}`,
+        )
+      },
     )
 
-    const allowed = await toolResult(
-      await app.request(
-        mcpRequest(
-          { name: 'read_board', arguments: { board: inside.editUrl } },
-          { bearer: key },
+    it('accepts a board inside the token scope', async () => {
+      const result = await toolResult(
+        await app.request(
+          mcpRequest(
+            { name: 'read_board', arguments: { board: insideUrl } },
+            { bearer: key },
+          ),
         ),
-      ),
-    )
-    expect(allowed.isError).toBeFalsy()
+      )
+      expect(result.isError).toBeFalsy()
+    })
   })
 })
