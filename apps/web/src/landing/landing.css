@@ -142,6 +142,11 @@ main {
   color: var(--muted);
 }
 
+.site-footer nav {
+  display: flex;
+  gap: var(--space-3);
+}
+
 .plans a {
   display: inline-block;
   margin-top: var(--space-2);
