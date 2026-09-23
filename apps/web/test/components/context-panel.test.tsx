@@ -15,8 +15,8 @@ describe('ContextPanel', () => {
   it('patches the creation defaults when a tool is active', () => {
     const editor = fakeEditor({ activeTool: 'rectangle' })
     render(<ContextPanel editor={editor} store={new InMemoryBoardStore()} />)
-    fireEvent.click(screen.getByRole('radio', { name: 'Stroke #E03131' }))
-    expect(editor.setDefaults).toHaveBeenCalledWith({ strokeColor: '#E03131' })
+    fireEvent.click(screen.getByRole('radio', { name: 'Stroke #E5484D' }))
+    expect(editor.setDefaults).toHaveBeenCalledWith({ strokeColor: '#E5484D' })
     expect(editor.updateSelection).not.toHaveBeenCalled()
   })
 

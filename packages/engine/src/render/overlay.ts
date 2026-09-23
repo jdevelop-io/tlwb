@@ -22,8 +22,8 @@ export const DEFAULT_OVERLAY_THEME: OverlayTheme = {
   selection: '#FF6B4A',
   guide: '#FF6B4A',
   lassoFill: 'rgba(255, 107, 74, 0.08)',
-  agent: '#8B7CF6',
-  labelFont: '12px system-ui, sans-serif',
+  agent: '#6E56CF',
+  labelFont: '500 11px Inter, system-ui, sans-serif',
 }
 
 export interface RenderOverlayOptions {
