@@ -18,6 +18,7 @@ services:
       retries: 10
 
   collab-server:
+    image: ghcr.io/jdevelop-io/tlwb-collab-server:latest
     build:
       context: .
       dockerfile: apps/collab-server/Dockerfile
@@ -25,12 +26,13 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgres://tlwb:tlwb@postgres:5432/tlwb
       CORS_ORIGIN: http://localhost:8080
-      # Caddy is the only thing that reaches this service, and it
-      # rewrites X-Forwarded-For with the address it saw, so the last
-      # entry is trustworthy. Without it every visitor shares one
-      # per-address bucket, which is Caddy's. Safe only because the
-      # port is exposed to the network and not published: anything that
-      # could reach the server directly would write that header itself.
+      # The web container's Caddy is the only thing that reaches this
+      # service, and it forwards exactly one X-Forwarded-For address:
+      # the visitor's, resolved through any front proxy on a private
+      # range. Without this every visitor shares one per-address bucket,
+      # which is Caddy's. Safe only because the port is exposed to the
+      # network and not published: anything that could reach the server
+      # directly would write that header itself.
       TRUST_PROXY: "true"
       # Accounts, billing, and MCP quotas are optional: the server runs
       # anonymous-only, without billing, and with the default quotas
@@ -55,6 +57,7 @@ services:
         condition: service_healthy
 
   web:
+    image: ghcr.io/jdevelop-io/tlwb-web:latest
     build:
       context: .
       dockerfile: apps/web/Dockerfile
