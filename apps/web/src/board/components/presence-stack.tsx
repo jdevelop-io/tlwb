@@ -18,7 +18,7 @@ import './presence-stack.css'
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 
 function ringColor(color: string): string {
-  return HEX_COLOR.test(color) ? color : 'var(--muted)'
+  return HEX_COLOR.test(color) ? color : 'var(--color-ink-secondary)'
 }
 
 function Avatar(props: {
@@ -109,7 +109,7 @@ export function PresenceStack(props: {
       {snapshot.role !== 'view' ? (
         <button
           type="button"
-          className="button-primary share"
+          className="button-primary"
           onClick={props.onShare}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">

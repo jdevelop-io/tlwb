@@ -14,7 +14,7 @@
    * both reachable. Every child holds its min-content width except the
    * name, which takes what is left.
    */
-  max-width: calc(50vw - 247px);
+  max-width: max(0px, calc(50vw - 247px));
   padding-inline: 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);

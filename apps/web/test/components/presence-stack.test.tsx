@@ -58,7 +58,7 @@ describe('PresenceStack', () => {
     )
     const avatar = screen.getByRole('button', { name: 'Mallory' })
     expect(avatar.getAttribute('style')).not.toContain('url(')
-    expect(avatar.getAttribute('style')).toContain('var(--muted)')
+    expect(avatar.getAttribute('style')).toContain('var(--color-ink-secondary)')
   })
 
   it('paints a well-formed peer colour as it is', () => {
