@@ -71,6 +71,33 @@ describe('NewTokenDialog', () => {
     await waitFor(() =>
       expect(screen.getByText('Connected')).toBeInTheDocument(),
     )
+    const callsOnceConnected = fetchApiKeys.mock.calls.length
+    await vi.advanceTimersByTimeAsync(9000)
+    expect(fetchApiKeys.mock.calls.length).toBe(callsOnceConnected)
+  })
+
+  it('keeps Create token disabled with no board checked, and enables it once one is', () => {
+    render(
+      <NewTokenDialog
+        open
+        boards={[
+          { id: 'b1', name: 'payments architecture' },
+          { id: 'b2', name: 'sprint retro' },
+        ]}
+        createApiKey={vi.fn()}
+        fetchApiKeys={vi.fn()}
+        onClose={() => undefined}
+      />,
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'Only specific boards' }))
+    expect(screen.getByRole('button', { name: 'Create token' })).toBeDisabled()
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'payments architecture' }),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Create token' }),
+    ).not.toBeDisabled()
   })
 
   it('stops polling once the dialog closes, and again on unmount', async () => {
