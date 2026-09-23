@@ -45,7 +45,7 @@ export async function listApiKeys(
     })
     .from(apiKeys)
     .where(and(eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt)))
-    .orderBy(desc(apiKeys.createdAt))
+    .orderBy(desc(apiKeys.createdAt), desc(apiKeys.id))
   return rows.map((row) => ({
     id: row.id,
     name: row.name,

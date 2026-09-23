@@ -78,4 +78,41 @@ describe('named api keys', () => {
     await revokeAllApiKeys(database.db, userA)
     expect(await resolveApiKey(database.db, b.key)).toBeNull()
   })
+
+  it('never revokes another user key, even by a guessed id', async () => {
+    const userA = await createUser()
+    const userB = await createUser()
+    const a = await issueApiKey(database.db, userA, {
+      name: 'a',
+      boardIds: null,
+    })
+    expect(await revokeApiKey(database.db, userB, a.id)).toBe(false)
+    expect(await resolveApiKey(database.db, a.key)).not.toBeNull()
+  })
+
+  it('never lists another user key', async () => {
+    const userA = await createUser()
+    const userB = await createUser()
+    await issueApiKey(database.db, userA, { name: 'a', boardIds: null })
+    expect(await listApiKeys(database.db, userB)).toEqual([])
+  })
+
+  it('resolves null for unknown and revoked keys', async () => {
+    expect(await resolveApiKey(database.db, 'tlwb_nonsense')).toBeNull()
+    expect(await resolveApiKey(database.db, 'no-prefix')).toBeNull()
+    const userA = await createUser()
+    const key = await issueApiKey(database.db, userA, {
+      name: 'k',
+      boardIds: null,
+    })
+    // A real, otherwise-valid key hash presented without its prefix must
+    // still resolve to null: this is what actually exercises the prefix
+    // guard. 'no-prefix' above matches no row either way, prefixed or
+    // not, so it would pass even with the guard deleted.
+    expect(
+      await resolveApiKey(database.db, key.key.slice(API_KEY_PREFIX.length)),
+    ).toBeNull()
+    await revokeApiKey(database.db, userA, key.id)
+    expect(await resolveApiKey(database.db, key.key)).toBeNull()
+  })
 })

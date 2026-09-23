@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { API_KEY_PREFIX } from '../../src/accounts/api-keys'
+import { API_KEY_PREFIX, resolveApiKey } from '../../src/accounts/api-keys'
 import { monthOf } from '../../src/accounts/quota'
 import { loadConfig } from '../../src/config'
 import { connectDatabase, type Database } from '../../src/db/client'
@@ -139,6 +139,41 @@ describe('GET/POST /me/api-keys, DELETE /me/api-keys/:id, GET /me/usage', () => 
       body: JSON.stringify({ name: 'scoped', boardIds: [boardId] }),
     })
     expect(created.status).toBe(400)
+  })
+
+  it('rejects an empty boardIds array with 400', async () => {
+    const a = app()
+    const userA = await createUser()
+    const cookie = await cookieFor(userA)
+
+    const created = await a.request('http://server/me/api-keys', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'scoped to nothing', boardIds: [] }),
+    })
+    expect(created.status).toBe(400)
+  })
+
+  it('never lets one user delete another user key by id', async () => {
+    const a = app()
+    const userA = await createUser()
+    const userB = await createUser()
+    const cookieA = await cookieFor(userA)
+    const cookieB = await cookieFor(userB)
+
+    const created = await a.request('http://server/me/api-keys', {
+      method: 'POST',
+      headers: { cookie: cookieA, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: "A's key" }),
+    })
+    const { id, key } = (await created.json()) as { id: string; key: string }
+
+    const deletedByB = await a.request(`http://server/me/api-keys/${id}`, {
+      method: 'DELETE',
+      headers: { cookie: cookieB },
+    })
+    expect(deletedByB.status).toBe(404)
+    expect(await resolveApiKey(database.db, key)).not.toBeNull()
   })
 
   it('revokes a key by id, 204 then 404', async () => {

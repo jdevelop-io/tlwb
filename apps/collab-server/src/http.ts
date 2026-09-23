@@ -342,6 +342,12 @@ export function createApp(deps: HttpDeps): Hono<Env> {
       ) {
         return c.json({ error: 'boardIds must be a list of board ids' }, 400)
       }
+      if (body.boardIds.length === 0) {
+        // Omit `boardIds` (or pass null) for an unscoped, every-board
+        // token instead: an empty list is a token scoped to nothing,
+        // which has no meaning and no use.
+        return c.json({ error: 'boardIds must be a list of board ids' }, 400)
+      }
       const owned = new Set(
         (await listOwnedBoards(db, user.id)).map((board) => board.id),
       )
