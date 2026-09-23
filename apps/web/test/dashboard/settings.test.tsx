@@ -10,7 +10,11 @@ const user = {
 
 function deps(overrides: Partial<SettingsDeps> = {}): SettingsDeps {
   return {
-    startCheckout: vi.fn(async () => 'https://stripe.example/checkout'),
+    startCheckout: vi.fn(async (interval: 'month' | 'year') =>
+      interval === 'year'
+        ? 'https://stripe.example/checkout-year'
+        : 'https://stripe.example/checkout-month',
+    ),
     openPortal: vi.fn(async () => 'https://stripe.example/portal'),
     deleteUser: vi.fn(async () => undefined),
     navigate: vi.fn(),
@@ -19,10 +23,12 @@ function deps(overrides: Partial<SettingsDeps> = {}): SettingsDeps {
 }
 
 describe('Settings', () => {
-  it('shows the account, offers both upgrade intervals on the free plan, and signs out', () => {
+  it('shows the account, offers both upgrade intervals on the free plan, and signs out', async () => {
     const d = deps()
     const onSignOut = vi.fn()
+    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
     render(<Settings user={user} billing deps={d} onSignOut={onSignOut} />)
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
     expect(screen.getByText('ada@example.com')).toBeInTheDocument()
     expect(screen.getByText('Free plan')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage billing' })).toBeNull()
@@ -31,6 +37,14 @@ describe('Settings', () => {
     expect(d.startCheckout).toHaveBeenCalledWith('month')
     fireEvent.click(screen.getByRole('button', { name: 'Upgrade yearly' }))
     expect(d.startCheckout).toHaveBeenCalledWith('year')
+    // The yearly interval is only reachable from this screen: prove the
+    // resolved checkout url actually reaches location.assign, not just
+    // that the dependency was invoked.
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        'https://stripe.example/checkout-year',
+      ),
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(onSignOut).toHaveBeenCalled()
@@ -52,6 +66,7 @@ describe('Settings', () => {
 
   it('opens the billing portal on the pro plan', async () => {
     const d = deps()
+    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
     render(
       <Settings
         user={{ ...user, plan: 'pro' }}
@@ -64,6 +79,7 @@ describe('Settings', () => {
     expect(screen.queryByRole('button', { name: 'Upgrade yearly' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Manage billing' }))
     await waitFor(() => expect(d.openPortal).toHaveBeenCalled())
+    expect(assign).toHaveBeenCalledWith('https://stripe.example/portal')
   })
 
   it('deletes the account only after both confirmations pass', async () => {
