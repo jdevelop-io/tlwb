@@ -127,7 +127,7 @@ describe('ShareDialog', () => {
     })
     if (session === 'not-found') throw new Error('unexpected')
     render(<ShareDialog session={session} open onClose={() => undefined} />)
-    expect(screen.queryByRole('radio', { name: 'Can edit' })).toBeNull()
+    expect(screen.getByRole('radio', { name: 'Can edit' })).toBeDisabled()
     expect(
       (screen.getByRole('textbox', { name: 'Share link' }) as HTMLInputElement)
         .value,

@@ -5,10 +5,6 @@
   width: min(440px, calc(100vw - 32px));
 }
 
-.share-dialog[open] {
-  display: flex;
-}
-
 .share-link {
   display: flex;
 }

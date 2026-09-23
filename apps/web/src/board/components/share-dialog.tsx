@@ -148,30 +148,27 @@ export function ShareDialog(props: {
           <fieldset className="share-access">
             <legend>Access</legend>
             <div className="segmented">
-              {keys?.viewKey ? (
-                <label>
-                  <input
-                    type="radio"
-                    name="role"
-                    aria-label="Can view"
-                    checked={effectiveRole === 'view'}
-                    onChange={() => setRole('view')}
-                  />
-                  Can view
-                </label>
-              ) : null}
-              {keys?.editKey ? (
-                <label>
-                  <input
-                    type="radio"
-                    name="role"
-                    aria-label="Can edit"
-                    checked={effectiveRole === 'edit'}
-                    onChange={() => setRole('edit')}
-                  />
-                  Can edit
-                </label>
-              ) : null}
+              <label>
+                <input
+                  type="radio"
+                  name="role"
+                  aria-label="Can view"
+                  checked={effectiveRole === 'view'}
+                  onChange={() => setRole('view')}
+                />
+                Can view
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="role"
+                  aria-label="Can edit"
+                  checked={effectiveRole === 'edit'}
+                  onChange={() => setRole('edit')}
+                  disabled={!keys?.editKey}
+                />
+                Can edit
+              </label>
             </div>
             <p className="caption">
               Anyone with the link can jump in, no account needed.
