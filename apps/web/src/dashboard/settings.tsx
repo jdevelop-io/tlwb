@@ -1,15 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type {
-  createApiKey as defaultCreateApiKey,
-  fetchUsage as defaultFetchUsage,
   openPortal as defaultOpenPortal,
-  revokeApiKey as defaultRevokeApiKey,
+  startCheckout as defaultStartCheckout,
 } from './api'
 
 export interface SettingsDeps {
-  fetchUsage: typeof defaultFetchUsage
-  createApiKey: typeof defaultCreateApiKey
-  revokeApiKey: typeof defaultRevokeApiKey
+  startCheckout: typeof defaultStartCheckout
   openPortal: typeof defaultOpenPortal
   deleteUser: () => Promise<unknown>
   navigate: (path: string) => void
@@ -22,71 +18,17 @@ export function Settings(props: {
   onSignOut: () => void
 }) {
   const { user, billing, deps } = props
-  const [usage, setUsage] = useState<{
-    month: string
-    count: number
-    limit: number
-  } | null>(null)
-  const [apiKey, setApiKey] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    deps
-      .fetchUsage()
-      .then((result) => {
-        if (!cancelled) {
-          setUsage(result)
-        }
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [deps])
-
-  const generateKey = async (): Promise<void> => {
-    setCopied(false)
-    try {
-      setApiKey(await deps.createApiKey())
-    } catch {
-      // The user can retry from the same button.
-    }
-  }
-
-  const revokeKey = async (): Promise<void> => {
+  const go = async (
+    action: () => Promise<string>,
+    failure: string,
+  ): Promise<void> => {
     setError(null)
     try {
-      await deps.revokeApiKey()
-      setApiKey(null)
+      location.assign(await action())
     } catch {
-      // The key is still live server-side: it must stay visible rather
-      // than let the user believe a failed revocation actually worked,
-      // a security-relevant distinction on this path.
-      setError('Could not revoke the key, try again')
-    }
-  }
-
-  const copyKey = async (): Promise<void> => {
-    if (!apiKey || !navigator.clipboard) {
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(apiKey)
-      setCopied(true)
-    } catch {
-      // The key stays visible in the code block for a manual copy.
-    }
-  }
-
-  const manageBilling = async (): Promise<void> => {
-    setError(null)
-    try {
-      const url = await deps.openPortal()
-      location.assign(url)
-    } catch {
-      setError('Could not open billing, try again')
+      setError(failure)
     }
   }
 
@@ -111,60 +53,78 @@ export function Settings(props: {
   }
 
   return (
-    <section className="settings">
-      <h2>Settings</h2>
-      <button
-        type="button"
-        className="button-secondary"
-        onClick={props.onSignOut}
-      >
-        Sign out
-      </button>
-      <p className="settings-plan">
-        {user.plan === 'pro' ? 'Pro plan' : 'Free plan'}
+    <>
+      <header className="main-header">
+        <h1>Settings</h1>
+      </header>
+      {error ? <p className="error">{error}</p> : null}
+      <section className="settings-card">
+        <h2>Account</h2>
+        <p className="settings-line">{user.name}</p>
+        <p className="caption">{user.email}</p>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={props.onSignOut}
+        >
+          Sign out
+        </button>
+      </section>
+      <section className="settings-card">
+        <h2>Plan</h2>
+        <p className="settings-line">
+          {user.plan === 'pro' ? 'Pro plan' : 'Free plan'}
+        </p>
+        {billing && user.plan === 'free' ? (
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() =>
+                void go(
+                  () => deps.startCheckout('month'),
+                  'Could not start checkout, try again',
+                )
+              }
+            >
+              Upgrade monthly
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() =>
+                void go(
+                  () => deps.startCheckout('year'),
+                  'Could not start checkout, try again',
+                )
+              }
+            >
+              Upgrade yearly
+            </button>
+          </div>
+        ) : null}
         {billing && user.plan === 'pro' ? (
-          <button type="button" onClick={() => void manageBilling()}>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() =>
+              void go(deps.openPortal, 'Could not open billing, try again')
+            }
+          >
             Manage billing
           </button>
         ) : null}
-      </p>
-      {error ? <p className="settings-error">{error}</p> : null}
-
-      <div className="settings-api-key">
-        <h3>MCP API key</h3>
-        <div className="settings-api-key-actions">
-          <button type="button" onClick={() => void generateKey()}>
-            Generate key
-          </button>
-          <button type="button" onClick={() => void revokeKey()}>
-            Revoke
-          </button>
-        </div>
-        {apiKey ? (
-          <div className="settings-api-key-reveal">
-            <code>{apiKey}</code>
-            <button type="button" onClick={() => void copyKey()}>
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-            <p className="settings-warning">
-              This key is shown once. Copy it now, it will not be shown again.
-            </p>
-          </div>
-        ) : null}
-        {usage ? (
-          <p className="settings-usage">
-            {usage.count} / {usage.limit} calls this month
-          </p>
-        ) : null}
-      </div>
-
-      <button
-        type="button"
-        className="settings-delete-account"
-        onClick={() => void deleteAccount()}
-      >
-        Delete account
-      </button>
-    </section>
+      </section>
+      <section className="settings-card">
+        <h2>Danger zone</h2>
+        <button
+          type="button"
+          className="button-secondary button-danger"
+          onClick={() => void deleteAccount()}
+        >
+          Delete account
+        </button>
+      </section>
+    </>
   )
 }

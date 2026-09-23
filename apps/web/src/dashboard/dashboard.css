@@ -343,88 +343,43 @@
   }
 }
 
-.settings {
-  padding-top: var(--spacing-24);
-  border-top: 1px solid var(--color-border);
-}
-
-.settings h2 {
-  margin: 0 0 var(--spacing-16);
-  font-size: 18px;
-}
-
-.settings-plan {
+.settings-card {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-8);
-}
-
-.settings-plan button {
-  padding: var(--spacing-4) var(--spacing-8);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+  max-width: 640px;
+  padding: var(--spacing-24);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  cursor: pointer;
 }
 
-.settings-error {
-  color: var(--color-danger);
+.settings-card h2 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  line-height: 20px;
 }
 
-.settings-api-key {
-  margin: var(--spacing-16) 0;
+.settings-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 20px;
 }
 
-.settings-api-key h3 {
-  margin: 0 0 var(--spacing-8);
-  font-size: 14px;
-}
-
-.settings-api-key-actions {
-  display: flex;
-  gap: var(--spacing-8);
-}
-
-.settings-api-key-actions button {
-  padding: var(--spacing-4) var(--spacing-8);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  cursor: pointer;
-}
-
-.settings-api-key-reveal {
+.settings-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: var(--spacing-8);
-  margin-top: var(--spacing-8);
 }
 
-.settings-api-key-reveal code {
-  padding: var(--spacing-4) var(--spacing-8);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-alt);
+.button-danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
-.settings-warning {
-  flex-basis: 100%;
+.dashboard-main .error {
   margin: 0;
   color: var(--color-danger);
-  font-size: 12px;
-}
-
-.settings-usage {
-  margin-top: var(--spacing-8);
-  color: var(--color-ink-secondary);
-}
-
-.settings-delete-account {
-  margin-top: var(--spacing-24);
-  padding: var(--spacing-4) var(--spacing-8);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-danger);
-  cursor: pointer;
 }

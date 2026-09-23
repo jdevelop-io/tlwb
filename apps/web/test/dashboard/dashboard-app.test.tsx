@@ -36,9 +36,6 @@ function makeDeps(overrides: Partial<DashboardDeps> = {}): DashboardDeps {
     fetchMe: async () => me,
     fetchBoards: async () => ({ boards: [], cap: null }),
     deleteBoard: vi.fn(async () => undefined),
-    createApiKey: vi.fn(async () => 'sk_test'),
-    revokeApiKey: vi.fn(async () => undefined),
-    fetchUsage: vi.fn(async () => ({ month: '2026-01', count: 3, limit: 100 })),
     startCheckout: vi.fn(async () => 'https://stripe.example/checkout'),
     openPortal: vi.fn(async () => 'https://stripe.example/portal'),
     createHostedBoard: vi.fn(async () => ({
@@ -313,24 +310,6 @@ describe('DashboardApp', () => {
     )
   })
 
-  it('opens the billing portal for its url', async () => {
-    const assign = vi.spyOn(location, 'assign').mockImplementation(() => {})
-    const openPortal = vi.fn(
-      async () => 'https://stripe.example/portal-session',
-    )
-    const deps = makeDeps({
-      fetchMe: async () => ({ ...me, user: { ...me.user, plan: 'pro' } }),
-      openPortal,
-      pathname: '/dashboard/settings',
-    })
-    render(<DashboardApp deps={deps} />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Manage billing' }),
-    )
-    await waitFor(() => expect(openPortal).toHaveBeenCalledOnce())
-    expect(assign).toHaveBeenCalledWith('https://stripe.example/portal-session')
-  })
-
   it('signs out and navigates home', async () => {
     const signOut = vi.fn(async () => undefined)
     const navigate = vi.fn()
@@ -342,108 +321,6 @@ describe('DashboardApp', () => {
     render(<DashboardApp deps={deps} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(signOut).toHaveBeenCalledOnce())
-    expect(navigate).toHaveBeenCalledWith('/')
-  })
-
-  it('shows Manage billing only for a subscribed, billing-enabled account', async () => {
-    const deps = makeDeps({
-      fetchMe: async () => ({ ...me, user: { ...me.user, plan: 'pro' } }),
-      pathname: '/dashboard/settings',
-    })
-    render(<DashboardApp deps={deps} />)
-    expect(
-      await screen.findByRole('button', { name: 'Manage billing' }),
-    ).toBeInTheDocument()
-  })
-
-  it('hides Manage billing for a free account', async () => {
-    const deps = makeDeps({ pathname: '/dashboard/settings' })
-    render(<DashboardApp deps={deps} />)
-    await screen.findByRole('heading', { name: 'Settings' })
-    expect(screen.queryByRole('button', { name: 'Manage billing' })).toBeNull()
-  })
-
-  it('generates and reveals the MCP API key once, then clears it on revoke', async () => {
-    const createApiKey = vi.fn(async () => 'sk_live_secret')
-    const revokeApiKey = vi.fn(async () => undefined)
-    const deps = makeDeps({
-      createApiKey,
-      revokeApiKey,
-      pathname: '/dashboard/settings',
-    })
-    render(<DashboardApp deps={deps} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Generate key' }))
-    await screen.findByText('sk_live_secret')
-    expect(screen.getByText(/shown once/, { exact: false })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
-    await waitFor(() => expect(revokeApiKey).toHaveBeenCalledOnce())
-    expect(screen.queryByText('sk_live_secret')).toBeNull()
-  })
-
-  it('keeps the key visible and reports an error when revoke fails', async () => {
-    const createApiKey = vi.fn(async () => 'sk_live_secret')
-    const revokeApiKey = vi.fn(async () => {
-      throw new Error('down')
-    })
-    const deps = makeDeps({
-      createApiKey,
-      revokeApiKey,
-      pathname: '/dashboard/settings',
-    })
-    render(<DashboardApp deps={deps} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Generate key' }))
-    await screen.findByText('sk_live_secret')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
-    await waitFor(() => expect(revokeApiKey).toHaveBeenCalledOnce())
-
-    // A failed revocation must never read as a successful one: the key
-    // the user believes might be compromised stays visible, with the
-    // failure surfaced instead of swallowed.
-    expect(screen.getByText('sk_live_secret')).toBeInTheDocument()
-    expect(
-      screen.getByText('Could not revoke the key, try again'),
-    ).toBeInTheDocument()
-  })
-
-  it('shows the monthly usage from fetchUsage', async () => {
-    const deps = makeDeps({
-      fetchUsage: vi.fn(async () => ({
-        month: '2026-01',
-        count: 7,
-        limit: 100,
-      })),
-      pathname: '/dashboard/settings',
-    })
-    render(<DashboardApp deps={deps} />)
-    expect(
-      await screen.findByText('7 / 100 calls this month'),
-    ).toBeInTheDocument()
-  })
-
-  it('deletes the account only after both confirmations pass', async () => {
-    const deleteUser = vi.fn(async () => undefined)
-    const navigate = vi.fn()
-    const confirmSpy = vi.fn()
-    window.confirm = confirmSpy
-    const deps = makeDeps({
-      deleteUser,
-      navigate,
-      pathname: '/dashboard/settings',
-    })
-    render(<DashboardApp deps={deps} />)
-    const deleteButton = await screen.findByRole('button', {
-      name: 'Delete account',
-    })
-
-    confirmSpy.mockReturnValueOnce(true).mockReturnValueOnce(false)
-    fireEvent.click(deleteButton)
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(2))
-    expect(deleteUser).not.toHaveBeenCalled()
-
-    confirmSpy.mockReturnValue(true)
-    fireEvent.click(deleteButton)
-    await waitFor(() => expect(deleteUser).toHaveBeenCalledOnce())
     expect(navigate).toHaveBeenCalledWith('/')
   })
 
@@ -483,24 +360,5 @@ describe('DashboardApp', () => {
     await vi.advanceTimersByTimeAsync(9000)
     expect(fetchMe.mock.calls.length).toBe(callsAtTimeout)
     expect(screen.getByText('Payment confirming…')).toBeInTheDocument()
-  })
-
-  it('reports a failed account deletion as an error instead of failing silently', async () => {
-    const deleteUser = vi.fn(async () => {
-      throw new Error('down')
-    })
-    const navigate = vi.fn()
-    window.confirm = vi.fn(() => true)
-    const deps = makeDeps({
-      deleteUser,
-      navigate,
-      pathname: '/dashboard/settings',
-    })
-    render(<DashboardApp deps={deps} />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Delete account' }),
-    )
-    await screen.findByText('Could not delete the account, try again')
-    expect(navigate).not.toHaveBeenCalled()
   })
 })

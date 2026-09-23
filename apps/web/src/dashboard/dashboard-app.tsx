@@ -8,15 +8,12 @@ import {
   ServerError,
 } from '../board/session/server'
 import {
-  createApiKey,
   type DashboardBoard,
   deleteBoard,
   fetchBoards,
   fetchMe,
-  fetchUsage,
   type MeResponse,
   openPortal,
-  revokeApiKey,
   startCheckout,
 } from './api'
 import { BoardsView } from './boards-view'
@@ -31,9 +28,6 @@ export interface DashboardDeps {
   fetchMe: typeof fetchMe
   fetchBoards: typeof fetchBoards
   deleteBoard: typeof deleteBoard
-  createApiKey: typeof createApiKey
-  revokeApiKey: typeof revokeApiKey
-  fetchUsage: typeof fetchUsage
   startCheckout: typeof startCheckout
   openPortal: typeof openPortal
   createHostedBoard: typeof defaultCreateHostedBoard
@@ -48,9 +42,6 @@ const defaultDeps: DashboardDeps = {
   fetchMe,
   fetchBoards,
   deleteBoard,
-  createApiKey,
-  revokeApiKey,
-  fetchUsage,
   startCheckout,
   openPortal,
   createHostedBoard: defaultCreateHostedBoard,
