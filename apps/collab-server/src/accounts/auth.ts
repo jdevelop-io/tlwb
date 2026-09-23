@@ -6,6 +6,12 @@ import * as schema from '../db/schema'
 
 export type Auth = ReturnType<typeof betterAuth>
 
+/** Columns added to Better Auth's `user` table; the schema test reads them too. */
+export const additionalUserFields = {
+  plan: { type: 'string', defaultValue: 'free', input: false },
+  stripeCustomerId: { type: 'string', required: false, input: false },
+} as const
+
 export interface AuthDeps {
   db: Db
   config: Config
@@ -56,10 +62,7 @@ export function createAuth(deps: AuthDeps): Auth | null {
       },
     },
     user: {
-      additionalFields: {
-        plan: { type: 'string', defaultValue: 'free', input: false },
-        stripeCustomerId: { type: 'string', required: false, input: false },
-      },
+      additionalFields: additionalUserFields,
       deleteUser: {
         enabled: true,
         beforeDelete: async (user: { id: string }) => {
