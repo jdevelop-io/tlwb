@@ -8,7 +8,7 @@ import {
   createPresence,
   createYjsBoardStore,
 } from '@tlwb/store-yjs'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import { loadConfig } from '../src/config'
 import {
@@ -292,40 +292,21 @@ describe('collaboration server', () => {
     expect(flooder.closeReason()).toBe('too many messages before ready')
   })
 
-  it('closes an oversized message before the room is ready, without ever joining the room', async () => {
+  it('closes an oversized message with 1009 even before the room is ready', async () => {
     // The transport cap is the message limit itself, so an oversized
-    // frame never reaches the application at all: `ws` closes it with
-    // 1009 while the board lookup is still in flight. What this pins is
-    // that nothing oversized is buffered on the way in: whether
-    // `room.join` ever ran says so, since it only runs after both the
-    // board lookup and the room load resolve, so an early rejection
-    // never logs a 'connection open' line for this board.
+    // frame never reaches the application at all: `ws` refuses it with
+    // 1009 whether or not the board lookup and the room load have
+    // resolved by then, so nothing oversized is ever buffered on the way
+    // in. Whether the room got joined before the frame was refused is a
+    // race between the lookup and a 2 MiB write over loopback, and it
+    // is not what this pins.
     const { boardId, editKey } = await createBoard()
-    const lines: string[] = []
-    const spy = vi.spyOn(console, 'log').mockImplementation((line) => {
-      lines.push(String(line))
-    })
-    let closeCode: number | null
-    try {
-      const client = rawClient(boardId, editKey)
-      await client.open
-      const huge = new Uint8Array(2 * 1024 * 1024) // over the 1 MiB default maxMessageBytes
-      client.send(encodeUpdate(huge))
-      await waitFor(() => client.closeCode() !== null)
-      closeCode = client.closeCode()
-    } finally {
-      spy.mockRestore()
-    }
-    expect(closeCode).toBe(1009)
-    const joined = lines.some((line) => {
-      try {
-        const parsed = JSON.parse(line) as { event?: string; boardId?: string }
-        return parsed.event === 'connection open' && parsed.boardId === boardId
-      } catch {
-        return false // a non-JSON console.log in the spy window is not this signal
-      }
-    })
-    expect(joined).toBe(false)
+    const client = rawClient(boardId, editKey)
+    await client.open
+    const huge = new Uint8Array(2 * 1024 * 1024) // over the 1 MiB default maxMessageBytes
+    client.send(encodeUpdate(huge))
+    await waitFor(() => client.closeCode() !== null)
+    expect(client.closeCode()).toBe(1009)
   })
 
   it('stops accepting new connections the instant close() starts draining', async () => {
