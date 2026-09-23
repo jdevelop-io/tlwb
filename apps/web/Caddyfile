@@ -1,3 +1,15 @@
+# Behind a front proxy on the same host or Docker network (the usual
+# TLS-terminating setup), the visitor's address arrives in
+# X-Forwarded-For; a private-range peer is the only kind that could be
+# such a proxy, so only those are trusted. Each proxied request then
+# forwards exactly one address, the resolved client, since the server
+# reads the last entry of that header when TRUST_PROXY is set.
+{
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
 :8080 {
 	root * /srv
 	encode gzip
@@ -5,17 +17,23 @@
 	@api path /api/*
 	handle @api {
 		uri strip_prefix /api
-		reverse_proxy collab-server:3000
+		reverse_proxy collab-server:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	@ws path /ws/*
 	handle @ws {
-		reverse_proxy collab-server:3000
+		reverse_proxy collab-server:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	@mcp path /mcp /mcp/
 	handle @mcp {
-		reverse_proxy collab-server:3000
+		reverse_proxy collab-server:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# Hashed asset filenames change whenever their content does, so a

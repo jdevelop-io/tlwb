@@ -48,10 +48,15 @@ pnpm test
 ## Running the product
 
 ```bash
-docker compose up --build
+docker compose pull
+docker compose up -d
 ```
 
-Then open `http://localhost:8080`. For development, run Postgres and
+Then open `http://localhost:8080`. The images are published to the
+GitHub Container Registry from every green commit on `main`, as
+`ghcr.io/jdevelop-io/tlwb-web` and `ghcr.io/jdevelop-io/tlwb-collab-server`,
+tagged `latest` and `sha-<commit>`. To run your own changes instead,
+build locally with `docker compose up --build`. For development, run Postgres and
 the server (`docker compose up -d postgres`, then
 `DATABASE_URL=postgres://tlwb:tlwb@localhost:5432/tlwb CORS_ORIGIN=http://localhost:5173 pnpm --filter @tlwb/collab-server dev`)
 and the web application (`pnpm --filter @tlwb/web dev`) on
