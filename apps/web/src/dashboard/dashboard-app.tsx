@@ -7,17 +7,23 @@ import {
   createHostedBoard as defaultCreateHostedBoard,
   ServerError,
 } from '../board/session/server'
+import { AgentsView } from './agents-view'
 import {
+  type ApiKeySummary,
+  createApiKey,
   type DashboardBoard,
   deleteBoard,
+  fetchApiKeys,
   fetchBoards,
   fetchMe,
   type MeResponse,
   openPortal,
+  revokeApiKey,
   startCheckout,
 } from './api'
 import { BoardsView } from './boards-view'
 import './dashboard.css'
+import { NewTokenDialog } from './new-token-dialog'
 import { Settings } from './settings'
 import { Sidebar } from './sidebar'
 
@@ -31,6 +37,9 @@ export interface DashboardDeps {
   startCheckout: typeof startCheckout
   openPortal: typeof openPortal
   createHostedBoard: typeof defaultCreateHostedBoard
+  fetchApiKeys: typeof fetchApiKeys
+  createApiKey: typeof createApiKey
+  revokeApiKey: typeof revokeApiKey
   signOut: () => Promise<unknown>
   deleteUser: () => Promise<unknown>
   navigate: (path: string) => void
@@ -45,6 +54,9 @@ const defaultDeps: DashboardDeps = {
   startCheckout,
   openPortal,
   createHostedBoard: defaultCreateHostedBoard,
+  fetchApiKeys,
+  createApiKey,
+  revokeApiKey,
   signOut: () => authClient.signOut(),
   deleteUser: () => authClient.deleteUser(),
   navigate: (path: string) => location.assign(path),
@@ -67,6 +79,9 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
   const [capMessage, setCapMessage] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([])
+  const [newTokenOpen, setNewTokenOpen] = useState(false)
+  const view = viewFor(deps.pathname ?? location.pathname)
 
   useEffect(() => {
     let cancelled = false
@@ -147,6 +162,22 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
     return () => clearTimeout(timer)
   }, [toast])
 
+  const refreshKeys = async (): Promise<void> => {
+    try {
+      setApiKeys(await deps.fetchApiKeys())
+    } catch {
+      // Keep whatever list is already on screen; the agents view stays usable.
+    }
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKeys is redefined every render, only its call needs to react to view/deps
+  useEffect(() => {
+    if (view !== 'agents') {
+      return
+    }
+    void refreshKeys()
+  }, [view, deps])
+
   const createBoard = async (): Promise<void> => {
     setCapMessage(false)
     try {
@@ -192,11 +223,18 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
     }
   }
 
+  const revoke = async (id: string): Promise<void> => {
+    try {
+      await deps.revokeApiKey(id)
+      setApiKeys((current) => current.filter((key) => key.id !== id))
+    } catch {
+      setToast('Could not revoke the token, try again')
+    }
+  }
+
   if (!me) {
     return null
   }
-
-  const view = viewFor(deps.pathname ?? location.pathname)
 
   return (
     <div className="dashboard">
@@ -220,7 +258,14 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
             onDelete={(id) => void deleteBoardById(id)}
             onUpgrade={() => void upgrade('month')}
           />
-        ) : view === 'agents' ? null : (
+        ) : view === 'agents' ? (
+          <AgentsView
+            keys={apiKeys}
+            boards={boards}
+            onRevoke={(id) => void revoke(id)}
+            onOpenNewToken={() => setNewTokenOpen(true)}
+          />
+        ) : (
           <Settings
             user={me.user}
             billing={me.billing}
@@ -229,6 +274,16 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
           />
         )}
       </main>
+      <NewTokenDialog
+        open={newTokenOpen}
+        boards={boards}
+        createApiKey={deps.createApiKey}
+        fetchApiKeys={deps.fetchApiKeys}
+        onClose={() => {
+          setNewTokenOpen(false)
+          void refreshKeys()
+        }}
+      />
       {toast ? (
         <Notice kind="toast" onClose={() => setToast(null)}>
           {toast}

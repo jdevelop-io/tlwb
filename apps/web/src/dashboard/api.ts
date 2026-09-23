@@ -55,21 +55,46 @@ export async function deleteBoard(
   }
 }
 
-export async function createApiKey(
+export interface ApiKeySummary {
+  id: string
+  name: string
+  boardIds: string[] | null
+  createdAt: string
+  lastUsedAt: string | null
+}
+
+export async function fetchApiKeys(
   fetchFn: typeof fetch = fetch,
-): Promise<string> {
-  const response = await fetchFn('/api/me/api-key', { method: 'POST' })
+): Promise<ApiKeySummary[]> {
+  const response = await fetchFn('/api/me/api-keys')
+  if (!response.ok) {
+    throw new ServerError(response.status)
+  }
+  return ((await response.json()) as { keys: ApiKeySummary[] }).keys
+}
+
+export async function createApiKey(
+  input: { name: string; boardIds: string[] | null },
+  fetchFn: typeof fetch = fetch,
+): Promise<{ id: string; key: string }> {
+  const response = await fetchFn('/api/me/api-keys', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input.boardIds ? input : { name: input.name }),
+  })
   if (response.status !== 201) {
     throw new ServerError(response.status)
   }
-  const body = (await response.json()) as { key: string }
-  return body.key
+  return (await response.json()) as { id: string; key: string }
 }
 
 export async function revokeApiKey(
+  id: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<void> {
-  const response = await fetchFn('/api/me/api-key', { method: 'DELETE' })
+  const response = await fetchFn(`/api/me/api-keys/${id}`, {
+    method: 'DELETE',
+  })
   if (response.status !== 204) {
     throw new ServerError(response.status)
   }

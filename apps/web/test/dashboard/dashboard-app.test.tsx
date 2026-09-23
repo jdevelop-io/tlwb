@@ -43,6 +43,9 @@ function makeDeps(overrides: Partial<DashboardDeps> = {}): DashboardDeps {
       editKey: 'e',
       viewKey: 'v',
     })),
+    fetchApiKeys: vi.fn(async () => []),
+    createApiKey: vi.fn(async () => ({ id: 'k', key: 'tlwb_x' })),
+    revokeApiKey: vi.fn(async () => undefined),
     signOut: vi.fn(async () => undefined),
     deleteUser: vi.fn(async () => undefined),
     navigate: vi.fn(),
@@ -301,12 +304,89 @@ describe('DashboardApp', () => {
     expect(screen.queryByText('You have reached your board limit.')).toBeNull()
   })
 
-  it('renders the agents view on its route', async () => {
-    const deps = makeDeps({ pathname: '/dashboard/agents' })
+  it('renders the agents view on its route, loading its tokens', async () => {
+    const fetchApiKeys = vi.fn(async () => [
+      {
+        id: 'k1',
+        name: 'Claude · laptop',
+        boardIds: null,
+        createdAt: '2026-09-01T00:00:00Z',
+        lastUsedAt: null,
+      },
+    ])
+    const deps = makeDeps({ pathname: '/dashboard/agents', fetchApiKeys })
     render(<DashboardApp deps={deps} />)
     expect(await screen.findByRole('link', { name: 'Agents' })).toHaveAttribute(
       'aria-current',
       'page',
+    )
+    expect(await screen.findByText('Claude · laptop')).toBeInTheDocument()
+    expect(fetchApiKeys).toHaveBeenCalled()
+  })
+
+  it('revokes a token and drops it from the list', async () => {
+    const revokeApiKey = vi.fn(async () => undefined)
+    const deps = makeDeps({
+      pathname: '/dashboard/agents',
+      revokeApiKey,
+      fetchApiKeys: vi.fn(async () => [
+        {
+          id: 'k1',
+          name: 'Claude · laptop',
+          boardIds: null,
+          createdAt: '2026-09-01T00:00:00Z',
+          lastUsedAt: null,
+        },
+      ]),
+    })
+    render(<DashboardApp deps={deps} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke' }))
+    await waitFor(() => expect(revokeApiKey).toHaveBeenCalledWith('k1'))
+    await waitFor(() =>
+      expect(screen.queryByText('Claude · laptop')).toBeNull(),
+    )
+  })
+
+  it('toasts when revoking a token fails, without removing it', async () => {
+    const revokeApiKey = vi.fn(async () => {
+      throw new Error('nope')
+    })
+    const deps = makeDeps({
+      pathname: '/dashboard/agents',
+      revokeApiKey,
+      fetchApiKeys: vi.fn(async () => [
+        {
+          id: 'k1',
+          name: 'Claude · laptop',
+          boardIds: null,
+          createdAt: '2026-09-01T00:00:00Z',
+          lastUsedAt: null,
+        },
+      ]),
+    })
+    render(<DashboardApp deps={deps} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke' }))
+    expect(
+      await screen.findByText('Could not revoke the token, try again'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Claude · laptop')).toBeInTheDocument()
+  })
+
+  it('opens the new token dialog and refreshes the list once it closes', async () => {
+    const fetchApiKeys = vi.fn(async () => [])
+    const deps = makeDeps({ pathname: '/dashboard/agents', fetchApiKeys })
+    render(<DashboardApp deps={deps} />)
+    const newTokenButtons = await screen.findAllByRole('button', {
+      name: 'New token',
+    })
+    fireEvent.click(newTokenButtons[0] as HTMLElement)
+    expect(
+      screen.getByRole('heading', { name: 'New token' }),
+    ).toBeInTheDocument()
+    const callsBeforeClose = fetchApiKeys.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(fetchApiKeys.mock.calls.length).toBeGreaterThan(callsBeforeClose),
     )
   })
 
