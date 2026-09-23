@@ -12,7 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useEditorState } from '../hooks/use-editor-state'
 import './context-panel.css'
 import { FILL_COLORS, STROKE_COLORS } from '../session/palette'
@@ -24,15 +24,21 @@ const WIDTH_SAMPLE_HEIGHT: Record<number, string> = {
   4: '4px',
 }
 const STYLES: StrokeStyle[] = ['solid', 'dashed']
-const SKETCHINESS = [0, 1, 2]
-const FONT_SIZES = [16, 20, 28]
-const FONT_SIZE_LABELS: Record<number, string> = { 16: 'S', 20: 'M', 28: 'L' }
+const FONT_SIZES = [16, 20, 28, 36]
+const FONT_SIZE_LABELS: Record<number, string> = {
+  16: 'S',
+  20: 'M',
+  28: 'L',
+  36: 'XL',
+}
 const ALIGNS: Array<{ value: TextAlign; Icon: typeof AlignLeft }> = [
   { value: 'left', Icon: AlignLeft },
   { value: 'center', Icon: AlignCenter },
   { value: 'right', Icon: AlignRight },
 ]
 const DEFAULT_TEXT_ALIGN: TextAlign = 'left'
+const DEFAULT_SKETCHINESS = 1
+const SKETCHINESS_MAX = 2
 
 function BringToFrontIcon() {
   return (
@@ -146,7 +152,7 @@ export function ContextPanel(props: { editor: Editor; store: BoardStore }) {
     fillColor: first ? first.fillColor : FILL_COLORS[0],
     strokeWidth: first?.strokeWidth ?? WIDTHS[1],
     strokeStyle: first?.strokeStyle ?? STYLES[0],
-    sketchiness: first?.sketchiness ?? SKETCHINESS[1],
+    sketchiness: first?.sketchiness ?? DEFAULT_SKETCHINESS,
     fontSize: first?.type === 'text' ? first.fontSize : FONT_SIZES[1],
     textAlign: first?.type === 'text' ? first.textAlign : DEFAULT_TEXT_ALIGN,
   }
@@ -224,9 +230,14 @@ export function ContextPanel(props: { editor: Editor; store: BoardStore }) {
           className="slider"
           aria-label="Sketchiness"
           min={0}
-          max={2}
+          max={SKETCHINESS_MAX}
           step={1}
           value={current.sketchiness}
+          style={
+            {
+              '--fill': `${(current.sketchiness / SKETCHINESS_MAX) * 100}%`,
+            } as CSSProperties
+          }
           onChange={(event) =>
             patch({ sketchiness: Number(event.target.value) })
           }
@@ -259,7 +270,7 @@ export function ContextPanel(props: { editor: Editor; store: BoardStore }) {
         </>
       ) : null}
       {selected.length > 0 ? (
-        <fieldset className="section" aria-label="Order">
+        <fieldset className="section">
           <legend className="section-label">Order</legend>
           <div className="z-order">
             <button
