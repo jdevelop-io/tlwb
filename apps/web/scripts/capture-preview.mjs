@@ -12,11 +12,11 @@ const OUT = fileURLToPath(
   new URL('../public/editor-preview.png', import.meta.url),
 )
 
-// Open Graph aspect ratio, captured at 2x for retina hero rendering.
-const VIEWPORT = { width: 1200, height: 630 }
+// Matches the hero preview frame's displayed size (apps/web/index.html).
+const VIEWPORT = { width: 1120, height: 699 }
 
 const browser = await chromium.launch()
-const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 2 })
+const page = await browser.newPage({ viewport: VIEWPORT })
 await page.goto(`${BASE_URL}/b/new`)
 await page.getByRole('radio', { name: 'Select (1)' }).waitFor()
 // Tool shortcuts only reach a focused canvas.
@@ -47,25 +47,27 @@ async function arrow(from, to) {
 }
 
 // Scene: two humans and an agent converging on one board. The left
-// 220px stay clear: the style panel sits there whenever a tool is active.
-await box(240, 250, 180, 90, 'You')
-await box(520, 220, 220, 150, 'The board')
-await box(840, 250, 190, 90, 'Claude Code')
-await drag('4', { x: 530, y: 480 }, { x: 730, y: 570 })
-await label({ x: 630, y: 525 }, 'Your team')
+// 280px stay clear: the context panel (stroke, fill, width, ...) sits
+// there whenever a drawing tool is active, wide enough to swallow a
+// click meant for the canvas underneath.
+await box(300, 250, 180, 90, 'You')
+await box(580, 220, 220, 150, 'The board')
+await box(900, 250, 190, 90, 'Claude Code')
+await drag('4', { x: 590, y: 480 }, { x: 790, y: 570 })
+await label({ x: 690, y: 525 }, 'Your team')
 
-await arrow({ x: 425, y: 295 }, { x: 515, y: 295 })
-await arrow({ x: 835, y: 295 }, { x: 745, y: 295 })
-await arrow({ x: 630, y: 475 }, { x: 630, y: 375 })
+await arrow({ x: 485, y: 295 }, { x: 575, y: 295 })
+await arrow({ x: 895, y: 295 }, { x: 805, y: 295 })
+await arrow({ x: 690, y: 475 }, { x: 690, y: 375 })
 
-await label({ x: 790, y: 265 }, 'MCP')
-await label({ x: 470, y: 265 }, 'a link')
+await label({ x: 850, y: 265 }, 'MCP')
+await label({ x: 530, y: 265 }, 'a link')
 
 // Freehand underline under the board.
 await page.keyboard.press('8')
-await page.mouse.move(530, 395)
+await page.mouse.move(590, 395)
 await page.mouse.down()
-for (let x = 530; x <= 730; x += 10) {
+for (let x = 590; x <= 790; x += 10) {
   await page.mouse.move(x, 395 + Math.sin(x / 14) * 2, { steps: 2 })
 }
 await page.mouse.up()
@@ -113,7 +115,7 @@ await page.evaluate(() => {
       id: 'agent',
       name: 'Claude',
       color: '#8b7cf6',
-      cursor: { x: 705, y: 310 },
+      cursor: { x: 765, y: 310 },
       selectedIds: [],
       isAgent: true,
     },
@@ -121,7 +123,7 @@ await page.evaluate(() => {
       id: 'ana',
       name: 'Ana',
       color: '#2b8a3e',
-      cursor: { x: 575, y: 530 },
+      cursor: { x: 635, y: 530 },
       selectedIds: [],
       isAgent: false,
     },
@@ -132,8 +134,8 @@ await page.evaluate(() => {
 // Deselect and nudge the pointer so the overlay repaints with the peers.
 await page.keyboard.press('1')
 await page.keyboard.press('Escape')
-await page.mouse.click(1100, 600)
-await page.mouse.move(1150, 610)
+await page.mouse.click(1010, 650)
+await page.mouse.move(1040, 660)
 await page.waitForTimeout(300)
 
 await page.screenshot({ path: OUT })
