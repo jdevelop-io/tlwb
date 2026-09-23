@@ -40,8 +40,16 @@ export function createMcpApp(
       let caller: Caller = { kind: 'anonymous', ip }
       if (bearer?.startsWith(API_KEY_PREFIX)) {
         const keyed = await resolveApiKey(deps.db, bearer)
+        // keyId is not part of Caller: nothing downstream of here needs
+        // the token's own id, only what it identifies and scopes.
         caller = keyed
-          ? { kind: 'keyed', ip, ...keyed }
+          ? {
+              kind: 'keyed',
+              ip,
+              userId: keyed.userId,
+              plan: keyed.plan,
+              boardIds: keyed.boardIds,
+            }
           : { kind: 'invalid', ip }
       }
       if (

@@ -952,4 +952,49 @@ describe('keyed callers', () => {
       expect(result.isError).toBeFalsy()
     }
   })
+
+  it('refuses a board outside the token scope and accepts one inside', async () => {
+    const userId = await seedUser()
+    const app = httpApp()
+
+    async function createBoard() {
+      const created = await toolResult(
+        await app.request(mcpRequest({ name: 'create_board', arguments: {} })),
+      )
+      return JSON.parse((created.content[0] as { text: string }).text) as {
+        boardId: string
+        editUrl: string
+      }
+    }
+    const inside = await createBoard()
+    const outside = await createBoard()
+
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: [inside.boardId],
+    })
+
+    const denied = await toolResult(
+      await app.request(
+        mcpRequest(
+          { name: 'read_board', arguments: { board: outside.editUrl } },
+          { bearer: key },
+        ),
+      ),
+    )
+    expect(denied.isError).toBe(true)
+    expect((denied.content[0] as { text: string }).text).toBe(
+      `this token is not allowed on board ${outside.boardId}`,
+    )
+
+    const allowed = await toolResult(
+      await app.request(
+        mcpRequest(
+          { name: 'read_board', arguments: { board: inside.editUrl } },
+          { bearer: key },
+        ),
+      ),
+    )
+    expect(allowed.isError).toBeFalsy()
+  })
 })
