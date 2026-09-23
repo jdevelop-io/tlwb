@@ -15,6 +15,8 @@ function pageRoutes(): Plugin {
   const pages: Record<string, string> = {
     '/login': '/login.html',
     '/dashboard': '/dashboard.html',
+    '/privacy': '/privacy.html',
+    '/terms': '/terms.html',
   }
   const rewrite = (server: ViteDevServer | PreviewServer): void => {
     server.middlewares.use((req, _res, next) => {
@@ -59,6 +61,8 @@ export default defineConfig({
         board: resolve(__dirname, 'board.html'),
         login: resolve(__dirname, 'login.html'),
         dashboard: resolve(__dirname, 'dashboard.html'),
+        privacy: resolve(__dirname, 'privacy.html'),
+        terms: resolve(__dirname, 'terms.html'),
       },
     },
   },
