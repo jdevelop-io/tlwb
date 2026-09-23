@@ -3,7 +3,7 @@
   margin: 0;
   padding: 0;
   border: 0;
-  outline: 1px dashed var(--accent);
+  outline: 1px dashed var(--color-accent);
   background: transparent;
   resize: none;
   overflow: hidden;

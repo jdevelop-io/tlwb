@@ -62,24 +62,6 @@
   --shadow-lg: 0 8px 32px #1a1a1a1f;
   --overlay: #1a1a1a59;
   --swatch-border: #1a1a1a38;
-
-  /* Legacy aliases, removed once every stylesheet uses Paper names. */
-  --paper: var(--color-surface-alt);
-  --surface: var(--color-surface);
-  --border: var(--color-border);
-  --ink: var(--color-ink);
-  --muted: var(--color-ink-secondary);
-  --accent: var(--color-accent);
-  --accent-soft: var(--color-accent-soft);
-  --agent: var(--color-agent);
-  --danger: var(--color-danger);
-  --radius: var(--radius-md);
-  --shadow: var(--shadow-md);
-  --space-1: var(--spacing-4);
-  --space-2: var(--spacing-8);
-  --space-3: var(--spacing-16);
-  --space-4: var(--spacing-24);
-  --space-5: 40px;
 }
 
 *,

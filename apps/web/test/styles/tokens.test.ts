@@ -61,4 +61,8 @@ describe('tokens.css', () => {
     expect(css).not.toContain('#8B7CF6')
     expect(css).not.toContain('#ffe1d9')
   })
+
+  it('defines no legacy alias', () => {
+    expect(css).not.toMatch(/--(paper|muted|space-1):/)
+  })
 })
