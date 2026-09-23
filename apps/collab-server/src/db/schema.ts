@@ -171,9 +171,13 @@ export const apiKeys = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     keyHash: bytea('key_hash').notNull(),
+    name: text('name').notNull().default(''),
+    /** Null means every board the user owns; otherwise the allowed ids. */
+    boardIds: text('board_ids').array(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
   },
   // `resolveApiKey` filters on this for every keyed MCP call.

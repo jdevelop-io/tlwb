@@ -6,7 +6,7 @@ import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import Stripe from 'stripe'
 import { z } from 'zod'
-import { issueApiKey, revokeApiKey } from './accounts/api-keys'
+import { issueApiKey, listApiKeys, revokeApiKey } from './accounts/api-keys'
 import { type Auth, createAuth, sessionUser } from './accounts/auth'
 import { accountCleanup } from './accounts/cleanup'
 import { monthOf, readUsage } from './accounts/quota'
@@ -313,21 +313,53 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     })
   })
 
-  app.post('/me/api-key', async (c) => {
+  app.get('/me/api-keys', async (c) => {
     const user = await sessionUser(auth, c.req.raw.headers)
     if (!user) {
       return c.json({ error: 'sign in required' }, 401)
     }
-    return c.json({ key: await issueApiKey(db, user.id) }, 201)
+    return c.json({ keys: await listApiKeys(db, user.id) })
   })
 
-  app.delete('/me/api-key', async (c) => {
+  app.post('/me/api-keys', async (c) => {
     const user = await sessionUser(auth, c.req.raw.headers)
     if (!user) {
       return c.json({ error: 'sign in required' }, 401)
     }
-    await revokeApiKey(db, user.id)
-    return c.body(null, 204)
+    const body = (await c.req.json().catch(() => null)) as {
+      name?: unknown
+      boardIds?: unknown
+    } | null
+    const name = typeof body?.name === 'string' ? body.name.trim() : ''
+    if (name.length === 0 || name.length > 80) {
+      return c.json({ error: 'name must be 1 to 80 characters' }, 400)
+    }
+    let boardIds: string[] | null = null
+    if (body?.boardIds !== undefined) {
+      if (
+        !Array.isArray(body.boardIds) ||
+        !body.boardIds.every((id) => typeof id === 'string')
+      ) {
+        return c.json({ error: 'boardIds must be a list of board ids' }, 400)
+      }
+      const owned = new Set(
+        (await listOwnedBoards(db, user.id)).map((board) => board.id),
+      )
+      if (!body.boardIds.every((id) => owned.has(id))) {
+        return c.json({ error: 'boardIds must name boards you own' }, 400)
+      }
+      boardIds = body.boardIds
+    }
+    return c.json(await issueApiKey(db, user.id, { name, boardIds }), 201)
+  })
+
+  app.delete('/me/api-keys/:id', async (c) => {
+    const user = await sessionUser(auth, c.req.raw.headers)
+    if (!user) {
+      return c.json({ error: 'sign in required' }, 401)
+    }
+    const revoked = await revokeApiKey(db, user.id, c.req.param('id'))
+    return revoked ? c.body(null, 204) : c.json({ error: 'no such token' }, 404)
   })
 
   app.get('/me/usage', async (c) => {

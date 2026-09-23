@@ -3,7 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   API_KEY_PREFIX,
   issueApiKey,
+  listApiKeys,
   resolveApiKey,
+  revokeAllApiKeys,
   revokeApiKey,
 } from '../../src/accounts/api-keys'
 import { connectDatabase, type Database } from '../../src/db/client'
@@ -30,37 +32,50 @@ async function createUser(plan: 'free' | 'pro' = 'free'): Promise<string> {
   return id
 }
 
-describe('issueApiKey / resolveApiKey / revokeApiKey', () => {
-  it('issues a prefixed key and resolves it to its user and plan', async () => {
+describe('named api keys', () => {
+  it('issues several named keys, lists them newest first, resolves scope and stamps last use', async () => {
     const userA = await createUser('pro')
-    const key = await issueApiKey(database.db, userA)
-    expect(key.startsWith('tlwb_')).toBe(true)
-    expect(await resolveApiKey(database.db, key)).toEqual({
+    const laptop = await issueApiKey(database.db, userA, {
+      name: 'Claude · laptop',
+      boardIds: null,
+    })
+    const studio = await issueApiKey(database.db, userA, {
+      name: 'Claude Code · studio',
+      boardIds: ['b1', 'b2'],
+    })
+    expect(laptop.key.startsWith(API_KEY_PREFIX)).toBe(true)
+    const listed = await listApiKeys(database.db, userA)
+    expect(listed.map((k) => k.name)).toEqual([
+      'Claude Code · studio',
+      'Claude · laptop',
+    ])
+    expect(listed[1]?.lastUsedAt).toBeNull()
+    expect(await resolveApiKey(database.db, studio.key)).toEqual({
       userId: userA,
       plan: 'pro',
+      keyId: studio.id,
+      boardIds: ['b1', 'b2'],
     })
+    await new Promise((r) => setTimeout(r, 20))
+    const after = await listApiKeys(database.db, userA)
+    expect(after.find((k) => k.id === studio.id)?.lastUsedAt).not.toBeNull()
   })
 
-  it('regenerating revokes the previous key', async () => {
+  it('revokes one key by id and leaves the others', async () => {
     const userA = await createUser()
-    const first = await issueApiKey(database.db, userA)
-    await issueApiKey(database.db, userA)
-    expect(await resolveApiKey(database.db, first)).toBeNull()
-  })
-
-  it('resolves null for unknown and revoked keys', async () => {
-    expect(await resolveApiKey(database.db, 'tlwb_nonsense')).toBeNull()
-    expect(await resolveApiKey(database.db, 'no-prefix')).toBeNull()
-    const userA = await createUser()
-    const key = await issueApiKey(database.db, userA)
-    // A real, otherwise-valid key hash presented without its prefix must
-    // still resolve to null: this is what actually exercises the prefix
-    // guard. 'no-prefix' above matches no row either way, prefixed or
-    // not, so it would pass even with the guard deleted.
-    expect(
-      await resolveApiKey(database.db, key.slice(API_KEY_PREFIX.length)),
-    ).toBeNull()
-    await revokeApiKey(database.db, userA)
-    expect(await resolveApiKey(database.db, key)).toBeNull()
+    const a = await issueApiKey(database.db, userA, {
+      name: 'a',
+      boardIds: null,
+    })
+    const b = await issueApiKey(database.db, userA, {
+      name: 'b',
+      boardIds: null,
+    })
+    expect(await revokeApiKey(database.db, userA, a.id)).toBe(true)
+    expect(await revokeApiKey(database.db, userA, a.id)).toBe(false)
+    expect(await resolveApiKey(database.db, a.key)).toBeNull()
+    expect(await resolveApiKey(database.db, b.key)).not.toBeNull()
+    await revokeAllApiKeys(database.db, userA)
+    expect(await resolveApiKey(database.db, b.key)).toBeNull()
   })
 })

@@ -788,7 +788,10 @@ describe('keyed callers', () => {
 
   it('a valid API key spends the quota and an exhausted one errors', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ MCP_QUOTA_FREE: '1' })
 
     const first = await toolResult(
@@ -827,7 +830,10 @@ describe('keyed callers', () => {
 
   it('a keyed call marks the board as agent-touched', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp()
 
     const created = await toolResult(
@@ -857,7 +863,10 @@ describe('keyed callers', () => {
 
   it('skips the per-IP limiter that would otherwise block a second call', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ MCP_LIMIT_PER_MIN: '1' })
 
     const first = await app.request(
@@ -872,7 +881,10 @@ describe('keyed callers', () => {
 
   it('is not bounded by the board-creation limiter, unlike an anonymous caller', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ CREATE_LIMIT_PER_MIN: '1' })
 
     const first = await toolResult(
@@ -891,7 +903,10 @@ describe('keyed callers', () => {
 
   it('owns every board it creates and is bounded by the free cap', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ FREE_BOARD_CAP: '1' })
 
     const first = await toolResult(
@@ -922,7 +937,10 @@ describe('keyed callers', () => {
 
   it('lets a pro-plan keyed caller create past the free cap', async () => {
     const userId = await seedUser('pro')
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ FREE_BOARD_CAP: '1' })
 
     for (let i = 0; i < 2; i += 1) {
