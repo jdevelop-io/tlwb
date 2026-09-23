@@ -1,10 +1,11 @@
 .top-bar {
   position: absolute;
-  top: var(--space-3);
-  left: var(--space-3);
+  top: 16px;
+  left: 16px;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 12px;
+  height: 48px;
   /*
    * The toolbar sits at the same height, centred, and is about 446px
    * wide, so it starts at 50vw - 223px: below roughly 1064px of
@@ -14,20 +15,19 @@
    * name, which takes what is left.
    */
   max-width: calc(50vw - 247px);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  padding-inline: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
   z-index: 10;
 }
 
-.logo {
-  border: 0;
-  background: none;
-  font: 700 22px var(--font-hand);
-  color: var(--accent);
-  text-decoration: none;
+.top-bar-divider {
+  flex: none;
+  width: 1px;
+  height: 22px;
+  background: var(--color-border);
 }
 
 .menu-toggle {
@@ -38,14 +38,14 @@
   height: 20px;
   padding: 0;
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: none;
-  color: var(--muted);
+  color: var(--color-ink-secondary);
   cursor: pointer;
 }
 
 .menu-toggle:hover {
-  background: var(--paper);
+  background: var(--color-surface-alt);
 }
 
 .board-menu {
@@ -53,31 +53,31 @@
   top: 44px;
   left: 0;
   min-width: 220px;
-  padding: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  padding: var(--spacing-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
 }
 
 .board-menu a {
   display: block;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius);
+  padding: var(--spacing-4) var(--spacing-8);
+  border-radius: var(--radius-md);
   color: inherit;
   text-decoration: none;
 }
 
 .board-menu a:hover {
-  background: var(--paper);
+  background: var(--color-surface-alt);
 }
 
 .board-menu button {
   display: block;
   width: 100%;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--spacing-4) var(--spacing-8);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: none;
   color: inherit;
   font: inherit;
@@ -86,42 +86,59 @@
 }
 
 .board-menu button:hover:not(:disabled) {
-  background: var(--paper);
+  background: var(--color-surface-alt);
 }
 
 .board-menu button:disabled {
-  color: var(--muted);
+  color: var(--color-ink-secondary);
   cursor: default;
 }
 
 .board-menu ul {
-  margin: var(--space-1) 0;
+  margin: var(--spacing-4) 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .board-menu small {
-  color: var(--muted);
+  color: var(--color-ink-secondary);
 }
 
 .board-name {
-  width: 180px;
   min-width: 0;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius);
+  width: 160px;
+  padding: 0;
+  border: 0;
   background: none;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 20px;
 }
 
 .board-name:focus {
-  border-color: var(--border);
-  outline: none;
+  outline: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rename {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink-secondary);
+  cursor: pointer;
 }
 
 .indicator {
-  font-size: 12px;
-  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-ink-secondary);
+  font-size: var(--text-xs);
+  line-height: 16px;
 }

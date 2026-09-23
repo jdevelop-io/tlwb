@@ -1,17 +1,26 @@
 .toolbar {
   position: absolute;
-  top: var(--space-3);
+  top: 16px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: var(--space-1);
+  align-items: center;
+  gap: 2px;
   margin: 0;
-  padding: var(--space-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
   z-index: 10;
+}
+
+.toolbar-divider {
+  flex: none;
+  width: 1px;
+  height: 22px;
+  margin-inline: 4px;
+  background: var(--color-border);
 }
 
 .tool {
@@ -20,7 +29,8 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
+  color: var(--color-ink);
   cursor: pointer;
 }
 
@@ -33,14 +43,21 @@
 }
 
 .tool:has(input:checked) {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 .tool kbd {
   position: absolute;
-  right: 3px;
-  bottom: 1px;
+  right: 4px;
+  bottom: 2px;
+  font-family: var(--font-ui);
   font-size: 9px;
-  color: var(--muted);
+  font-weight: var(--font-weight-medium);
+  line-height: 10px;
+  color: var(--color-ink-secondary);
+}
+
+.tool:has(input:checked) kbd {
+  color: var(--color-accent);
 }

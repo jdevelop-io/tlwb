@@ -4,6 +4,7 @@ import type { Me } from '../../auth/client'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
 import { BoardMenu } from './board-menu'
+import { Logotype } from './logotype'
 import './top-bar.css'
 
 function useBoardName(session: BoardSession): string {
@@ -30,6 +31,7 @@ export function TopBar(props: { session: BoardSession; me: Me | null }) {
   const [draft, setDraft] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const cancelledRef = useRef(false)
 
   const commit = (): void => {
@@ -66,9 +68,7 @@ export function TopBar(props: { session: BoardSession; me: Me | null }) {
 
   return (
     <header className="top-bar">
-      <a href={me ? '/dashboard' : '/'} className="logo">
-        tlwb
-      </a>
+      <Logotype size="editor" href={me ? '/dashboard' : '/'} />
       <button
         ref={menuButtonRef}
         type="button"
@@ -86,7 +86,9 @@ export function TopBar(props: { session: BoardSession; me: Me | null }) {
           hosted={snapshot.role !== 'local'}
         />
       ) : null}
+      <span className="top-bar-divider" aria-hidden="true" />
       <input
+        ref={nameInputRef}
         className="board-name"
         aria-label="Board name"
         value={draft ?? name}
@@ -103,7 +105,38 @@ export function TopBar(props: { session: BoardSession; me: Me | null }) {
           }
         }}
       />
-      <span className="indicator">{indicator}</span>
+      <button
+        type="button"
+        className="rename"
+        aria-label="Rename board"
+        onClick={() => nameInputRef.current?.focus()}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      <span className="indicator">
+        {indicator === 'Saved' || indicator === 'Synced' ? (
+          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M4 12.5 L 9.5 18 L 20 6.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : null}
+        <span>{indicator}</span>
+      </span>
     </header>
   )
 }

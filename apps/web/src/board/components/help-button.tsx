@@ -1,4 +1,3 @@
-import { CircleHelp } from 'lucide-react'
 import { useState } from 'react'
 import { useModalDialog } from '../hooks/use-modal-dialog'
 
@@ -23,7 +22,7 @@ export function HelpButton() {
         aria-label="Help"
         onClick={() => setOpen(true)}
       >
-        <CircleHelp size={18} />
+        ?
       </button>
       <dialog ref={ref} className="share-dialog" onClose={() => setOpen(false)}>
         <h2>Shortcuts</h2>

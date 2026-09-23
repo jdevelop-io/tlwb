@@ -1,16 +1,12 @@
 .presence-stack {
   position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
+  top: 16px;
+  right: 16px;
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  max-width: calc(100vw - var(--space-4) * 2);
-  padding: var(--space-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  gap: 12px;
+  height: 48px;
+  max-width: calc(100vw - 32px);
   z-index: 10;
 }
 
@@ -26,35 +22,47 @@
 .presence-avatars {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
   min-width: 0;
+  padding: 2px;
   overflow: auto hidden;
 }
 
 .avatar {
+  position: relative;
   flex: none;
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--surface);
-  border-radius: 50%;
-  color: var(--surface);
-  font-size: 12px;
-  font-weight: 600;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: -8px;
+  border: 2px solid var(--ring, var(--color-ink-secondary));
+  border-radius: var(--radius-full);
+  background: var(--color-surface-alt);
+  box-shadow: 0 0 0 2px var(--color-surface);
+  color: var(--color-ink);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
+}
+
+.avatar:first-child {
+  margin-left: 0;
 }
 
 .avatar-agent {
-  outline: 2px solid var(--agent);
+  border-color: var(--color-agent);
+  background: var(--color-agent-soft);
 }
 
-.presence-stack .share {
-  flex: none;
-  margin-left: var(--space-1);
-  padding: var(--space-1) var(--space-3);
-  border: 0;
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: var(--surface);
-  font-weight: 500;
-  cursor: pointer;
+.avatar-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--color-surface);
+  border-radius: var(--radius-full);
+  background: var(--color-agent);
 }

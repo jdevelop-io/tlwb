@@ -1,5 +1,4 @@
 import type { Editor } from '@tlwb/engine'
-import { MoreHorizontal } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { download, duplicateBoard, removeBoard } from '../session/board-actions'
 import type { BoardSession } from '../session/board-session'
@@ -58,7 +57,11 @@ export function OverflowMenu(props: { session: BoardSession; editor: Editor }) {
         aria-expanded={open}
         onClick={() => setOpen((next) => !next)}
       >
-        <MoreHorizontal size={18} />
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.6" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+          <circle cx="19" cy="12" r="1.6" fill="currentColor" />
+        </svg>
       </button>
       {open ? (
         <menu>
