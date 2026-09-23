@@ -218,7 +218,7 @@
 .open-source h2 {
   margin: 0;
   font: var(--font-weight-semibold) 48px / 52px var(--font-hand);
-  color: #ffffff;
+  color: var(--color-surface);
 }
 
 .open-source-line {
