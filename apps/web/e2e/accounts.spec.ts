@@ -50,7 +50,15 @@ test('adopt, dashboard, cap', async ({
   await page.getByRole('button', { name: 'Create link' }).click()
   await expect(page).toHaveURL(/\/b\/[A-Za-z0-9_-]{22}$/)
   const boardId1 = boardIdFrom(page.url())
-  await page.getByRole('button', { name: 'Close' }).click()
+  // Scoped to the open dialog: the editor's own help/shortcuts dialog
+  // (mounted, closed) shares the "Close" accessible name with this one,
+  // which is a pre-existing collision unrelated to the dashboard rework
+  // below -- a bare getByRole('button', { name: 'Close' }) is a
+  // strict-mode violation here.
+  await page
+    .locator('.share-dialog[open]')
+    .getByRole('button', { name: 'Close' })
+    .click()
 
   // 2. Seed a session only now, so the board above really was created
   // anonymously rather than picking up an owner at creation time.
@@ -76,26 +84,36 @@ test('adopt, dashboard, cap', async ({
     has: page.locator(`a[href="/b/${boardId1}"]`),
   })
   await expect(card1).toBeVisible()
-  await expect(card1.locator('.board-card-title')).toContainText('Untitled')
+  await expect(card1.locator('.card-name')).toContainText('Untitled')
   await expect(page.locator('.board-card')).toHaveCount(1)
-  await expect(page.locator('.dashboard-gauge')).toHaveText('1/2 boards')
+  // The board count now lives in the sidebar's plan line, not a
+  // dedicated gauge element.
+  await expect(page.locator('.account-plan')).toHaveText('Free · 1/2 boards')
 
   // 4. New board -> lands on /b/<id>; back on /dashboard the gauge and
   // grid both reflect the real count against the real cap.
-  await page.getByRole('button', { name: 'New board' }).click()
+  // Below the cap, the primary "New board" button in the header and the
+  // grid's ghost card both carry that accessible name, so the click is
+  // scoped to the header to avoid a strict-mode ambiguity.
+  await page
+    .locator('.main-header')
+    .getByRole('button', { name: 'New board' })
+    .click()
   await expect(page).toHaveURL(/\/b\/[A-Za-z0-9_-]{22}$/)
   const boardId2 = boardIdFrom(page.url())
   expect(boardId2).not.toBe(boardId1)
 
   await page.goto('/dashboard')
   await expect(page.locator('.board-card')).toHaveCount(2)
-  await expect(page.locator('.dashboard-gauge')).toHaveText('2/2 boards')
+  await expect(page.locator('.account-plan')).toHaveText('Free · 2/2 boards')
 
   // 5. New board again -> the cap is enforced server-side: the create
   // request is refused, the cap message appears, and no third card is
-  // added to the grid.
+  // added to the grid. At the cap, the grid's ghost card switches to the
+  // disabled "Board limit reached" state, so the header button is the
+  // only "New board" left and needs no extra scoping.
   await page.getByRole('button', { name: 'New board' }).click()
-  await expect(page.locator('.dashboard-cap-message')).toContainText(
+  await expect(page.locator('.quota-banner')).toContainText(
     'You have reached your board limit.',
   )
   await expect(page).toHaveURL(/\/dashboard$/)
