@@ -31,4 +31,13 @@ describe('ContextPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Bring to front' }))
     expect(editor.execute).toHaveBeenCalledWith({ kind: 'bring-to-front' })
   })
+
+  it('exposes sketchiness as a slider and marks the selected swatch', () => {
+    const editor = fakeEditor({ activeTool: 'rectangle' })
+    render(<ContextPanel editor={editor} store={new InMemoryBoardStore()} />)
+    const slider = screen.getByRole('slider', { name: 'Sketchiness' })
+    fireEvent.change(slider, { target: { value: '2' } })
+    expect(editor.setDefaults).toHaveBeenCalledWith({ sketchiness: 2 })
+    expect(screen.getByRole('radio', { name: 'Stroke #1A1A1A' })).toBeChecked()
+  })
 })
