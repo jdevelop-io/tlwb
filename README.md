@@ -5,6 +5,9 @@
 
 The little whiteboard: instant, collaborative, agent-friendly.
 
+Try it at [tlwb.io](https://tlwb.io), no account required. Or run your
+own instance, see [Running the product](#running-the-product).
+
 Monorepo packages:
 
 - `packages/engine`: framework-agnostic whiteboard engine, data layer,
