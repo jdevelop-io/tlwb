@@ -64,7 +64,8 @@ the server (`docker compose up -d postgres`, then
 `DATABASE_URL=postgres://tlwb:tlwb@localhost:5432/tlwb CORS_ORIGIN=http://localhost:5173 pnpm --filter @tlwb/collab-server dev`)
 and the web application (`pnpm --filter @tlwb/web dev`) on
 `http://localhost:5173`; the Vite server proxies `/api` and `/ws` to
-the collaboration server.
+the collaboration server. The self-hosted product is anonymous by design: no accounts, no sign-in,
+nothing to configure beyond the variables in `apps/collab-server/README.md`.
 
 ### Letting an agent draw
 
