@@ -16,6 +16,7 @@ import {
   fetchApiKeys,
   fetchBoards,
   fetchMe,
+  fetchUsage,
   type MeResponse,
   openPortal,
   revokeApiKey,
@@ -38,6 +39,7 @@ export interface DashboardDeps {
   openPortal: typeof openPortal
   createHostedBoard: typeof defaultCreateHostedBoard
   fetchApiKeys: typeof fetchApiKeys
+  fetchUsage: typeof fetchUsage
   createApiKey: typeof createApiKey
   revokeApiKey: typeof revokeApiKey
   signOut: () => Promise<unknown>
@@ -55,6 +57,7 @@ const defaultDeps: DashboardDeps = {
   openPortal,
   createHostedBoard: defaultCreateHostedBoard,
   fetchApiKeys,
+  fetchUsage,
   createApiKey,
   revokeApiKey,
   signOut: () => authClient.signOut(),
@@ -80,6 +83,10 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
   const [confirming, setConfirming] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([])
+  const [usage, setUsage] = useState<{
+    count: number
+    limit: number
+  } | null>(null)
   const [newTokenOpen, setNewTokenOpen] = useState(false)
   const view = viewFor(deps.pathname ?? location.pathname)
 
@@ -170,12 +177,21 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
     }
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKeys is redefined every render, only its call needs to react to view/deps
+  const refreshUsage = async (): Promise<void> => {
+    try {
+      setUsage(await deps.fetchUsage())
+    } catch {
+      // Informational only; the agents view stays usable without it.
+    }
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKeys/refreshUsage are redefined every render, only their call needs to react to view/deps
   useEffect(() => {
     if (view !== 'agents') {
       return
     }
     void refreshKeys()
+    void refreshUsage()
   }, [view, deps])
 
   const createBoard = async (): Promise<void> => {
@@ -261,7 +277,7 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
         ) : view === 'agents' ? (
           <AgentsView
             keys={apiKeys}
-            boards={boards}
+            usage={usage}
             onRevoke={(id) => void revoke(id)}
             onOpenNewToken={() => setNewTokenOpen(true)}
           />

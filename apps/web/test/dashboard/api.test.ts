@@ -6,6 +6,7 @@ import {
   fetchApiKeys,
   fetchBoards,
   fetchMe,
+  fetchUsage,
   revokeApiKey,
   startCheckout,
 } from '../../src/dashboard/api'
@@ -87,6 +88,11 @@ describe('dashboard api', () => {
       },
     ]
     expect(await fetchApiKeys(respond(200, { keys }))).toEqual(keys)
+  })
+
+  it('returns the month, count and limit from fetchUsage', async () => {
+    const usage = { month: '2026-09', count: 12, limit: 200 }
+    expect(await fetchUsage(respond(200, usage))).toEqual(usage)
   })
 
   it('resolves on a successful revokeApiKey', async () => {

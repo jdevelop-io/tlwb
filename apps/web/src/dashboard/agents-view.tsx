@@ -1,5 +1,5 @@
 import { AgentIcon } from '../board/components/agent-icon'
-import type { ApiKeySummary, DashboardBoard } from './api'
+import type { ApiKeySummary } from './api'
 import { relativeTime } from './relative-time'
 
 const KeyIcon = () => (
@@ -46,7 +46,7 @@ function activity(lastUsedAt: string | null, now: number): string {
 
 export function AgentsView(props: {
   keys: ApiKeySummary[]
-  boards: DashboardBoard[]
+  usage: { count: number; limit: number } | null
   onRevoke: (id: string) => void
   onOpenNewToken: () => void
   now?: number
@@ -120,6 +120,11 @@ export function AgentsView(props: {
       <p className="caption">
         Revoking a token disconnects its agent immediately.
       </p>
+      {props.usage ? (
+        <p className="caption">
+          {props.usage.count} / {props.usage.limit} calls this month
+        </p>
+      ) : null}
     </>
   )
 }

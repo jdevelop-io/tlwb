@@ -26,7 +26,7 @@ describe('AgentsView', () => {
     render(
       <AgentsView
         keys={keys}
-        boards={[]}
+        usage={null}
         now={now}
         onRevoke={onRevoke}
         onOpenNewToken={() => undefined}
@@ -47,7 +47,7 @@ describe('AgentsView', () => {
     render(
       <AgentsView
         keys={[]}
-        boards={[]}
+        usage={null}
         onRevoke={() => undefined}
         onOpenNewToken={open}
       />,
@@ -55,5 +55,29 @@ describe('AgentsView', () => {
     for (const button of screen.getAllByRole('button', { name: 'New token' }))
       fireEvent.click(button)
     expect(open).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the monthly call usage when it is known', () => {
+    render(
+      <AgentsView
+        keys={[]}
+        usage={{ count: 12, limit: 200 }}
+        onRevoke={() => undefined}
+        onOpenNewToken={() => undefined}
+      />,
+    )
+    expect(screen.getByText('12 / 200 calls this month')).toBeInTheDocument()
+  })
+
+  it('shows no usage line when it is not known yet', () => {
+    render(
+      <AgentsView
+        keys={[]}
+        usage={null}
+        onRevoke={() => undefined}
+        onOpenNewToken={() => undefined}
+      />,
+    )
+    expect(screen.queryByText(/calls this month/)).toBeNull()
   })
 })

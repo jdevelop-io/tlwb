@@ -44,6 +44,11 @@ function makeDeps(overrides: Partial<DashboardDeps> = {}): DashboardDeps {
       viewKey: 'v',
     })),
     fetchApiKeys: vi.fn(async () => []),
+    fetchUsage: vi.fn(async () => ({
+      month: '2026-09',
+      count: 0,
+      limit: 200,
+    })),
     createApiKey: vi.fn(async () => ({ id: 'k', key: 'tlwb_x' })),
     revokeApiKey: vi.fn(async () => undefined),
     signOut: vi.fn(async () => undefined),
@@ -322,6 +327,20 @@ describe('DashboardApp', () => {
     )
     expect(await screen.findByText('Claude · laptop')).toBeInTheDocument()
     expect(fetchApiKeys).toHaveBeenCalled()
+  })
+
+  it('loads and shows the monthly usage on the agents view', async () => {
+    const fetchUsage = vi.fn(async () => ({
+      month: '2026-09',
+      count: 12,
+      limit: 200,
+    }))
+    const deps = makeDeps({ pathname: '/dashboard/agents', fetchUsage })
+    render(<DashboardApp deps={deps} />)
+    expect(
+      await screen.findByText('12 / 200 calls this month'),
+    ).toBeInTheDocument()
+    expect(fetchUsage).toHaveBeenCalled()
   })
 
   it('revokes a token and drops it from the list', async () => {

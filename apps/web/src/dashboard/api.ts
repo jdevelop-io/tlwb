@@ -100,6 +100,20 @@ export async function revokeApiKey(
   }
 }
 
+export async function fetchUsage(
+  fetchFn: typeof fetch = fetch,
+): Promise<{ month: string; count: number; limit: number }> {
+  const response = await fetchFn('/api/me/usage')
+  if (!response.ok) {
+    throw new ServerError(response.status)
+  }
+  return (await response.json()) as {
+    month: string
+    count: number
+    limit: number
+  }
+}
+
 export async function startCheckout(
   interval: 'month' | 'year',
   fetchFn: typeof fetch = fetch,
