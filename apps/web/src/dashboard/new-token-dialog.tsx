@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useModalDialog } from '../board/hooks/use-modal-dialog'
 import type { ApiKeySummary } from './api'
+import './dashboard.css'
 
 const POLL_MS = 3000
 

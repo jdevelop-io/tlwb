@@ -61,8 +61,16 @@ test('captures every screen for the Paper review gate', async ({
   await page.getByRole('button', { name: 'Share' }).click()
   await page.locator('.share-dialog[open]').waitFor()
   await page.screenshot({ path: 'test-results/visual/board-share.png' })
+
+  // The board's own "Connect an agent" path mounts the same
+  // NewTokenDialog as /dashboard/agents, but dashboard.css is only
+  // otherwise loaded from that screen's entry graph -- this is the
+  // capture that would have shown it rendering unstyled.
+  await page.getByRole('button', { name: 'Connect an agent' }).click()
+  await page.locator('.new-token[open]').waitFor()
+  await page.screenshot({ path: 'test-results/visual/board-new-token.png' })
   await page
-    .locator('.share-dialog[open]')
+    .locator('.new-token[open]')
     .getByRole('button', { name: 'Close' })
     .click()
 
