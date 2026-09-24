@@ -1,4 +1,4 @@
-import { listRecents, type RecentBoard } from '../board/session/recents'
+import type { RecentBoard } from '../board/session/recents'
 
 export function renderResume(
   container: HTMLElement,
@@ -21,9 +21,4 @@ export function renderResume(
     list.append(item)
   }
   container.append(heading, list)
-}
-
-const target = document.getElementById('resume')
-if (target) {
-  renderResume(target, listRecents())
 }

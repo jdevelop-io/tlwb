@@ -113,7 +113,7 @@ describe('OverflowMenu', () => {
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    session.store.setMeta({ name: 'Plan' })
+    session.store.setMeta({ name: 'Diagram' })
     const editor = fakeEditor()
     vi.mocked(editor.exportSvg).mockReturnValue('<svg>x</svg>')
     const realCreateElement = document.createElement.bind(document)
@@ -140,7 +140,7 @@ describe('OverflowMenu', () => {
     await vi.waitFor(() => expect(click).toHaveBeenCalledOnce())
     const anchor = captured.anchor
     if (!anchor) throw new Error('no anchor was created')
-    expect(anchor.download).toBe('Plan.svg')
+    expect(anchor.download).toBe('Diagram.svg')
     expect(anchor.href).toMatch(/^blob:/)
 
     vi.mocked(document.createElement).mockRestore()

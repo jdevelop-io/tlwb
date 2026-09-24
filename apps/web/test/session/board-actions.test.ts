@@ -41,7 +41,7 @@ describe('board actions', () => {
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    session.store.setMeta({ name: 'Plan' })
+    session.store.setMeta({ name: 'Diagram' })
     const hash = await session
       .assets()
       .put(new Blob([new Uint8Array([1])], { type: 'image/png' }))
@@ -60,7 +60,10 @@ describe('board actions', () => {
       identity,
     })
     if (copy === 'not-found') throw new Error('unexpected')
-    expect(copy.store.getMeta()).toEqual({ name: 'Plan copy', createdAt: 5 })
+    expect(copy.store.getMeta()).toEqual({
+      name: 'Diagram copy',
+      createdAt: 5,
+    })
     expect(copy.store.listElements()).toHaveLength(1)
     expect(await copy.assets().get(hash)).toBeDefined()
     expect(copy.store.canUndo()).toBe(false)
