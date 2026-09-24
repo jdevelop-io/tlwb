@@ -448,3 +448,10 @@ section it names.
   in the migration SQL by hand rather than through Drizzle's
   `references()`, so that drizzle-kit never tries to create or diff a
   `boards` table it does not own.
+- Sections 5 and 6: the public surfaces grow by what the private code
+  actually imports. Server: `connectDatabase` and `Database` (the
+  private test suite needs a migrated database), `renderPng`,
+  `exceedsPixelBudget`, `loadImages`, and `RenderOptions` (thumbnails
+  render through the MCP renderer). Web: `AgentIcon`, `Notice`,
+  `useModalDialog`, `ServerError`, `createHostedBoard`, `uploadAsset`,
+  `HostedBoard`, and `writeAlias` (the dashboard and adoption use them).

@@ -928,16 +928,20 @@ describe('public surface', () => {
         'boards',
         'claimBoard',
         'clientIp',
+        'connectDatabase',
         'countOwnedBoards',
         'createIpLimiter',
         'deleteBoardRows',
         'disownBoards',
+        'exceedsPixelBudget',
         'findBoard',
         'identify',
         'listOwnedBoards',
         'loadConfig',
+        'loadImages',
         'log',
         'readBoardStore',
+        'renderPng',
         'resolveRole',
         'startServer',
       ].sort(),
@@ -995,7 +999,7 @@ export {
   listOwnedBoards,
   type OwnedBoard,
 } from './db/boards'
-export type { Db } from './db/client'
+export { connectDatabase, type Database, type Db } from './db/client'
 export { boards } from './db/schema'
 export {
   type Env,
@@ -1008,6 +1012,12 @@ export {
 export { clientIp } from './http'
 export { type Role, resolveRole } from './keys'
 export { log } from './log'
+export {
+  exceedsPixelBudget,
+  loadImages,
+  type RenderOptions,
+  renderPng,
+} from './mcp/render'
 export { createIpLimiter, type IpLimiter } from './rate-limit'
 export type { RoomRegistry } from './rooms'
 export { type RunningServer, startServer } from './server'
@@ -1451,10 +1461,14 @@ describe('library surface', () => {
   it('exports what a deployment composes the editor with', () => {
     expect(Object.keys(api).sort()).toEqual(
       [
+        'AgentIcon',
         'BoardApp',
         'Logotype',
         'NotFound',
+        'Notice',
+        'ServerError',
         'clearKeys',
+        'createHostedBoard',
         'keysFromFragment',
         'listRecents',
         'loadIdentity',
@@ -1465,6 +1479,9 @@ describe('library surface', () => {
         'renderResume',
         'saveIdentity',
         'touchRecent',
+        'uploadAsset',
+        'useModalDialog',
+        'writeAlias',
         'writeKeys',
       ].sort(),
     )
@@ -1482,9 +1499,12 @@ Expected: FAIL, `../src/index` does not exist.
 `apps/web/src/index.ts`:
 
 ```ts
+export { AgentIcon } from './board/components/agent-icon'
 export { type AccountProps, BoardApp } from './board/components/board-app'
 export { Logotype } from './board/components/logotype'
 export { NotFound } from './board/components/not-found'
+export { Notice } from './board/components/notice'
+export { useModalDialog } from './board/hooks/use-modal-dialog'
 export {
   type BoardSession,
   type BoardSessionOptions,
@@ -1501,6 +1521,7 @@ export {
   readAlias,
   readKeys,
   type StoredKeys,
+  writeAlias,
   writeKeys,
 } from './board/session/keys'
 export {
@@ -1509,6 +1530,12 @@ export {
   removeRecent,
   touchRecent,
 } from './board/session/recents'
+export {
+  createHostedBoard,
+  type HostedBoard,
+  ServerError,
+  uploadAsset,
+} from './board/session/server'
 export { renderResume } from './landing/recents'
 ```
 
