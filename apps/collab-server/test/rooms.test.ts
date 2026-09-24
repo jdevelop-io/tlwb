@@ -146,7 +146,6 @@ describe('attachWebSocket against a failing registry', () => {
       db: database.db,
       config: config(),
       rooms,
-      auth: null,
     })
     const port = (server.address() as AddressInfo).port
 

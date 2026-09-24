@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { loadConfig } from '../src/config'
 import { findBoard } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
+import type { Extension } from '../src/extension'
 import { createApp, roleFor } from '../src/http'
 import { hashKey } from '../src/keys'
 import { createRooms } from '../src/rooms'
@@ -17,7 +19,11 @@ afterAll(async () => {
   await database.close()
 })
 
-function app(overrides: Record<string, string> = {}, now?: () => number) {
+function app(
+  overrides: Record<string, string> = {},
+  now?: () => number,
+  extension: Extension = {},
+) {
   const config = loadConfig({
     DATABASE_URL: url,
     CORS_ORIGIN: 'http://a',
@@ -28,6 +34,7 @@ function app(overrides: Record<string, string> = {}, now?: () => number) {
     config,
     rooms: createRooms({ db: database.db, config }),
     now,
+    extension,
   })
 }
 
@@ -145,18 +152,83 @@ describe('POST /boards', () => {
   })
 })
 
-describe('GET /auth/*', () => {
-  it('serves better-auth when configured and 404s when not', async () => {
-    const appWithAuth = app({
-      AUTH_SECRET: 'test-secret-at-least-32-characters!!',
-      GITHUB_CLIENT_ID: 'gid',
-      GITHUB_CLIENT_SECRET: 'gsec',
+describe('extension', () => {
+  it('ignores a session cookie when no extension identifies', async () => {
+    const response = await app().request(
+      new Request('http://server/boards', {
+        method: 'POST',
+        headers: { cookie: 'better-auth.session_token=stale' },
+      }),
+    )
+    expect(response.status).toBe(201)
+    const stored = await findBoard(database.db, (await response.json()).boardId)
+    expect(stored?.ownerId).toBeNull()
+  })
+
+  it('owns a created board by whoever identify answers', async () => {
+    const identified = app({}, undefined, {
+      identify: async (headers) =>
+        headers.get('x-who') ? { id: headers.get('x-who') as string } : null,
     })
-    const ok = await appWithAuth.request('/auth/ok')
-    expect(ok.status).toBe(200)
-    const appWithoutAuth = app()
-    const missing = await appWithoutAuth.request('/auth/ok')
-    expect(missing.status).toBe(404)
+    const response = await identified.request(
+      new Request('http://server/boards', {
+        method: 'POST',
+        headers: { 'x-who': 'p1' },
+      }),
+    )
+    expect(response.status).toBe(201)
+    const stored = await findBoard(database.db, (await response.json()).boardId)
+    expect(stored?.ownerId).toBe('p1')
+  })
+
+  it('refuses creation with 403 when canCreateBoard says no', async () => {
+    const capped = app({}, undefined, {
+      identify: async () => ({ id: 'p2' }),
+      canCreateBoard: async (id) => id !== 'p2',
+    })
+    const response = await capped.request(post())
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'board limit reached' })
+  })
+
+  it('mounts extra routes with the core context', async () => {
+    const mounted = app({ TRUST_PROXY: 'true' }, () => 0, {
+      mount: (hono, ctx) => {
+        const limiter = ctx.createIpLimiter(1)
+        hono.get('/whoami', (c) =>
+          limiter.take(ctx.clientIp(c))
+            ? c.json({ ip: ctx.clientIp(c), rooms: typeof ctx.rooms.acquire })
+            : c.json({ error: 'too many requests' }, 429),
+        )
+      },
+    })
+    const first = await mounted.request(
+      new Request('http://server/whoami', {
+        headers: { 'x-forwarded-for': '9.9.9.9' },
+      }),
+    )
+    expect(await first.json()).toEqual({ ip: '9.9.9.9', rooms: 'function' })
+    const second = await mounted.request(
+      new Request('http://server/whoami', {
+        headers: { 'x-forwarded-for': '9.9.9.9' },
+      }),
+    )
+    expect(second.status).toBe(429)
+  })
+
+  it('lets identify grant the owner edit on assets without a key', async () => {
+    const owner = app({}, undefined, { identify: async () => ({ id: 'p3' }) })
+    const created = await (await owner.request(post())).json()
+    const bytes = new Uint8Array([137, 80, 78, 71])
+    const hash = createHash('sha256').update(bytes).digest('hex')
+    const put = await owner.request(
+      new Request(`http://server/boards/${created.boardId}/assets/${hash}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'image/png' },
+        body: bytes,
+      }),
+    )
+    expect(put.status).toBe(201)
   })
 })
 

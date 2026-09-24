@@ -1,8 +1,8 @@
 import type { Server as HttpServer } from 'node:http'
 import { serve } from '@hono/node-server'
-import { createAuth } from './accounts/auth'
 import type { Config } from './config'
 import { connectDatabase } from './db/client'
+import type { Extension } from './extension'
 import { createApp } from './http'
 import { log } from './log'
 import { CLOSE } from './protocol'
@@ -14,11 +14,13 @@ export interface RunningServer {
   close(): Promise<void>
 }
 
-export async function startServer(config: Config): Promise<RunningServer> {
+export async function startServer(
+  config: Config,
+  extension: Extension = {},
+): Promise<RunningServer> {
   const database = await connectDatabase(config.databaseUrl)
   const rooms = createRooms({ db: database.db, config })
-  const auth = createAuth({ db: database.db, config })
-  const app = createApp({ db: database.db, config, rooms, auth })
+  const app = createApp({ db: database.db, config, rooms, extension })
 
   const { server, port } = await new Promise<{
     server: HttpServer
@@ -28,7 +30,12 @@ export async function startServer(config: Config): Promise<RunningServer> {
       resolve({ server: instance as HttpServer, port: info.port })
     })
   })
-  const wss = attachWebSocket(server, { db: database.db, config, rooms, auth })
+  const wss = attachWebSocket(server, {
+    db: database.db,
+    config,
+    rooms,
+    extension,
+  })
   log({ event: 'listening', port })
 
   return {
