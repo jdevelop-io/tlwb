@@ -55,7 +55,10 @@
 	}
 
 	handle {
-		try_files {path} {path}.html
+		# Any path that matches neither a static file nor an HTML page,
+		# including a page a previous deployment served, falls back to
+		# the landing page rather than a 404.
+		try_files {path} {path}.html /index.html
 		file_server
 	}
 }
