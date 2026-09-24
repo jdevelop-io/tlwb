@@ -42,7 +42,7 @@ async function drawRectangle(page: Page, x = 400, y = 300): Promise<void> {
 
 async function shareLink(
   page: Page,
-  role: 'Can edit' | 'View only',
+  role: 'Can edit' | 'Can view',
 ): Promise<string> {
   await page.getByRole('button', { name: 'Share' }).click()
   await page.getByRole('button', { name: 'Create link' }).click()
@@ -56,7 +56,9 @@ async function shareLink(
 
 test('a local board survives a reload', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('link', { name: 'Draw now' }).click()
+  // The pricing section's plan card carries a second "Draw now" link
+  // with the same accessible name; scope to the hero CTA.
+  await page.locator('.hero-cta').click()
   await expect(page).toHaveURL(/\/b\/[A-Za-z0-9_-]{21}$/)
   await page.getByRole('radio', { name: 'Select (1)' }).waitFor()
   await drawRectangle(page)
@@ -98,7 +100,7 @@ test('a view link shows the board and refuses to draw', async ({
 }) => {
   await page.goto('/b/new')
   await page.getByRole('radio', { name: 'Select (1)' }).waitFor()
-  const link = await shareLink(page, 'View only')
+  const link = await shareLink(page, 'Can view')
 
   const other = await browser.newContext()
   const viewer = await other.newPage()

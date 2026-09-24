@@ -39,7 +39,9 @@ test('adopt, dashboard, cap', async ({
   // 1. Anonymously: create a board and draw on it, with no session
   // cookie anywhere yet -- the board is created ownerless.
   await page.goto('/')
-  await page.getByRole('link', { name: 'Draw now' }).click()
+  // The pricing section's plan card carries a second "Draw now" link
+  // with the same accessible name; scope to the hero CTA.
+  await page.locator('.hero-cta').click()
   await page.getByRole('radio', { name: 'Select (1)' }).waitFor()
   await drawRectangle(page)
   await expect.poll(() => elementCount(page)).toBe(1)

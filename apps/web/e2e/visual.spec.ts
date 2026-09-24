@@ -84,4 +84,13 @@ test('captures every screen for the Paper review gate', async ({
     .click()
   await page.locator('.new-token[open]').waitFor()
   await page.screenshot({ path: 'test-results/visual/agents-new-token.png' })
+
+  // The post-creation state (the generated MCP config and the
+  // connection-test chip) carries the most Paper detail on this
+  // screen, so it gets its own capture alongside the pre-creation one.
+  await page.getByRole('button', { name: 'Create token' }).click()
+  await page.locator('.new-token[open] .snippet').waitFor()
+  await page.screenshot({
+    path: 'test-results/visual/agents-new-token-created.png',
+  })
 })
