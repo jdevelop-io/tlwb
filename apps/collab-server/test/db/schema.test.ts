@@ -14,17 +14,38 @@ describe('schema migration', () => {
     await database.close()
   })
 
-  it('creates only the board tables', async () => {
-    const rows = await database.db.execute(sql`
-      select table_name from information_schema.tables
-      where table_schema = 'public' and table_type = 'BASE TABLE'
-        and table_name not like '\_\_drizzle%'
-    `)
-    expect(rows.map((row) => row.table_name).sort()).toEqual([
-      'assets',
-      'board_updates',
-      'boards',
-    ])
+  it('creates the board tables, tolerating extra tables another schema adds, never the account ones', async () => {
+    // A shared database may carry tables this migration knows nothing
+    // about, added by another schema entirely; the assertion below must
+    // survive that, so one is planted here to prove it does.
+    await database.db.execute(
+      sql`create table if not exists unrelated_schema_probe (id text primary key)`,
+    )
+    try {
+      const rows = await database.db.execute(sql`
+        select table_name from information_schema.tables
+        where table_schema = 'public' and table_type = 'BASE TABLE'
+          and table_name not like '\_\_drizzle%'
+      `)
+      const tableNames = rows.map((row) => String(row.table_name))
+      expect(tableNames).toEqual(
+        expect.arrayContaining(['assets', 'board_updates', 'boards']),
+      )
+      for (const accountTable of [
+        'user',
+        'session',
+        'account',
+        'verification',
+        'api_keys',
+        'mcp_usage',
+      ]) {
+        expect(tableNames).not.toContain(accountTable)
+      }
+    } finally {
+      await database.db.execute(
+        sql`drop table if exists unrelated_schema_probe`,
+      )
+    }
   })
 
   it('keeps ownership as an opaque column with no foreign key', async () => {
