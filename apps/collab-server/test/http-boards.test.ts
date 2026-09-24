@@ -157,7 +157,7 @@ describe('extension', () => {
     const response = await app().request(
       new Request('http://server/boards', {
         method: 'POST',
-        headers: { cookie: 'better-auth.session_token=stale' },
+        headers: { cookie: 'session_token=stale' },
       }),
     )
     expect(response.status).toBe(201)

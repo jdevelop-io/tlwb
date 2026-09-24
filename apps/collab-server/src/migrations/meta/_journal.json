@@ -43,6 +43,13 @@
       "when": 1790266077578,
       "tag": "0005_drop-owner-fk-and-thumbnail",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790267680347,
+      "tag": "0006_drop-account-tables",
+      "breakpoints": true
     }
   ]
 }

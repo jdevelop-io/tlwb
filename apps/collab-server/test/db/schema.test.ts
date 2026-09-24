@@ -14,14 +14,17 @@ describe('schema migration', () => {
     await database.close()
   })
 
-  it('creates the accounts tables', async () => {
+  it('creates only the board tables', async () => {
     const rows = await database.db.execute(sql`
       select table_name from information_schema.tables
-      where table_name in
-        ('user', 'session', 'account', 'verification',
-         'api_keys', 'mcp_usage')
+      where table_schema = 'public' and table_type = 'BASE TABLE'
+        and table_name not like '\_\_drizzle%'
     `)
-    expect(rows.length).toBe(6)
+    expect(rows.map((row) => row.table_name).sort()).toEqual([
+      'assets',
+      'board_updates',
+      'boards',
+    ])
   })
 
   it('keeps ownership as an opaque column with no foreign key', async () => {

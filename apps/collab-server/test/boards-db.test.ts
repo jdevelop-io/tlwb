@@ -11,7 +11,7 @@ import {
   markShared,
 } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
-import { boards, user } from '../src/db/schema'
+import { boards } from '../src/db/schema'
 import { generateKey, hashKey } from '../src/keys'
 
 const url = process.env.DATABASE_URL as string
@@ -48,12 +48,9 @@ describe('boards', () => {
     const id = randomUUID()
     await createBoard(database.db, id, hashes())
     expect((await findBoard(database.db, id))?.ownerId).toBeNull()
+    // `ownerId` is an opaque column with no foreign key: whoever the
+    // extension's `identify` says a request is.
     const ownerId = randomUUID()
-    await database.db.insert(user).values({
-      id: ownerId,
-      name: 'Owner',
-      email: `${ownerId}@example.com`,
-    })
     await database.db.update(boards).set({ ownerId }).where(eq(boards.id, id))
     expect((await findBoard(database.db, id))?.ownerId).toBe(ownerId)
   })
