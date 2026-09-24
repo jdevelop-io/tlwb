@@ -54,12 +54,12 @@ export interface BoardSessionOptions {
   fresh: boolean
   identity: Identity
   /**
-   * A signed-in visitor: with no local key and no local copy of this
-   * board, still worth a keyless connection attempt, since the server
-   * grants the owner's session edit access with no key at all. Ignored
-   * whenever a key or a local copy already answers the question.
+   * Try a keyless connection when there is no local key and no local
+   * copy: a deployment that identifies visitors grants a board's owner
+   * edit access with no key at all. Ignored whenever a key or a local
+   * copy already answers the question. Off by default.
    */
-  signedIn?: boolean
+  keylessOwner?: boolean
   connect?: typeof connectBoard
   storage?: Storage
   now?: () => number
@@ -130,15 +130,15 @@ export async function openBoardSession(
 
   // Set once, only for the cold-start case below: no key and no local
   // copy either, so the only thing left to ask is the server, and only
-  // a signed-in visitor stands any chance of an owner's session
-  // granting them in. A share-link visitor still carries a key by this
-  // point, so this never applies to them.
+  // a visitor the deployment identifies stands any chance of an
+  // owner's session granting them in. A share-link visitor still
+  // carries a key by this point, so this never applies to them.
   let ownerConnect = false
 
   if (options.fresh) {
     store.setMeta({ name: 'Untitled', createdAt: now() })
   } else if (!keys && store.getMeta().createdAt === 0) {
-    if (!options.signedIn) {
+    if (!options.keylessOwner) {
       // Nothing stored here and no key to fetch it with.
       await persistence?.clear()
       return 'not-found'

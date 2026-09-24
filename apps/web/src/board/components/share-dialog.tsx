@@ -198,9 +198,10 @@ export function ShareDialog(props: {
               Connect an agent
             </button>
           ) : (
-            <a className="button-secondary" href="/login">
-              Connect an agent
-            </a>
+            <p className="caption share-agent-endpoint">
+              Point your agent at <code>{`${location.origin}/mcp`}</code> and
+              hand it this board's edit link.
+            </p>
           )}
         </>
       )}

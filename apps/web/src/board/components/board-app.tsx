@@ -1,9 +1,13 @@
 import type { Editor, PendingImage } from '@tlwb/engine'
 import { createEditor } from '@tlwb/engine'
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import type { Me } from '../../auth/client'
-import { createApiKey, fetchApiKeys } from '../../dashboard/api'
-import { NewTokenDialog } from '../../dashboard/new-token-dialog'
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useCloseCode } from '../hooks/use-close-code'
 import { usePeers } from '../hooks/use-peers'
 import { useSession } from '../hooks/use-session'
@@ -38,12 +42,26 @@ export function useEditor(): EditorContextValue {
   return value
 }
 
+/**
+ * What a deployment with accounts adds to the editor. Absent, the
+ * editor is the anonymous one: the wordmark goes home, the menu holds
+ * recents only, and the share dialog hands the agent the MCP endpoint.
+ */
+export interface AccountProps {
+  /** Where the wordmark links. */
+  homeHref: string
+  /** Extra entries rendered at the end of the board menu. */
+  menuItems?: ReactNode
+  /** Share dialog, "Connect an agent". */
+  onConnectAgent?: () => void
+}
+
 export function BoardApp(props: {
   session: BoardSession
   identity: Identity
-  me: Me | null
+  account?: AccountProps
 }) {
-  const { session, me } = props
+  const { session, account } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const pendingRef = useRef<PendingImage | null>(null)
@@ -51,7 +69,6 @@ export function BoardApp(props: {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [identity, setIdentity] = useState(props.identity)
   const [shareOpen, setShareOpen] = useState(false)
-  const [agentDialogOpen, setAgentDialogOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const snapshot = useSession(session)
   const peers = usePeers(session)
@@ -154,7 +171,7 @@ export function BoardApp(props: {
       />
       {editor ? (
         <EditorContext.Provider value={{ editor, session }}>
-          <TopBar session={session} me={me} />
+          <TopBar session={session} account={account} />
           <Toolbar
             editor={editor}
             onPickImage={() => fileRef.current?.click()}
@@ -177,29 +194,9 @@ export function BoardApp(props: {
             open={shareOpen}
             onClose={() => setShareOpen(false)}
             onConnectAgent={
-              me && snapshot.role !== 'local'
-                ? () => {
-                    setShareOpen(false)
-                    setAgentDialogOpen(true)
-                  }
-                : undefined
+              snapshot.role !== 'local' ? account?.onConnectAgent : undefined
             }
           />
-          {me && snapshot.role !== 'local' ? (
-            <NewTokenDialog
-              open={agentDialogOpen}
-              boards={[
-                {
-                  id: snapshot.boardId,
-                  name: session.store.getMeta().name || 'Untitled',
-                },
-              ]}
-              presetBoardId={snapshot.boardId}
-              createApiKey={createApiKey}
-              fetchApiKeys={fetchApiKeys}
-              onClose={() => setAgentDialogOpen(false)}
-            />
-          ) : null}
           <HelpButton />
           {editingId ? (
             <TextEditor

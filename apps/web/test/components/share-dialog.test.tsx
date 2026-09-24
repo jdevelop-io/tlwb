@@ -219,10 +219,9 @@ describe('ShareDialog, hosted', () => {
     expect(onConnectAgent).toHaveBeenCalled()
   })
 
-  it('sends a signed-out visitor to sign in to connect an agent', () => {
+  it('shows the MCP endpoint when no agent connection is wired', () => {
     renderHosted()
-    expect(
-      screen.getByRole('link', { name: 'Connect an agent' }),
-    ).toHaveAttribute('href', '/login')
+    expect(screen.queryByRole('link', { name: 'Connect an agent' })).toBeNull()
+    expect(screen.getByText(`${location.origin}/mcp`)).toBeInTheDocument()
   })
 })
