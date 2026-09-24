@@ -56,9 +56,7 @@ async function shareLink(
 
 test('a local board survives a reload', async ({ page }) => {
   await page.goto('/')
-  // The pricing section's plan card carries a second "Draw now" link
-  // with the same accessible name; scope to the hero CTA.
-  await page.locator('.hero-cta').click()
+  await page.getByRole('link', { name: 'Draw now' }).click()
   await expect(page).toHaveURL(/\/b\/[A-Za-z0-9_-]{21}$/)
   await page.getByRole('radio', { name: 'Select (1)' }).waitFor()
   await drawRectangle(page)

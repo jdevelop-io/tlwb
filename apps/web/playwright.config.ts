@@ -38,14 +38,6 @@ export default defineConfig({
         DATABASE_URL: databaseUrl,
         CORS_ORIGIN: 'http://localhost:5173',
         PORT: '3000',
-        // Accounts, seeded and OAuth-free: the e2e suite signs sessions
-        // in directly (see e2e/session-helper.ts) rather than driving a
-        // real OAuth redirect. The cap is set low so the free-tier
-        // journey can actually hit it within one short test.
-        AUTH_SECRET: 'e2e-secret-at-least-32-characters!!!',
-        GITHUB_CLIENT_ID: 'e2e',
-        GITHUB_CLIENT_SECRET: 'e2e',
-        FREE_BOARD_CAP: '2',
         // The default (10/min) is an anti-abuse budget sized for a real
         // client, not for several suites hosting boards concurrently
         // from the same loopback address across parallel workers; left

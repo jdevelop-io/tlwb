@@ -15,12 +15,22 @@ const markup = html
   .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
 
 describe('index.html', () => {
-  it('exposes the DOM hooks recents.ts depends on', () => {
+  it('exposes the resume hook and links nowhere the anonymous application does not serve', () => {
     const doc = new DOMParser().parseFromString(markup, 'text/html')
-
-    const sessionLink = doc.getElementById('session-link')
-    expect(sessionLink).toBeInstanceOf(HTMLAnchorElement)
-
     expect(doc.getElementById('resume')).not.toBeNull()
+    expect(doc.getElementById('session-link')).toBeNull()
+    const hrefs = Array.from(doc.querySelectorAll('a')).map((a) =>
+      a.getAttribute('href'),
+    )
+    for (const forbidden of [
+      '/login',
+      '/dashboard',
+      '/privacy',
+      '/terms',
+      '#pricing',
+    ]) {
+      expect(hrefs).not.toContain(forbidden)
+    }
+    expect(doc.getElementById('pricing')).toBeNull()
   })
 })

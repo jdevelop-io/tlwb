@@ -1,4 +1,3 @@
-import { fetchSession, type Me } from '../auth/client'
 import { listRecents, type RecentBoard } from '../board/session/recents'
 
 export function renderResume(
@@ -24,32 +23,7 @@ export function renderResume(
   container.append(heading, list)
 }
 
-/** Signed out (or no accounts on this deployment): links to sign in. */
-export function renderSession(
-  container: HTMLAnchorElement,
-  me: Me | null,
-): void {
-  if (me) {
-    container.href = '/dashboard'
-    container.textContent = 'Dashboard'
-  } else {
-    container.href = '/login'
-    container.textContent = 'Sign in'
-  }
-}
-
 const target = document.getElementById('resume')
 if (target) {
   renderResume(target, listRecents())
-}
-
-const sessionTarget = document.getElementById('session-link')
-if (sessionTarget instanceof HTMLAnchorElement) {
-  // A throttled check leaves the static "Sign in" markup standing
-  // rather than risk asserting a wrong state either way; the editor
-  // itself is the place that cannot afford to guess wrong (see
-  // `board/main.tsx`).
-  void fetchSession()
-    .then((me) => renderSession(sessionTarget, me))
-    .catch(() => undefined)
 }

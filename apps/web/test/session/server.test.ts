@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createHostedBoard,
   fetchAsset,
-  requestAdoption,
   ServerError,
   socketUrl,
   uploadAsset,
@@ -69,37 +68,6 @@ describe('server client', () => {
     const blob = await fetchAsset('b', 'h', 'v', found)
     expect(blob?.type).toBe('image/png')
     expect(await fetchAsset('b', 'h', 'v', respond(404))).toBeNull()
-  })
-
-  it('posts the boards list and returns the adoption result', async () => {
-    const fetchFn = respond(200, {
-      adopted: ['b1'],
-      skipped: ['b2'],
-    })
-    const result = await requestAdoption(
-      [{ boardId: 'b1', editKey: 'e1' }],
-      fetchFn,
-    )
-    expect(result).toEqual({ adopted: ['b1'], skipped: ['b2'] })
-    const [url, init] = (fetchFn as unknown as ReturnType<typeof vi.fn>).mock
-      .calls[0] as [string, RequestInit]
-    expect(url).toBe('/api/boards/adopt')
-    expect(init.method).toBe('POST')
-    expect(JSON.parse(init.body as string)).toEqual({
-      boards: [{ boardId: 'b1', editKey: 'e1' }],
-    })
-  })
-
-  it('answers empty rather than throwing when signed out', async () => {
-    expect(
-      await requestAdoption([{ boardId: 'b1', editKey: 'e1' }], respond(401)),
-    ).toEqual({ adopted: [], skipped: [] })
-  })
-
-  it('throws a ServerError on an unexpected status', async () => {
-    await expect(
-      requestAdoption([{ boardId: 'b1', editKey: 'e1' }], respond(500)),
-    ).rejects.toBeInstanceOf(ServerError)
   })
 
   it('derives the socket url from the page origin', () => {

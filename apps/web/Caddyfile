@@ -45,18 +45,12 @@
 	# wholesale, so a heuristically cached document could keep pointing
 	# at assets that no longer exist. Always revalidate; the ETag makes
 	# that cheap.
-	@html path / /*.html /b/* /login /dashboard /dashboard/* /privacy /terms
+	@html path / /*.html /b/*
 	header @html Cache-Control "no-cache"
 
 	@board path /b/*
 	handle @board {
 		rewrite * /board.html
-		file_server
-	}
-
-	@dashboard path /dashboard/*
-	handle @dashboard {
-		rewrite * /dashboard.html
 		file_server
 	}
 
