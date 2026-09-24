@@ -200,7 +200,8 @@ export function ShareDialog(props: {
           ) : (
             <p className="caption share-agent-endpoint">
               Point your agent at <code>{`${location.origin}/mcp`}</code> and
-              hand it this board's edit link.
+              hand it this board's {effectiveRole === 'view' ? 'view' : 'edit'}{' '}
+              link.
             </p>
           )}
         </>
