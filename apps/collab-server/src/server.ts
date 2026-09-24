@@ -20,8 +20,15 @@ export async function startServer(
 ): Promise<RunningServer> {
   const database = await connectDatabase(config.databaseUrl)
   // The deployment's own tables may reference this server's, so its
-  // migrations run once ours have.
-  await extension.migrate?.(database.db)
+  // migrations run once ours have. A failure here still leaves the
+  // pool open unless it is closed explicitly: nothing else in this
+  // function runs to do it, since startup stops right here.
+  try {
+    await extension.migrate?.(database.db)
+  } catch (error) {
+    await database.close()
+    throw error
+  }
   const rooms = createRooms({ db: database.db, config })
   const app = createApp({ db: database.db, config, rooms, extension })
 
