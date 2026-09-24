@@ -31,14 +31,12 @@ export const boards = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
-    ownerId: text('owner_id').references(() => user.id),
+    ownerId: text('owner_id'),
     sharedAt: timestamp('shared_at', { withTimezone: true }),
     agentAt: timestamp('agent_at', { withTimezone: true }),
-    thumbnail: bytea('thumbnail'),
-    thumbnailSeq: bigint('thumbnail_seq', { mode: 'number' }),
   },
-  // `countOwnedBoards` and `listOwnedBoards` filter on this for every
-  // signed-in creation and every dashboard load.
+  // `countOwnedBoards` and `listOwnedBoards` filter on this. The id is
+  // opaque: whoever the extension's `identify` says a request is.
   (table) => [index('boards_owner_id_idx').on(table.ownerId)],
 )
 
