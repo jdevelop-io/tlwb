@@ -216,6 +216,7 @@ export function createApp(deps: HttpDeps): Hono<Env> {
     rooms: deps.rooms,
     createLimiter,
     renderLimiter,
+    extension,
     now,
     trustProxy: config.trustProxy,
   })

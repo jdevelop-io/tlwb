@@ -2,7 +2,6 @@ import { StreamableHTTPTransport } from '@hono/mcp'
 import type { HttpBindings } from '@hono/node-server'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { API_KEY_PREFIX, resolveApiKey } from '../accounts/api-keys'
 import { clientIp } from '../http'
 import { createIpLimiter } from '../rate-limit'
 import type { Caller } from './caller'
@@ -38,19 +37,19 @@ export function createMcpApp(
       const ip = clientIp(c, deps.trustProxy)
       const bearer = c.req.header('authorization')?.match(/^Bearer (.+)$/)?.[1]
       let caller: Caller = { kind: 'anonymous', ip }
-      if (bearer?.startsWith(API_KEY_PREFIX)) {
-        const keyed = await resolveApiKey(deps.db, bearer)
-        // keyId is not part of Caller: nothing downstream of here needs
-        // the token's own id, only what it identifies and scopes.
-        caller = keyed
-          ? {
-              kind: 'keyed',
-              ip,
-              userId: keyed.userId,
-              plan: keyed.plan,
-              boardIds: keyed.boardIds,
-            }
-          : { kind: 'invalid', ip }
+      // With nothing to resolve a key against, a bearer is noise: the
+      // caller stays anonymous rather than being refused.
+      if (bearer && deps.extension.mcpKeys) {
+        const keyed = await deps.extension.mcpKeys.resolve(bearer)
+        caller =
+          keyed === 'invalid'
+            ? { kind: 'invalid', ip }
+            : {
+                kind: 'keyed',
+                ip,
+                userId: keyed.userId,
+                boardIds: keyed.boardIds,
+              }
       }
       if (
         c.req.method === 'POST' &&

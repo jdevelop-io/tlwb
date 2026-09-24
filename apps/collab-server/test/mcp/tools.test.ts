@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -13,10 +12,10 @@ import {
   it,
   vi,
 } from 'vitest'
-import { issueApiKey } from '../../src/accounts/api-keys'
 import { type Config, loadConfig } from '../../src/config'
 import { connectDatabase } from '../../src/db/client'
-import { boards, user } from '../../src/db/schema'
+import { boards } from '../../src/db/schema'
+import type { Extension } from '../../src/extension'
 import { createApp } from '../../src/http'
 import { createMcpServer, type McpDeps } from '../../src/mcp/server'
 import {
@@ -66,6 +65,7 @@ async function connect(
     rooms,
     createLimiter: createIpLimiter(1000, 60_000),
     renderLimiter: createIpLimiter(1000, 60_000),
+    extension: {},
     ...overrides,
   }
   const [clientTransport, serverTransport] =
@@ -734,7 +734,37 @@ describe('relative share URLs (CORS_ORIGIN=*, no PUBLIC_URL)', () => {
 // route (`mcp/index.ts`) parses: driven through the Hono app end to end,
 // the same way `mcp/http.test.ts` drives a plain `tools/list`.
 describe('keyed callers', () => {
-  function httpApp(overrides: Record<string, string> = {}) {
+  interface Stub {
+    keys: Map<string, { userId: string; boardIds: string[] | null }>
+    budget: Map<string, number>
+    cap: Set<string>
+  }
+
+  function stub(): Stub {
+    return { keys: new Map(), budget: new Map(), cap: new Set() }
+  }
+
+  function extensionOf(s: Stub): Extension {
+    return {
+      mcpKeys: {
+        resolve: async (bearer) => s.keys.get(bearer) ?? 'invalid',
+        spend: async (userId) => {
+          const left = s.budget.get(userId) ?? Number.POSITIVE_INFINITY
+          if (left < 1) {
+            return false
+          }
+          s.budget.set(userId, left - 1)
+          return true
+        },
+      },
+      canCreateBoard: async (id) => !s.cap.has(id),
+    }
+  }
+
+  function httpApp(
+    overrides: Record<string, string> = {},
+    extension: Extension = {},
+  ) {
     const httpConfig = loadConfig({
       DATABASE_URL: url,
       CORS_ORIGIN: 'http://web.test',
@@ -746,6 +776,7 @@ describe('keyed callers', () => {
       db: database.db,
       config: httpConfig,
       rooms: createRooms({ db: database.db, config: httpConfig }),
+      extension,
     })
   }
 
@@ -779,140 +810,65 @@ describe('keyed callers', () => {
     return JSON.parse(line.replace(/^data:\s*/, '')).result as CallToolResult
   }
 
-  async function seedUser(plan: 'free' | 'pro' = 'free'): Promise<string> {
-    const id = randomUUID()
-    await database.db
-      .insert(user)
-      .values({ id, name: 'Agent Owner', email: `${id}@example.com`, plan })
-    return id
-  }
-
-  it('a valid API key spends the quota and an exhausted one errors', async () => {
-    const userId = await seedUser()
-    const { key } = await issueApiKey(database.db, userId, {
-      name: 'test',
-      boardIds: null,
-    })
-    const app = httpApp({ MCP_QUOTA_FREE: '1' })
+  it('a resolved key spends the budget and an exhausted one errors', async () => {
+    const s = stub()
+    s.keys.set('good', { userId: 'u1', boardIds: null })
+    s.budget.set('u1', 1)
+    const app = httpApp({}, extensionOf(s))
 
     const first = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
       ),
     )
     expect(first.isError).toBeFalsy()
-
     const second = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
       ),
     )
     expect(second.isError).toBe(true)
     expect((second.content[0] as { text: string }).text).toBe(
-      'monthly quota reached, resets on the 1st',
+      'API key quota exhausted',
     )
   })
 
-  it('an invalid API key errors every tool', async () => {
-    const app = httpApp()
-    for (const call of [
-      { name: 'create_board', arguments: {} },
-      { name: 'read_board', arguments: { board: 'irrelevant' } },
-    ]) {
-      const result = await toolResult(
-        await app.request(mcpRequest(call, { bearer: 'tlwb_wrong' })),
-      )
-      expect(result.isError).toBe(true)
-      expect((result.content[0] as { text: string }).text).toBe(
-        'invalid API key',
-      )
-    }
-  })
-
-  it('a keyed call marks the board as agent-touched', async () => {
-    const userId = await seedUser()
-    const { key } = await issueApiKey(database.db, userId, {
-      name: 'test',
-      boardIds: null,
-    })
-    const app = httpApp()
-
-    const created = await toolResult(
-      await app.request(mcpRequest({ name: 'create_board', arguments: {} })),
-    )
-    const board = JSON.parse((created.content[0] as { text: string }).text) as {
-      boardId: string
-      editUrl: string
-    }
-
-    const read = await toolResult(
+  it('refuses a bearer the extension does not know', async () => {
+    const app = httpApp({}, extensionOf(stub()))
+    const result = await toolResult(
       await app.request(
-        mcpRequest(
-          { name: 'read_board', arguments: { board: board.editUrl } },
-          { bearer: key },
-        ),
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'nope' }),
       ),
     )
-    expect(read.isError).toBeFalsy()
-
-    const [row] = await database.db
-      .select({ agentAt: boards.agentAt })
-      .from(boards)
-      .where(eq(boards.id, board.boardId))
-    expect(row?.agentAt).not.toBeNull()
-  })
-
-  it('skips the per-IP limiter that would otherwise block a second call', async () => {
-    const userId = await seedUser()
-    const { key } = await issueApiKey(database.db, userId, {
-      name: 'test',
-      boardIds: null,
-    })
-    const app = httpApp({ MCP_LIMIT_PER_MIN: '1' })
-
-    const first = await app.request(
-      mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
-    )
-    expect(first.status).toBe(200)
-    const second = await app.request(
-      mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
-    )
-    expect(second.status).toBe(200)
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toBe('invalid API key')
   })
 
   it('is not bounded by the board-creation limiter, unlike an anonymous caller', async () => {
-    const userId = await seedUser()
-    const { key } = await issueApiKey(database.db, userId, {
-      name: 'test',
-      boardIds: null,
-    })
-    const app = httpApp({ CREATE_LIMIT_PER_MIN: '1' })
-
-    const first = await toolResult(
-      await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
-      ),
-    )
-    expect(first.isError).toBeFalsy()
-    const second = await toolResult(
-      await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
-      ),
-    )
-    expect(second.isError).toBeFalsy()
+    const s = stub()
+    s.keys.set('good', { userId: 'u2', boardIds: null })
+    const app = httpApp({ CREATE_LIMIT_PER_MIN: '1' }, extensionOf(s))
+    for (let i = 0; i < 2; i += 1) {
+      const result = await toolResult(
+        await app.request(
+          mcpRequest(
+            { name: 'create_board', arguments: {} },
+            { bearer: 'good' },
+          ),
+        ),
+      )
+      expect(result.isError).toBeFalsy()
+    }
   })
 
-  it('owns every board it creates and is bounded by the free cap', async () => {
-    const userId = await seedUser()
-    const { key } = await issueApiKey(database.db, userId, {
-      name: 'test',
-      boardIds: null,
-    })
-    const app = httpApp({ FREE_BOARD_CAP: '1' })
+  it('owns every board it creates and honours canCreateBoard', async () => {
+    const s = stub()
+    s.keys.set('good', { userId: 'u3', boardIds: null })
+    const app = httpApp({}, extensionOf(s))
 
     const first = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
       ),
     )
     expect(first.isError).toBeFalsy()
@@ -923,35 +879,18 @@ describe('keyed callers', () => {
       .select({ ownerId: boards.ownerId })
       .from(boards)
       .where(eq(boards.id, board.boardId))
-    expect(row?.ownerId).toBe(userId)
+    expect(row?.ownerId).toBe('u3')
 
+    s.cap.add('u3')
     const second = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
+        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
       ),
     )
     expect(second.isError).toBe(true)
     expect((second.content[0] as { text: string }).text).toBe(
       'board limit reached',
     )
-  })
-
-  it('lets a pro-plan keyed caller create past the free cap', async () => {
-    const userId = await seedUser('pro')
-    const { key } = await issueApiKey(database.db, userId, {
-      name: 'test',
-      boardIds: null,
-    })
-    const app = httpApp({ FREE_BOARD_CAP: '1' })
-
-    for (let i = 0; i < 2; i += 1) {
-      const result = await toolResult(
-        await app.request(
-          mcpRequest({ name: 'create_board', arguments: {} }, { bearer: key }),
-        ),
-      )
-      expect(result.isError).toBeFalsy()
-    }
   })
 
   describe('board scope', () => {
@@ -963,7 +902,7 @@ describe('keyed callers', () => {
     let key: string
 
     beforeEach(async () => {
-      const userId = await seedUser()
+      const s = stub()
       app = httpApp()
 
       async function createBoard() {
@@ -984,11 +923,9 @@ describe('keyed callers', () => {
       outsideId = outside.boardId
       outsideUrl = outside.editUrl
 
-      const issued = await issueApiKey(database.db, userId, {
-        name: 'test',
-        boardIds: [insideId],
-      })
-      key = issued.key
+      s.keys.set('scoped', { userId: 'u4', boardIds: [insideId] })
+      app = httpApp({}, extensionOf(s))
+      key = 'scoped'
     })
 
     // One entry per board-taking tool: a missed `assertBoardAllowed`

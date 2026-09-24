@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { countOwnedBoards } from '../../db/boards'
 import { issueBoard } from '../../issue-board'
 import { withBoard } from '../agent-client'
 import { assertCaller, type Caller } from '../caller'
@@ -36,8 +35,9 @@ export function registerCreateBoard(
       }
       return guarded(context, async () => {
         await assertCaller(deps, caller)
-        // A keyed caller is bounded by their monthly quota instead: the
-        // per-address creation limiter only guards anonymous callers.
+        // A keyed caller is bounded by the extension's budget instead
+        // (`assertCaller` above): the per-address creation limiter only
+        // guards anonymous callers.
         if (
           caller.kind === 'anonymous' &&
           !deps.createLimiter.take(caller.ip)
@@ -46,14 +46,14 @@ export function registerCreateBoard(
             'too many boards created from this address, retry later',
           )
         }
-        // The same free-plan cap `POST /boards` enforces: without it, a
-        // keyed caller could create boards no dashboard ever lists and
-        // no cap ever counts.
-        if (caller.kind === 'keyed' && caller.plan === 'free') {
-          const owned = await countOwnedBoards(deps.db, caller.userId)
-          if (owned >= deps.config.freeBoardCap) {
-            throw new ToolError('board limit reached')
-          }
+        // The same ceiling `POST /boards` enforces: without it, a keyed
+        // caller could create boards no ceiling ever counts.
+        if (
+          caller.kind === 'keyed' &&
+          deps.extension.canCreateBoard &&
+          !(await deps.extension.canCreateBoard(caller.userId))
+        ) {
+          throw new ToolError('board limit reached')
         }
         const ownerId = caller.kind === 'keyed' ? caller.userId : undefined
         const issued = await issueBoard(deps.db, ownerId)
