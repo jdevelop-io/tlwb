@@ -9,6 +9,12 @@ import { createMcpServer, type McpDeps } from './server'
 
 type Env = { Bindings: HttpBindings }
 
+// Matches `API_KEY_PREFIX` in `src/accounts/api-keys.ts` of a deployment
+// that composes `mcpKeys`: this module never imports that (optional,
+// deployment-only) module, so the prefix is named again here rather
+// than reaching for it.
+const API_KEY_PREFIX = 'tlwb_'
+
 /**
  * The MCP endpoint, stateless: one transport and one McpServer per
  * request, nothing kept between two. Mounted under `/mcp` by the HTTP
@@ -37,9 +43,10 @@ export function createMcpApp(
       const ip = clientIp(c, deps.trustProxy)
       const bearer = c.req.header('authorization')?.match(/^Bearer (.+)$/)?.[1]
       let caller: Caller = { kind: 'anonymous', ip }
-      // With nothing to resolve a key against, a bearer is noise: the
+      // With nothing to resolve a key against, or a bearer that is not
+      // one of this deployment's own keys, the bearer is noise: the
       // caller stays anonymous rather than being refused.
-      if (bearer && deps.extension.mcpKeys) {
+      if (bearer?.startsWith(API_KEY_PREFIX) && deps.extension.mcpKeys) {
         const keyed = await deps.extension.mcpKeys.resolve(bearer)
         caller =
           keyed === 'invalid'

@@ -812,19 +812,25 @@ describe('keyed callers', () => {
 
   it('a resolved key spends the budget and an exhausted one errors', async () => {
     const s = stub()
-    s.keys.set('good', { userId: 'u1', boardIds: null })
+    s.keys.set('tlwb_good', { userId: 'u1', boardIds: null })
     s.budget.set('u1', 1)
     const app = httpApp({}, extensionOf(s))
 
     const first = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
+        mcpRequest(
+          { name: 'create_board', arguments: {} },
+          { bearer: 'tlwb_good' },
+        ),
       ),
     )
     expect(first.isError).toBeFalsy()
     const second = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
+        mcpRequest(
+          { name: 'create_board', arguments: {} },
+          { bearer: 'tlwb_good' },
+        ),
       ),
     )
     expect(second.isError).toBe(true)
@@ -837,23 +843,51 @@ describe('keyed callers', () => {
     const app = httpApp({}, extensionOf(stub()))
     const result = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'nope' }),
+        mcpRequest(
+          { name: 'create_board', arguments: {} },
+          { bearer: 'tlwb_nope' },
+        ),
       ),
     )
     expect(result.isError).toBe(true)
     expect((result.content[0] as { text: string }).text).toBe('invalid API key')
   })
 
+  it('leaves a bearer without the API key prefix anonymous, never resolving it', async () => {
+    const resolve = vi.fn(
+      async () => ({ userId: 'u9', boardIds: null }) as const,
+    )
+    const app = httpApp({}, { mcpKeys: { resolve, spend: async () => true } })
+    const result = await toolResult(
+      await app.request(
+        mcpRequest(
+          { name: 'create_board', arguments: {} },
+          { bearer: 'not-a-tlwb-key' },
+        ),
+      ),
+    )
+    expect(result.isError).toBeFalsy()
+    expect(resolve).not.toHaveBeenCalled()
+    const board = JSON.parse((result.content[0] as { text: string }).text) as {
+      boardId: string
+    }
+    const [row] = await database.db
+      .select({ ownerId: boards.ownerId })
+      .from(boards)
+      .where(eq(boards.id, board.boardId))
+    expect(row?.ownerId).toBeNull()
+  })
+
   it('is not bounded by the board-creation limiter, unlike an anonymous caller', async () => {
     const s = stub()
-    s.keys.set('good', { userId: 'u2', boardIds: null })
+    s.keys.set('tlwb_good', { userId: 'u2', boardIds: null })
     const app = httpApp({ CREATE_LIMIT_PER_MIN: '1' }, extensionOf(s))
     for (let i = 0; i < 2; i += 1) {
       const result = await toolResult(
         await app.request(
           mcpRequest(
             { name: 'create_board', arguments: {} },
-            { bearer: 'good' },
+            { bearer: 'tlwb_good' },
           ),
         ),
       )
@@ -863,12 +897,15 @@ describe('keyed callers', () => {
 
   it('owns every board it creates and honours canCreateBoard', async () => {
     const s = stub()
-    s.keys.set('good', { userId: 'u3', boardIds: null })
+    s.keys.set('tlwb_good', { userId: 'u3', boardIds: null })
     const app = httpApp({}, extensionOf(s))
 
     const first = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
+        mcpRequest(
+          { name: 'create_board', arguments: {} },
+          { bearer: 'tlwb_good' },
+        ),
       ),
     )
     expect(first.isError).toBeFalsy()
@@ -884,7 +921,10 @@ describe('keyed callers', () => {
     s.cap.add('u3')
     const second = await toolResult(
       await app.request(
-        mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
+        mcpRequest(
+          { name: 'create_board', arguments: {} },
+          { bearer: 'tlwb_good' },
+        ),
       ),
     )
     expect(second.isError).toBe(true)
@@ -895,7 +935,7 @@ describe('keyed callers', () => {
 
   it('a keyed call marks the board as agent-touched', async () => {
     const s = stub()
-    s.keys.set('good', { userId: 'u5', boardIds: null })
+    s.keys.set('tlwb_good', { userId: 'u5', boardIds: null })
     const app = httpApp({}, extensionOf(s))
 
     const created = await toolResult(
@@ -910,7 +950,7 @@ describe('keyed callers', () => {
       await app.request(
         mcpRequest(
           { name: 'read_board', arguments: { board: board.editUrl } },
-          { bearer: 'good' },
+          { bearer: 'tlwb_good' },
         ),
       ),
     )
@@ -925,15 +965,21 @@ describe('keyed callers', () => {
 
   it('skips the per-IP limiter that would otherwise block a second call', async () => {
     const s = stub()
-    s.keys.set('good', { userId: 'u6', boardIds: null })
+    s.keys.set('tlwb_good', { userId: 'u6', boardIds: null })
     const app = httpApp({ MCP_LIMIT_PER_MIN: '1' }, extensionOf(s))
 
     const first = await app.request(
-      mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
+      mcpRequest(
+        { name: 'create_board', arguments: {} },
+        { bearer: 'tlwb_good' },
+      ),
     )
     expect(first.status).toBe(200)
     const second = await app.request(
-      mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
+      mcpRequest(
+        { name: 'create_board', arguments: {} },
+        { bearer: 'tlwb_good' },
+      ),
     )
     expect(second.status).toBe(200)
   })
@@ -968,9 +1014,9 @@ describe('keyed callers', () => {
       outsideId = outside.boardId
       outsideUrl = outside.editUrl
 
-      s.keys.set('scoped', { userId: 'u4', boardIds: [insideId] })
+      s.keys.set('tlwb_scoped', { userId: 'u4', boardIds: [insideId] })
       app = httpApp({}, extensionOf(s))
-      key = 'scoped'
+      key = 'tlwb_scoped'
     })
 
     // One entry per board-taking tool: a missed `assertBoardAllowed`

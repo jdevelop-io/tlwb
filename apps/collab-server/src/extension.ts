@@ -13,8 +13,9 @@ export interface Principal {
 }
 
 export interface McpKeys {
-  /** A bearer presented to /mcp: who it belongs to and which boards it
-   * may reach (null: every board its share links resolve). */
+  /** A bearer presented to /mcp, once it has matched this deployment's
+   * own API key prefix: who it belongs to and which boards it may
+   * reach (null: every board its share links resolve). */
   resolve(
     bearer: string,
   ): Promise<{ userId: string; boardIds: string[] | null } | 'invalid'>

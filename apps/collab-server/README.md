@@ -129,9 +129,10 @@ HTTP). Paste into any MCP client:
 The credential is the board's share link, passed as `board` to every
 tool: an edit link allows mutations, a view link allows reading only.
 
-An `Authorization: Bearer` header is ignored unless the deployment
-composes an `mcpKeys` extension (see "Extending the server"). Without
-one, every call is anonymous and subject only to the per-IP
+An `Authorization: Bearer` header is ignored unless it starts with the
+`tlwb_` API key prefix and the deployment composes an `mcpKeys`
+extension (see "Extending the server"). Without one, or without that
+prefix, the call is anonymous and subject only to the per-IP
 `MCP_LIMIT_PER_MIN` limit.
 
 - `create_board({ name? })`: `{ boardId, editUrl, viewUrl }`.
