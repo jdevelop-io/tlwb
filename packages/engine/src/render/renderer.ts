@@ -1,4 +1,5 @@
 import { type Camera, clampZoom, createCamera } from '../camera'
+import type { ElementId } from '../model/element'
 import type { BoardStore } from '../store/types'
 import { type ImageResolver, renderScene } from './scene'
 import { createFrameScheduler, type FrameRequester } from './schedule'
@@ -23,6 +24,8 @@ export interface Renderer {
   setCamera(camera: Camera): void
   /** The pixel ratio defaults to the current one. */
   resize(width: number, height: number, devicePixelRatio?: number): void
+  /** Repaints only when the set actually changes. */
+  setErasingIds(ids: readonly ElementId[]): void
   markDirty(): void
   destroy(): void
 }
@@ -37,6 +40,7 @@ export function createRenderer(options: RendererOptions): Renderer {
   let camera = createCamera()
   let viewport = { width: options.width, height: options.height }
   let devicePixelRatio = options.devicePixelRatio ?? 1
+  let erasingIds: ReadonlySet<ElementId> = new Set()
 
   const scheduler = createFrameScheduler(() => {
     renderScene(canvas, {
@@ -47,6 +51,7 @@ export function createRenderer(options: RendererOptions): Renderer {
       fonts: options.fonts,
       resolveImage: options.resolveImage,
       background: options.background,
+      erasingIds,
     })
   }, options.requestFrame)
 
@@ -62,6 +67,16 @@ export function createRenderer(options: RendererOptions): Renderer {
     resize: (width, height, ratio = devicePixelRatio) => {
       viewport = { width, height }
       devicePixelRatio = ratio
+      scheduler.markDirty()
+    },
+    setErasingIds: (ids) => {
+      if (
+        ids.length === erasingIds.size &&
+        ids.every((id) => erasingIds.has(id))
+      ) {
+        return
+      }
+      erasingIds = new Set(ids)
       scheduler.markDirty()
     },
     markDirty: scheduler.markDirty,

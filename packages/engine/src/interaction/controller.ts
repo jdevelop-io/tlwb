@@ -55,6 +55,8 @@ export interface InteractionSnapshot {
   gesture: GestureKind
   lasso: Rect | null
   guides: SnapGuide[]
+  /** Elements the eraser will delete on release. */
+  erasing: ElementId[]
 }
 
 export interface InteractionControllerOptions {
@@ -387,6 +389,7 @@ export function createInteractionController(
         gesture: overlay.gesture,
         lasso: overlay.lasso,
         guides: overlay.guides,
+        erasing: overlay.erasing ?? [],
       }
     },
     subscribe: (listener) => {

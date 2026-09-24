@@ -66,4 +66,26 @@ describe('eraser tool', () => {
     tool.onPointerUp(pointer(25, 25), context)
     expect(context.store.listElements()).toHaveLength(1)
   })
+
+  it('reports the elements the drag has touched until it ends', () => {
+    const context = createTestContext()
+    const a = createElement('rectangle', {
+      index: 'a0',
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+      fillColor: '#FFD8CF',
+    })
+    context.store.applyChanges([{ kind: 'create', element: a }])
+    const tool = createEraserTool()
+    expect(tool.getOverlay?.().erasing).toEqual([])
+    tool.onPointerDown(pointer(25, 25), context)
+    expect(tool.getOverlay?.().erasing).toEqual([a.id])
+    tool.onCancel(context)
+    expect(tool.getOverlay?.().erasing).toEqual([])
+    tool.onPointerDown(pointer(25, 25), context)
+    tool.onPointerUp(pointer(25, 25), context)
+    expect(tool.getOverlay?.().erasing).toEqual([])
+  })
 })

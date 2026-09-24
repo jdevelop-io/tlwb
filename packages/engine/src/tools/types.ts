@@ -88,13 +88,15 @@ export type GestureKind =
 
 /**
  * Ephemeral per-gesture state the overlay rendering needs. Tools whose
- * gesture has nothing to paint (hand, text, image, eraser) implement no
- * overlay at all and read as idle.
+ * gesture has nothing to paint (hand, text, image) implement no overlay
+ * at all and read as idle.
  */
 export interface ToolOverlay {
   gesture: GestureKind
   lasso: Rect | null
   guides: SnapGuide[]
+  /** Elements the eraser will delete on release, painted faded. */
+  erasing?: ElementId[]
 }
 
 export interface Tool {

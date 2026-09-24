@@ -5,7 +5,12 @@ import {
   getElementBounds,
   rectsIntersect,
 } from '../geometry/bounds'
-import type { BoardElement, ImageElement, TextElement } from '../model/element'
+import type {
+  BoardElement,
+  ElementId,
+  ImageElement,
+  TextElement,
+} from '../model/element'
 import { getFreehandPath } from './freehand'
 import { getShapeDrawables } from './shapes'
 import {
@@ -29,7 +34,12 @@ export interface RenderSceneOptions {
   fonts?: FontConfig
   resolveImage?: ImageResolver
   background?: string
+  /** Painted faded: the eraser deletes them on release. */
+  erasingIds?: ReadonlySet<ElementId>
 }
+
+/** Opacity multiplier for elements the eraser is about to delete. */
+const ERASING_OPACITY = 0.3
 
 /** World-unit slack for stroke overshoot around sketchy outlines. */
 const CULLING_MARGIN = 32
@@ -48,6 +58,7 @@ export function renderScene(
     fonts = DEFAULT_FONTS,
     resolveImage = noImage,
     background = '#FFFFFF',
+    erasingIds = new Set<ElementId>(),
   } = options
   const width = Math.round(viewport.width * devicePixelRatio)
   const height = Math.round(viewport.height * devicePixelRatio)
@@ -76,8 +87,14 @@ export function renderScene(
     if (!rectsIntersect(getElementBounds(element), visible)) {
       continue
     }
+    // A label goes with its container, so it fades with it too.
+    const erasing =
+      erasingIds.has(element.id) ||
+      (element.type === 'text' &&
+        element.containerId !== null &&
+        erasingIds.has(element.containerId))
     ctx.save()
-    ctx.globalAlpha = element.opacity
+    ctx.globalAlpha = element.opacity * (erasing ? ERASING_OPACITY : 1)
     ctx.translate(element.x + element.width / 2, element.y + element.height / 2)
     ctx.rotate(element.angle)
     ctx.translate(-element.width / 2, -element.height / 2)

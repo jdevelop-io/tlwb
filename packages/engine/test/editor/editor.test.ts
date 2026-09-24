@@ -229,3 +229,34 @@ describe('editor destroy', () => {
     expect(editor.getState()).toBe(before)
   })
 })
+
+describe('editor eraser preview', () => {
+  it('repaints the scene with the touched elements faded until release', () => {
+    const { editor, store, scene, pointer, flush } = mountEditor()
+    const red = createElement('rectangle', {
+      id: 'red',
+      index: 'a0',
+      seed: 1,
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      strokeColor: '#FF0000',
+      fillColor: '#FF0000',
+      sketchiness: 0,
+    })
+    store.applyChanges([{ kind: 'create', element: red }])
+    editor.setActiveTool('eraser')
+    flush()
+    const pixel = () =>
+      Array.from(scene.napi.getContext('2d').getImageData(50, 50, 1, 1).data)
+    expect(pixel()).toEqual([255, 0, 0, 255])
+    pointer('pointerdown', 50, 50)
+    flush()
+    expect(pixel()).not.toEqual([255, 0, 0, 255])
+    expect(store.getElement('red')).toBeDefined()
+    pointer('pointerup', 50, 50)
+    flush()
+    expect(store.getElement('red')).toBeUndefined()
+  })
+})
