@@ -893,6 +893,51 @@ describe('keyed callers', () => {
     )
   })
 
+  it('a keyed call marks the board as agent-touched', async () => {
+    const s = stub()
+    s.keys.set('good', { userId: 'u5', boardIds: null })
+    const app = httpApp({}, extensionOf(s))
+
+    const created = await toolResult(
+      await app.request(mcpRequest({ name: 'create_board', arguments: {} })),
+    )
+    const board = JSON.parse((created.content[0] as { text: string }).text) as {
+      boardId: string
+      editUrl: string
+    }
+
+    const read = await toolResult(
+      await app.request(
+        mcpRequest(
+          { name: 'read_board', arguments: { board: board.editUrl } },
+          { bearer: 'good' },
+        ),
+      ),
+    )
+    expect(read.isError).toBeFalsy()
+
+    const [row] = await database.db
+      .select({ agentAt: boards.agentAt })
+      .from(boards)
+      .where(eq(boards.id, board.boardId))
+    expect(row?.agentAt).not.toBeNull()
+  })
+
+  it('skips the per-IP limiter that would otherwise block a second call', async () => {
+    const s = stub()
+    s.keys.set('good', { userId: 'u6', boardIds: null })
+    const app = httpApp({ MCP_LIMIT_PER_MIN: '1' }, extensionOf(s))
+
+    const first = await app.request(
+      mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
+    )
+    expect(first.status).toBe(200)
+    const second = await app.request(
+      mcpRequest({ name: 'create_board', arguments: {} }, { bearer: 'good' }),
+    )
+    expect(second.status).toBe(200)
+  })
+
   describe('board scope', () => {
     let app: ReturnType<typeof httpApp>
     let insideId: string
