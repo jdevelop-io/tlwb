@@ -11,52 +11,195 @@
     <meta property="og:title" content="tlwb, the little whiteboard" />
     <meta property="og:description" content="Instant, collaborative, agent-friendly." />
     <meta property="og:image" content="https://tlwb.io/editor-preview.png" />
-    <meta property="og:image:width" content="2400" />
-    <meta property="og:image:height" content="1260" />
+    <meta property="og:image:width" content="1120" />
+    <meta property="og:image:height" content="699" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" />
     <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/ui.css" />
     <link rel="stylesheet" href="/src/landing/landing.css" />
   </head>
   <body>
-    <header class="site-header">
-      <a class="logo" href="/">tlwb</a>
-      <a id="session-link" class="sign-in" href="/login">Sign in</a>
+    <header class="nav">
+      <a class="logotype" href="/">
+        <span style="font-size: 34px; line-height: 34px">tlwb</span>
+        <svg width="60" height="8" viewBox="0 0 60 8" aria-hidden="true">
+          <path d="M2 5.5 C 16 2.5, 31 6.5, 58 3.5" fill="none" stroke="var(--color-accent)" stroke-width="3" stroke-linecap="round" />
+        </svg>
+      </a>
+      <nav class="nav-links">
+        <a href="https://github.com/jdevelop-io/tlwb">GitHub</a>
+        <a href="#pricing">Pricing</a>
+        <a id="session-link" href="/login">Sign in</a>
+      </nav>
     </header>
     <main>
       <section class="hero">
-        <h1>The instant little whiteboard, for you, your team, and your agents.</h1>
-        <p>Open a link, sketch with a hand-drawn feel, collaborate live, and let your AI agents read and edit the board.</p>
-        <a class="cta" href="/b/new">Draw now</a>
-        <p class="hint">No account. Your boards stay in this browser until you share them.</p>
+        <h1>The little whiteboard for you, your team, and your agents.</h1>
+        <p class="hero-subline">Sketch hand-drawn diagrams in seconds. Collaborate live. Let your agents draw with you through MCP.</p>
+        <div class="cta-group">
+          <a class="button-primary hero-cta" href="/b/new">Draw now</a>
+          <p class="caption">No account needed</p>
+        </div>
         <div id="resume" class="resume"></div>
-        <img class="preview" src="/editor-preview.png" alt="The tlwb editor showing a hand-drawn diagram of a person, a team, and Claude Code all connected to one board, with a teammate's cursor and an agent's cursor on it" width="1200" height="630" />
+      </section>
+      <section class="preview-wrap">
+        <div class="browser-frame">
+          <div class="browser-bar">
+            <div class="browser-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="url-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="var(--color-ink-secondary)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="var(--color-ink-secondary)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span>tlwb.app/b/payments-architecture</span>
+            </div>
+          </div>
+          <img class="preview" src="/editor-preview.png" alt="The tlwb editor showing a hand-drawn diagram of you and Claude Code connecting to a shared board, with live cursors from a collaborator and an agent cursor labeled Claude" width="1120" height="699" />
+        </div>
       </section>
       <section class="proof">
-        <article><h2>Instant</h2><p>A board is a URL. One click and you are drawing; nothing to install, nothing to sign.</p></article>
-        <article><h2>Collaborative</h2><p>Share a link, edit or view only, and see everyone's cursor as they draw.</p></article>
-        <article><h2>Your agents via MCP</h2><p>Claude Code, Claude Desktop, or any MCP client joins the board as a badged collaborator.</p></article>
+        <article class="proof-item">
+          <svg width="72" height="64" viewBox="0 0 72 64" aria-hidden="true">
+            <path d="M41 5 C 35 12, 28 23, 21 34 C 26 36, 31 34, 35 36 C 31 45, 27 53, 25 58 C 34 49, 44 39, 52 28 C 47 26, 42 28, 38 26 C 41 18, 43 11, 44 6 Z" fill="var(--color-marker-yellow-pastel)" />
+            <path d="M43 2 C 36 11, 31 20, 19 36 C 25 38, 33 33, 38 37 C 32 45, 29 55, 23 62 C 34 50, 46 38, 55 26 C 49 24, 43 29, 36 25 C 39 17, 43 9, 46 3" fill="none" stroke="var(--color-marker-yellow)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M40 8 C 34 16, 29 24, 24 32 C 28 34, 32 33, 35 34" fill="none" stroke="var(--color-marker-yellow)" stroke-width="1.5" stroke-linecap="round" opacity="0.42" />
+          </svg>
+          <h2>Instant</h2>
+          <p>Open a link, draw, share. Nothing to install, no sign-up wall.</p>
+        </article>
+        <article class="proof-item">
+          <svg width="96" height="64" viewBox="0 0 96 64" aria-hidden="true">
+            <path d="M9 13 C 30 9, 62 11, 85 10 C 87 24, 86 38, 85 51 C 60 55, 32 53, 11 54 C 8 40, 7 26, 9 13 Z" fill="var(--color-marker-blue-pastel)" />
+            <path d="M4 14 C 28 7, 60 13, 92 8 C 89 22, 91 38, 88 58 C 62 57, 30 52, 3 57 C 7 41, 4 27, 9 9" fill="none" stroke="var(--color-marker-blue)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M8 17 C 30 12, 60 16, 86 12 C 85 26, 85 38, 84 49" fill="none" stroke="var(--color-marker-blue)" stroke-width="1.5" stroke-linecap="round" opacity="0.45" />
+            <path d="M30 24 l 5.5 14 l 2.6 -5.2 l 5.6 -1.6 Z" fill="var(--color-presence-teal)" />
+            <path d="M62 30 l 5.5 14 l 2.6 -5.2 l 5.6 -1.6 Z" fill="var(--color-presence-pink)" />
+          </svg>
+          <h2>Collaborative</h2>
+          <p>Live cursors, shared boards, edit together.</p>
+        </article>
+        <article class="proof-item">
+          <svg width="96" height="64" viewBox="0 0 96 64" aria-hidden="true">
+            <path d="M22 44 C 12 38, 7 26, 14 17 C 21 7, 34 3, 43 9 C 53 15, 57 25, 51 34" fill="none" stroke="var(--color-marker-green)" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M24 41 C 16 36, 12 27, 17 19 C 22 12, 31 8, 39 11" fill="none" stroke="var(--color-marker-green)" stroke-width="1.5" stroke-linecap="round" opacity="0.45" />
+            <path d="M49 33 l 5.5 14 l 2.6 -5.2 l 5.6 -1.6 Z" fill="var(--color-agent)" />
+            <rect x="64" y="38" width="24" height="16" rx="8" fill="var(--color-agent)" />
+            <rect x="70.5" y="43" width="4.5" height="6.5" rx="2.2" fill="#FFFFFF" />
+            <rect x="77.5" y="43" width="4.5" height="6.5" rx="2.2" fill="#FFFFFF" />
+          </svg>
+          <h2>Your agents, via MCP</h2>
+          <p>Your AI agents read and sketch on your boards like teammates.</p>
+        </article>
       </section>
       <section class="open-source">
-        <h2>Open source</h2>
-        <p>The engine, this client, and the MCP server are MIT licensed. Self-host the whole thing with one <code>docker compose up</code>.</p>
-        <a href="https://github.com/jdevelop-io/tlwb">GitHub</a>
+        <h2>tlwb is open source</h2>
+        <p class="open-source-line">Self-host the whole thing: the engine, the client, and the MCP server are MIT-licensed.</p>
+        <a class="open-source-cta" href="https://github.com/jdevelop-io/tlwb">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 1.5a10.5 10.5 0 0 0-3.32 20.46c.53.1.72-.23.72-.5v-1.94c-2.92.63-3.54-1.24-3.54-1.24-.48-1.21-1.17-1.54-1.17-1.54-.95-.65.07-.64.07-.64 1.06.08 1.61 1.08 1.61 1.08.94 1.6 2.46 1.14 3.06.87.1-.68.37-1.14.66-1.4-2.33-.27-4.79-1.17-4.79-5.19 0-1.15.41-2.08 1.08-2.82-.11-.26-.47-1.33.1-2.77 0 0 .88-.28 2.89 1.08a10 10 0 0 1 5.25 0c2-1.36 2.88-1.08 2.88-1.08.58 1.44.22 2.51.11 2.77.67.74 1.08 1.67 1.08 2.82 0 4.03-2.46 4.91-4.81 5.17.38.33.72.97.72 1.96v2.9c0 .28.19.61.73.5A10.5 10.5 0 0 0 12 1.5Z" fill="var(--color-ink)" />
+          </svg>
+          <span>View on GitHub</span>
+        </a>
       </section>
-      <section class="pricing">
-        <h2>Pricing</h2>
+      <section class="pricing" id="pricing">
+        <div class="pricing-heading">
+          <h2>Simple pricing</h2>
+          <p class="pricing-sub">Free for everyone. Pro when you need more room.</p>
+        </div>
         <div class="plans">
-          <article><h3>Free</h3><p>Unlimited local boards, ten hosted boards, sharing by link, and agent access with a fair-use quota.</p></article>
-          <article><h3>Pro</h3><p>Unlimited hosted boards and a larger agent quota. Upgrade from your dashboard, cancel any time.</p><a href="/login">Sign in to upgrade</a></article>
+          <article class="plan-card plan-free">
+            <div class="plan-head">
+              <h3 class="plan-name">Free</h3>
+              <div class="plan-price">
+                <strong>$0</strong>
+                <span>forever</span>
+              </div>
+            </div>
+            <ul class="plan-features">
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12.5 L 9.5 18 L 20 6.5" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Draw without an account
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12.5 L 9.5 18 L 20 6.5" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Keep up to 10 boards
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12.5 L 9.5 18 L 20 6.5" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Live collaboration
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12.5 L 9.5 18 L 20 6.5" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                MCP access
+              </li>
+            </ul>
+            <a class="button-primary plan-cta" href="/b/new">Draw now</a>
+          </article>
+          <article class="plan-card plan-pro">
+            <div class="plan-head">
+              <div class="plan-name-row">
+                <h3 class="plan-name">Pro</h3>
+                <span class="plan-badge">Coming soon</span>
+              </div>
+              <p class="plan-tagline">For teams and heavy sketchers.</p>
+            </div>
+            <ul class="plan-features">
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12.5 L 9.5 18 L 20 6.5" fill="none" stroke="var(--color-ink-secondary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Unlimited boards
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12.5 L 9.5 18 L 20 6.5" fill="none" stroke="var(--color-ink-secondary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Priority support
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12.5 L 9.5 18 L 20 6.5" fill="none" stroke="var(--color-ink-secondary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Early team features
+              </li>
+            </ul>
+            <a class="button-secondary plan-cta" href="mailto:tlwb@jdevelop.io?subject=Pro%20waiting%20list">Join the waiting list</a>
+          </article>
         </div>
       </section>
     </main>
-    <footer class="site-footer">
-      <span>tlwb by JDevelop</span>
-      <nav>
+    <footer class="footer">
+      <a class="logotype" href="/">
+        <span style="font-size: 26px; line-height: 26px">tlwb</span>
+        <svg width="46" height="7" viewBox="0 0 46 7" aria-hidden="true">
+          <path d="M2 4.5 C 12 2, 24 5.5, 44 3" fill="none" stroke="var(--color-accent)" stroke-width="2.5" stroke-linecap="round" />
+        </svg>
+      </a>
+      <div class="footer-right">
+        <a class="footer-github" href="https://github.com/jdevelop-io/tlwb">
+          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 1.5a10.5 10.5 0 0 0-3.32 20.46c.53.1.72-.23.72-.5v-1.94c-2.92.63-3.54-1.24-3.54-1.24-.48-1.21-1.17-1.54-1.17-1.54-.95-.65.07-.64.07-.64 1.06.08 1.61 1.08 1.61 1.08.94 1.6 2.46 1.14 3.06.87.1-.68.37-1.14.66-1.4-2.33-.27-4.79-1.17-4.79-5.19 0-1.15.41-2.08 1.08-2.82-.11-.26-.47-1.33.1-2.77 0 0 .88-.28 2.89 1.08a10 10 0 0 1 5.25 0c2-1.36 2.88-1.08 2.88-1.08.58 1.44.22 2.51.11 2.77.67.74 1.08 1.67 1.08 2.82 0 4.03-2.46 4.91-4.81 5.17.38.33.72.97.72 1.96v2.9c0 .28.19.61.73.5A10.5 10.5 0 0 0 12 1.5Z" fill="var(--color-ink-secondary)" />
+          </svg>
+          <span>GitHub</span>
+        </a>
+        <span class="footer-dot">·</span>
+        <span>Made by JDevelop</span>
+        <span class="footer-dot">·</span>
         <a href="/privacy">Privacy</a>
+        <span class="footer-dot">·</span>
         <a href="/terms">Terms</a>
-        <a href="https://github.com/jdevelop-io/tlwb">Source</a>
-      </nav>
+      </div>
     </footer>
     <script type="module" src="/src/landing/recents.ts"></script>
   </body>

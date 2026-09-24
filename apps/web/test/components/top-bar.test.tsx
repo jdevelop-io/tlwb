@@ -137,6 +137,22 @@ describe('TopBar', () => {
     await session.destroy()
   })
 
+  it('shows the saved indicator with its check icon and the rename pencil', async () => {
+    const session = await openBoardSession({
+      boardId: 'top9',
+      fresh: true,
+      identity,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    render(<TopBar session={session} me={null} />)
+    const indicator = screen.getByText('Saved')
+    expect(indicator.previousElementSibling?.tagName).toBe('svg')
+    expect(
+      screen.getByRole('button', { name: 'Rename board' }),
+    ).toBeInTheDocument()
+    await session.destroy()
+  })
+
   it('lets the wordmark navigate on an ordinary click, unlike the menu toggle', async () => {
     const session = await openBoardSession({
       boardId: 'top8',

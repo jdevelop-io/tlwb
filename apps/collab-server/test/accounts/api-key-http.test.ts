@@ -59,67 +59,146 @@ async function cookieFor(userId: string): Promise<string> {
   return sessionCookie(token, AUTH_SECRET)
 }
 
-describe('POST/DELETE /me/api-key, GET /me/usage', () => {
+describe('GET/POST /me/api-keys, DELETE /me/api-keys/:id, GET /me/usage', () => {
   it('answers 401 signed out on all three routes', async () => {
     const a = app()
+    expect((await a.request('http://server/me/api-keys')).status).toBe(401)
     expect(
-      (await a.request('http://server/me/api-key', { method: 'POST' })).status,
+      (await a.request('http://server/me/api-keys', { method: 'POST' })).status,
     ).toBe(401)
     expect(
-      (await a.request('http://server/me/api-key', { method: 'DELETE' }))
-        .status,
+      (
+        await a.request('http://server/me/api-keys/whatever', {
+          method: 'DELETE',
+        })
+      ).status,
     ).toBe(401)
     expect((await a.request('http://server/me/usage')).status).toBe(401)
   })
 
-  it('issues a prefixed key, and regenerating invalidates the previous one', async () => {
+  it('issues a prefixed key and lists it with a null lastUsedAt', async () => {
     const a = app()
     const userA = await createUser()
     const cookie = await cookieFor(userA)
 
-    const first = await a.request('http://server/me/api-key', {
+    const created = await a.request('http://server/me/api-keys', {
       method: 'POST',
-      headers: { cookie },
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Claude · laptop' }),
     })
-    expect(first.status).toBe(201)
-    const { key: firstKey } = (await first.json()) as { key: string }
-    expect(firstKey.startsWith(API_KEY_PREFIX)).toBe(true)
-    expect(await resolveApiKey(database.db, firstKey)).toEqual({
-      userId: userA,
-      plan: 'free',
-    })
+    expect(created.status).toBe(201)
+    const { id, key } = (await created.json()) as { id: string; key: string }
+    expect(key.startsWith(API_KEY_PREFIX)).toBe(true)
 
-    const second = await a.request('http://server/me/api-key', {
-      method: 'POST',
+    const listed = await a.request('http://server/me/api-keys', {
       headers: { cookie },
     })
-    expect(second.status).toBe(201)
-    const { key: secondKey } = (await second.json()) as { key: string }
-    expect(secondKey).not.toBe(firstKey)
-    expect(await resolveApiKey(database.db, firstKey)).toBeNull()
-    expect(await resolveApiKey(database.db, secondKey)).toEqual({
-      userId: userA,
-      plan: 'free',
-    })
+    expect(listed.status).toBe(200)
+    const { keys } = (await listed.json()) as {
+      keys: { id: string; name: string; lastUsedAt: string | null }[]
+    }
+    expect(keys).toEqual([
+      expect.objectContaining({
+        id,
+        name: 'Claude · laptop',
+        lastUsedAt: null,
+      }),
+    ])
   })
 
-  it('revokes the active key on delete', async () => {
+  it('rejects an empty name with 400', async () => {
     const a = app()
     const userA = await createUser()
     const cookie = await cookieFor(userA)
 
-    const issued = await a.request('http://server/me/api-key', {
+    const created = await a.request('http://server/me/api-keys', {
       method: 'POST',
-      headers: { cookie },
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: '  ' }),
     })
-    const { key } = (await issued.json()) as { key: string }
+    expect(created.status).toBe(400)
+  })
 
-    const deleted = await a.request('http://server/me/api-key', {
+  it('rejects boardIds naming a board the user does not own with 400', async () => {
+    const a = app()
+    const userA = await createUser()
+    const userB = await createUser()
+    const cookieA = await cookieFor(userA)
+    const cookieB = await cookieFor(userB)
+
+    const boardCreated = await a.request('http://server/boards', {
+      method: 'POST',
+      headers: { cookie: cookieB },
+    })
+    expect(boardCreated.status).toBe(201)
+    const { boardId } = (await boardCreated.json()) as { boardId: string }
+
+    const created = await a.request('http://server/me/api-keys', {
+      method: 'POST',
+      headers: { cookie: cookieA, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'scoped', boardIds: [boardId] }),
+    })
+    expect(created.status).toBe(400)
+  })
+
+  it('rejects an empty boardIds array with 400', async () => {
+    const a = app()
+    const userA = await createUser()
+    const cookie = await cookieFor(userA)
+
+    const created = await a.request('http://server/me/api-keys', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'scoped to nothing', boardIds: [] }),
+    })
+    expect(created.status).toBe(400)
+  })
+
+  it('never lets one user delete another user key by id', async () => {
+    const a = app()
+    const userA = await createUser()
+    const userB = await createUser()
+    const cookieA = await cookieFor(userA)
+    const cookieB = await cookieFor(userB)
+
+    const created = await a.request('http://server/me/api-keys', {
+      method: 'POST',
+      headers: { cookie: cookieA, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: "A's key" }),
+    })
+    const { id, key } = (await created.json()) as { id: string; key: string }
+
+    const deletedByB = await a.request(`http://server/me/api-keys/${id}`, {
+      method: 'DELETE',
+      headers: { cookie: cookieB },
+    })
+    expect(deletedByB.status).toBe(404)
+    expect(await resolveApiKey(database.db, key)).not.toBeNull()
+  })
+
+  it('revokes a key by id, 204 then 404', async () => {
+    const a = app()
+    const userA = await createUser()
+    const cookie = await cookieFor(userA)
+
+    const created = await a.request('http://server/me/api-keys', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'to revoke' }),
+    })
+    const { id } = (await created.json()) as { id: string }
+
+    const deleted = await a.request(`http://server/me/api-keys/${id}`, {
       method: 'DELETE',
       headers: { cookie },
     })
     expect(deleted.status).toBe(204)
-    expect(await resolveApiKey(database.db, key)).toBeNull()
+
+    const again = await a.request(`http://server/me/api-keys/${id}`, {
+      method: 'DELETE',
+      headers: { cookie },
+    })
+    expect(again.status).toBe(404)
   })
 
   it('reports the current month, usage count and the plan limit', async () => {

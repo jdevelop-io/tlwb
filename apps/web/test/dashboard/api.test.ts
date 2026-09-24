@@ -3,8 +3,11 @@ import { ServerError } from '../../src/board/session/server'
 import {
   createApiKey,
   deleteBoard,
+  fetchApiKeys,
   fetchBoards,
   fetchMe,
+  fetchUsage,
+  revokeApiKey,
   startCheckout,
 } from '../../src/dashboard/api'
 
@@ -39,8 +42,67 @@ describe('dashboard api', () => {
     expect(await fetchBoards(respond(200, payload))).toEqual(payload)
   })
 
-  it('returns the key from createApiKey', async () => {
-    expect(await createApiKey(respond(201, { key: 'sk_test' }))).toBe('sk_test')
+  it('returns the id and key from createApiKey', async () => {
+    expect(
+      await createApiKey(
+        { name: 'Claude', boardIds: null },
+        respond(201, { id: 'k1', key: 'sk_test' }),
+      ),
+    ).toEqual({ id: 'k1', key: 'sk_test' })
+  })
+
+  it('omits boardIds from the request body when scoped to all boards', async () => {
+    let seenBody: string | undefined
+    const fetchFn: typeof fetch = async (_url, init) => {
+      seenBody = init?.body as string | undefined
+      return new Response(JSON.stringify({ id: 'k1', key: 'sk_test' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    await createApiKey({ name: 'Claude', boardIds: null }, fetchFn)
+    expect(seenBody).toBe(JSON.stringify({ name: 'Claude' }))
+  })
+
+  it('sends boardIds in the request body when scoped to specific boards', async () => {
+    let seenBody: string | undefined
+    const fetchFn: typeof fetch = async (_url, init) => {
+      seenBody = init?.body as string | undefined
+      return new Response(JSON.stringify({ id: 'k1', key: 'sk_test' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    await createApiKey({ name: 'Claude', boardIds: ['b1'] }, fetchFn)
+    expect(seenBody).toBe(JSON.stringify({ name: 'Claude', boardIds: ['b1'] }))
+  })
+
+  it('returns the keys from fetchApiKeys', async () => {
+    const keys = [
+      {
+        id: 'k1',
+        name: 'Claude',
+        boardIds: null,
+        createdAt: '2026-09-01T00:00:00Z',
+        lastUsedAt: null,
+      },
+    ]
+    expect(await fetchApiKeys(respond(200, { keys }))).toEqual(keys)
+  })
+
+  it('returns the month, count and limit from fetchUsage', async () => {
+    const usage = { month: '2026-09', count: 12, limit: 200 }
+    expect(await fetchUsage(respond(200, usage))).toEqual(usage)
+  })
+
+  it('resolves on a successful revokeApiKey', async () => {
+    await expect(revokeApiKey('k1', respond(204))).resolves.toBeUndefined()
+  })
+
+  it('throws a ServerError instead of resolving on a failed revokeApiKey', async () => {
+    await expect(revokeApiKey('k1', respond(404))).rejects.toBeInstanceOf(
+      ServerError,
+    )
   })
 
   it('posts the interval and returns the checkout url', async () => {

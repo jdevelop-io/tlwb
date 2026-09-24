@@ -58,7 +58,7 @@ describe('PresenceStack', () => {
     )
     const avatar = screen.getByRole('button', { name: 'Mallory' })
     expect(avatar.getAttribute('style')).not.toContain('url(')
-    expect(avatar.getAttribute('style')).toContain('var(--muted)')
+    expect(avatar.getAttribute('style')).toContain('var(--color-ink-secondary)')
   })
 
   it('paints a well-formed peer colour as it is', () => {
@@ -95,6 +95,29 @@ describe('PresenceStack', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ada' }))
     expect(screen.getByRole('textbox', { name: 'Your name' })).toHaveFocus()
     await session.destroy()
+  })
+
+  it('marks the agent avatar with the bot icon and badge', () => {
+    render(
+      <PresenceStack
+        session={sessionShowing([
+          {
+            id: 'a',
+            name: 'Claude',
+            color: '#6E56CF',
+            cursor: null,
+            selectedIds: [],
+            isAgent: true,
+          },
+        ])}
+        identity={identity}
+        onRename={() => undefined}
+        onShare={() => undefined}
+        menu={null}
+      />,
+    )
+    const avatar = screen.getByRole('button', { name: 'Claude (agent)' })
+    expect(avatar.querySelectorAll('svg')).toHaveLength(2)
   })
 
   it('keeps the menu slot outside the scrolling peer list', async () => {

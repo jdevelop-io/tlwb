@@ -50,7 +50,7 @@ function renderOverlayToCanvas(scene: OverlayScene): Canvas {
       selection: '#FF6B4A',
       guide: '#FF6B4A',
       lassoFill: 'rgba(255, 107, 74, 0.08)',
-      agent: '#8B7CF6',
+      agent: '#6E56CF',
       labelFont: '12px Caveat',
     },
   })

@@ -196,7 +196,7 @@ export function overlayPresenceScene(): OverlayScene {
       {
         id: 'bot',
         name: 'Agent',
-        color: '#8B7CF6',
+        color: '#6E56CF',
         cursor: { x: 120, y: 300 },
         selectedIds: ['diamond-1'],
         isAgent: true,

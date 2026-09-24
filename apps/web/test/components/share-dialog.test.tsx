@@ -2,10 +2,24 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createBoardDoc, createLocalAwareness } from '@tlwb/store-yjs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShareDialog } from '../../src/board/components/share-dialog'
+import type { BoardSession } from '../../src/board/session/board-session'
 import { openBoardSession } from '../../src/board/session/board-session'
 import { writeKeys } from '../../src/board/session/keys'
 
 const identity = { name: 'Ada', color: '#1971C2' }
+
+/** A hosted board never actually dials the network in tests. */
+function hostedConnect() {
+  return {
+    provider: {} as never,
+    awareness: createLocalAwareness(createBoardDoc()),
+    getStatus: () => 'connected' as const,
+    subscribeStatus: () => () => undefined,
+    subscribeClose: () => () => undefined,
+    reconnect: () => undefined,
+    destroy: () => undefined,
+  }
+}
 
 beforeEach(() => localStorage.clear())
 afterEach(() => vi.restoreAllMocks())
@@ -67,7 +81,7 @@ describe('ShareDialog', () => {
         ).value,
       ).toContain('#edit=e'),
     )
-    fireEvent.click(screen.getByRole('radio', { name: 'View only' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Can view' }))
     expect(
       (screen.getByRole('textbox', { name: 'Share link' }) as HTMLInputElement)
         .value,
@@ -103,29 +117,39 @@ describe('ShareDialog', () => {
     await session.destroy()
   })
 
-  it('shows only the links whose keys it holds', async () => {
+  it('disables Can edit and shows the view link on a view-only board', async () => {
     writeKeys('sd3', { viewKey: 'v' })
     const session = await openBoardSession({
       boardId: 'sd3',
       fresh: true,
       identity,
-      connect: () => ({
-        provider: {} as never,
-        awareness: createLocalAwareness(createBoardDoc()),
-        getStatus: () => 'connected',
-        subscribeStatus: () => () => undefined,
-        subscribeClose: () => () => undefined,
-        reconnect: () => undefined,
-        destroy: () => undefined,
-      }),
+      connect: hostedConnect,
     })
     if (session === 'not-found') throw new Error('unexpected')
     render(<ShareDialog session={session} open onClose={() => undefined} />)
-    expect(screen.queryByRole('radio', { name: 'Can edit' })).toBeNull()
+    expect(screen.getByRole('radio', { name: 'Can edit' })).toBeDisabled()
     expect(
       (screen.getByRole('textbox', { name: 'Share link' }) as HTMLInputElement)
         .value,
     ).toContain('#view=v')
+    await session.destroy()
+  })
+
+  it('disables Can view on a board reached only through an edit link', async () => {
+    writeKeys('sd5', { editKey: 'e' })
+    const session = await openBoardSession({
+      boardId: 'sd5',
+      fresh: true,
+      identity,
+      connect: hostedConnect,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    render(<ShareDialog session={session} open onClose={() => undefined} />)
+    expect(screen.getByRole('radio', { name: 'Can view' })).toBeDisabled()
+    expect(
+      (screen.getByRole('textbox', { name: 'Share link' }) as HTMLInputElement)
+        .value,
+    ).toContain('#edit=e')
     await session.destroy()
   })
 
@@ -135,15 +159,7 @@ describe('ShareDialog', () => {
       boardId: 'sd4',
       fresh: true,
       identity,
-      connect: () => ({
-        provider: {} as never,
-        awareness: createLocalAwareness(createBoardDoc()),
-        getStatus: () => 'connected',
-        subscribeStatus: () => () => undefined,
-        subscribeClose: () => () => undefined,
-        reconnect: () => undefined,
-        destroy: () => undefined,
-      }),
+      connect: hostedConnect,
     })
     if (session === 'not-found') throw new Error('unexpected')
     vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(
@@ -156,5 +172,57 @@ describe('ShareDialog', () => {
     )
     expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
     await session.destroy()
+  })
+})
+
+describe('ShareDialog, hosted', () => {
+  let session: BoardSession
+  let boardId: string
+
+  beforeEach(async () => {
+    boardId = `sdh${Math.random().toString(36).slice(2)}`
+    writeKeys(boardId, { editKey: 'e', viewKey: 'v' })
+    const opened = await openBoardSession({
+      boardId,
+      fresh: true,
+      identity,
+      connect: hostedConnect,
+    })
+    if (opened === 'not-found') throw new Error('unexpected')
+    session = opened
+  })
+
+  afterEach(async () => {
+    await session.destroy()
+  })
+
+  function renderHosted(props: { onConnectAgent?: () => void } = {}) {
+    render(
+      <ShareDialog
+        session={session}
+        open
+        onClose={() => undefined}
+        onConnectAgent={props.onConnectAgent}
+      />,
+    )
+  }
+
+  it('offers the agent connection and the segmented access control', async () => {
+    const onConnectAgent = vi.fn()
+    renderHosted({ onConnectAgent })
+    expect(screen.getByRole('radio', { name: 'Can view' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Can edit' })).toBeChecked()
+    expect(
+      screen.getByText('Anyone with the link can jump in, no account needed.'),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect an agent' }))
+    expect(onConnectAgent).toHaveBeenCalled()
+  })
+
+  it('sends a signed-out visitor to sign in to connect an agent', () => {
+    renderHosted()
+    expect(
+      screen.getByRole('link', { name: 'Connect an agent' }),
+    ).toHaveAttribute('href', '/login')
   })
 })

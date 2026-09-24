@@ -94,7 +94,10 @@ describe('accountCleanup', () => {
     const userA = await createUser('cus_1')
     const boardA1 = await ownedBoard(userA)
     const boardA2 = await ownedBoard(userA)
-    const key = await issueApiKey(database.db, userA)
+    const { key } = await issueApiKey(database.db, userA, {
+      name: 'test',
+      boardIds: null,
+    })
 
     // A board owned by someone else must survive this untouched: the
     // strongest proof `disownBoards` is scoped to the deleted user.
@@ -156,7 +159,10 @@ describe('accountCleanup', () => {
     } as unknown as Stripe
     const userA = await createUser('cus_down')
     const board = await ownedBoard(userA)
-    const key = await issueApiKey(database.db, userA)
+    const { key } = await issueApiKey(database.db, userA, {
+      name: 'test',
+      boardIds: null,
+    })
 
     // A Stripe outage must not throw out of the cleanup: the rest of
     // the deletion still runs, and the hook itself still resolves so
@@ -182,7 +188,10 @@ describe('accountCleanup', () => {
   it('skips the subscription step entirely with no stripe configured', async () => {
     const userA = await createUser('cus_1')
     const board = await ownedBoard(userA)
-    const key = await issueApiKey(database.db, userA)
+    const { key } = await issueApiKey(database.db, userA, {
+      name: 'test',
+      boardIds: null,
+    })
 
     // A null stripe must not be dereferenced; boards and the key are
     // still cleaned up.

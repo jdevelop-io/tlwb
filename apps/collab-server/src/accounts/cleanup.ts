@@ -4,7 +4,7 @@ import { disownBoards } from '../db/boards'
 import type { Db } from '../db/client'
 import { user } from '../db/schema'
 import { log } from '../log'
-import { revokeApiKey } from './api-keys'
+import { revokeAllApiKeys } from './api-keys'
 
 /** A subscription in this state needs no cancellation call: it is
  * already terminal, or (`incomplete_expired`) never actually started. */
@@ -44,7 +44,7 @@ async function cancelSubscriptions(
 /**
  * Runs once, before a user row is actually deleted (Better Auth's
  * `beforeDelete` hook): re-anonymizes their boards so share links keep
- * working, revokes their API key, and cancels any live Stripe
+ * working, revokes all their API keys, and cancels any live Stripe
  * subscription. Safe to run on a user with nothing to clean.
  *
  * The billing step is isolated in its own try/catch: a Stripe outage
@@ -58,7 +58,7 @@ export function accountCleanup(
 ): (userId: string) => Promise<void> {
   return async (userId) => {
     await disownBoards(db, userId)
-    await revokeApiKey(db, userId)
+    await revokeAllApiKeys(db, userId)
     if (!stripe) {
       return
     }

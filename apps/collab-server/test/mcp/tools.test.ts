@@ -7,6 +7,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -788,7 +789,10 @@ describe('keyed callers', () => {
 
   it('a valid API key spends the quota and an exhausted one errors', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ MCP_QUOTA_FREE: '1' })
 
     const first = await toolResult(
@@ -827,7 +831,10 @@ describe('keyed callers', () => {
 
   it('a keyed call marks the board as agent-touched', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp()
 
     const created = await toolResult(
@@ -857,7 +864,10 @@ describe('keyed callers', () => {
 
   it('skips the per-IP limiter that would otherwise block a second call', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ MCP_LIMIT_PER_MIN: '1' })
 
     const first = await app.request(
@@ -872,7 +882,10 @@ describe('keyed callers', () => {
 
   it('is not bounded by the board-creation limiter, unlike an anonymous caller', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ CREATE_LIMIT_PER_MIN: '1' })
 
     const first = await toolResult(
@@ -891,7 +904,10 @@ describe('keyed callers', () => {
 
   it('owns every board it creates and is bounded by the free cap', async () => {
     const userId = await seedUser()
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ FREE_BOARD_CAP: '1' })
 
     const first = await toolResult(
@@ -922,7 +938,10 @@ describe('keyed callers', () => {
 
   it('lets a pro-plan keyed caller create past the free cap', async () => {
     const userId = await seedUser('pro')
-    const key = await issueApiKey(database.db, userId)
+    const { key } = await issueApiKey(database.db, userId, {
+      name: 'test',
+      boardIds: null,
+    })
     const app = httpApp({ FREE_BOARD_CAP: '1' })
 
     for (let i = 0; i < 2; i += 1) {
@@ -933,5 +952,85 @@ describe('keyed callers', () => {
       )
       expect(result.isError).toBeFalsy()
     }
+  })
+
+  describe('board scope', () => {
+    let app: ReturnType<typeof httpApp>
+    let insideId: string
+    let insideUrl: string
+    let outsideId: string
+    let outsideUrl: string
+    let key: string
+
+    beforeEach(async () => {
+      const userId = await seedUser()
+      app = httpApp()
+
+      async function createBoard() {
+        const created = await toolResult(
+          await app.request(
+            mcpRequest({ name: 'create_board', arguments: {} }),
+          ),
+        )
+        return JSON.parse((created.content[0] as { text: string }).text) as {
+          boardId: string
+          editUrl: string
+        }
+      }
+      const inside = await createBoard()
+      const outside = await createBoard()
+      insideId = inside.boardId
+      insideUrl = inside.editUrl
+      outsideId = outside.boardId
+      outsideUrl = outside.editUrl
+
+      const issued = await issueApiKey(database.db, userId, {
+        name: 'test',
+        boardIds: [insideId],
+      })
+      key = issued.key
+    })
+
+    // One entry per board-taking tool: a missed `assertBoardAllowed`
+    // call site on any one of them must fail this table, not just
+    // `read_board`'s.
+    it.each([
+      ['read_board', {}],
+      [
+        'add_elements',
+        { elements: [{ type: 'rectangle', x: 0, y: 0, width: 1, height: 1 }] },
+      ],
+      ['update_elements', { updates: [{ id: 'irrelevant' }] }],
+      ['delete_elements', { ids: ['irrelevant'] }],
+      ['get_board_screenshot', {}],
+    ])(
+      'refuses %s on a board outside the token scope',
+      async (name, extraArgs) => {
+        const result = await toolResult(
+          await app.request(
+            mcpRequest(
+              { name, arguments: { board: outsideUrl, ...extraArgs } },
+              { bearer: key },
+            ),
+          ),
+        )
+        expect(result.isError).toBe(true)
+        expect((result.content[0] as { text: string }).text).toBe(
+          `this token is not allowed on board ${outsideId}`,
+        )
+      },
+    )
+
+    it('accepts a board inside the token scope', async () => {
+      const result = await toolResult(
+        await app.request(
+          mcpRequest(
+            { name: 'read_board', arguments: { board: insideUrl } },
+            { bearer: key },
+          ),
+        ),
+      )
+      expect(result.isError).toBeFalsy()
+    })
   })
 })

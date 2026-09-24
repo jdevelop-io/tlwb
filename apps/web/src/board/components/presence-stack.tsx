@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { usePeers } from '../hooks/use-peers'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
 import type { Identity } from '../session/identity'
+import { AgentIcon } from './agent-icon'
 import './presence-stack.css'
 
 /**
@@ -16,8 +17,8 @@ import './presence-stack.css'
  */
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 
-function avatarColor(color: string): string {
-  return HEX_COLOR.test(color) ? color : 'var(--muted)'
+function ringColor(color: string): string {
+  return HEX_COLOR.test(color) ? color : 'var(--color-ink-secondary)'
 }
 
 function Avatar(props: {
@@ -31,12 +32,21 @@ function Avatar(props: {
     <button
       type="button"
       className={`avatar${props.isAgent ? ' avatar-agent' : ''}`}
-      style={{ background: avatarColor(props.color) }}
+      style={{ '--ring': ringColor(props.color) } as CSSProperties}
       title={props.name}
-      aria-label={props.name}
+      aria-label={props.isAgent ? `${props.name} (agent)` : props.name}
       onClick={props.onClick}
     >
-      {initial}
+      {props.isAgent ? (
+        <>
+          <AgentIcon size={16} color="var(--color-agent)" />
+          <span className="avatar-badge">
+            <AgentIcon size={8} color="#FFFFFF" strokeWidth={2.5} />
+          </span>
+        </>
+      ) : (
+        initial
+      )}
     </button>
   )
 }
@@ -97,7 +107,44 @@ export function PresenceStack(props: {
         ))}
       </div>
       {snapshot.role !== 'view' ? (
-        <button type="button" className="share" onClick={props.onShare}>
+        <button
+          type="button"
+          className="button-primary"
+          onClick={props.onShare}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+            <circle
+              cx="6"
+              cy="12"
+              r="2.5"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="1.8"
+            />
+            <circle
+              cx="17.5"
+              cy="5.5"
+              r="2.5"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="1.8"
+            />
+            <circle
+              cx="17.5"
+              cy="18.5"
+              r="2.5"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="1.8"
+            />
+            <path
+              d="M8.3 10.8 L15.2 6.8 M8.3 13.2 L15.2 17.2"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
           Share
         </button>
       ) : null}

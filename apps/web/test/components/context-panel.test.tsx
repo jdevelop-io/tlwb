@@ -15,8 +15,8 @@ describe('ContextPanel', () => {
   it('patches the creation defaults when a tool is active', () => {
     const editor = fakeEditor({ activeTool: 'rectangle' })
     render(<ContextPanel editor={editor} store={new InMemoryBoardStore()} />)
-    fireEvent.click(screen.getByRole('radio', { name: 'Stroke #E03131' }))
-    expect(editor.setDefaults).toHaveBeenCalledWith({ strokeColor: '#E03131' })
+    fireEvent.click(screen.getByRole('radio', { name: 'Stroke #E5484D' }))
+    expect(editor.setDefaults).toHaveBeenCalledWith({ strokeColor: '#E5484D' })
     expect(editor.updateSelection).not.toHaveBeenCalled()
   })
 
@@ -30,5 +30,18 @@ describe('ContextPanel', () => {
     expect(editor.updateSelection).toHaveBeenCalledWith({ fontSize: 28 })
     fireEvent.click(screen.getByRole('button', { name: 'Bring to front' }))
     expect(editor.execute).toHaveBeenCalledWith({ kind: 'bring-to-front' })
+  })
+
+  it('exposes sketchiness as a slider and leaves no swatch checked with nothing selected', () => {
+    const editor = fakeEditor({ activeTool: 'rectangle' })
+    render(<ContextPanel editor={editor} store={new InMemoryBoardStore()} />)
+    const slider = screen.getByRole('slider', { name: 'Sketchiness' })
+    fireEvent.change(slider, { target: { value: '2' } })
+    expect(editor.setDefaults).toHaveBeenCalledWith({ sketchiness: 2 })
+    // `Editor` has no way to read the creation defaults back (only to
+    // write them), so with nothing selected the panel must not claim
+    // any particular color is the current one.
+    for (const radio of screen.getAllByRole('radio', { name: /^Stroke / }))
+      expect(radio).not.toBeChecked()
   })
 })

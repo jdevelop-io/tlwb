@@ -15,6 +15,7 @@ export function renderResume(
   for (const board of recents.slice(0, 5)) {
     const item = document.createElement('li')
     const link = document.createElement('a')
+    link.className = 'pill'
     link.href = `/b/${board.id}`
     link.textContent = board.name || 'Untitled'
     item.append(link)

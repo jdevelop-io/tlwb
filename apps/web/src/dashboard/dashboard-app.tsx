@@ -7,10 +7,13 @@ import {
   createHostedBoard as defaultCreateHostedBoard,
   ServerError,
 } from '../board/session/server'
+import { AgentsView } from './agents-view'
 import {
+  type ApiKeySummary,
   createApiKey,
   type DashboardBoard,
   deleteBoard,
+  fetchApiKeys,
   fetchBoards,
   fetchMe,
   fetchUsage,
@@ -19,9 +22,11 @@ import {
   revokeApiKey,
   startCheckout,
 } from './api'
-import { BoardCard } from './board-card'
+import { BoardsView } from './boards-view'
 import './dashboard.css'
+import { NewTokenDialog } from './new-token-dialog'
 import { Settings } from './settings'
+import { Sidebar } from './sidebar'
 
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 30000
@@ -30,32 +35,43 @@ export interface DashboardDeps {
   fetchMe: typeof fetchMe
   fetchBoards: typeof fetchBoards
   deleteBoard: typeof deleteBoard
-  createApiKey: typeof createApiKey
-  revokeApiKey: typeof revokeApiKey
-  fetchUsage: typeof fetchUsage
   startCheckout: typeof startCheckout
   openPortal: typeof openPortal
   createHostedBoard: typeof defaultCreateHostedBoard
+  fetchApiKeys: typeof fetchApiKeys
+  fetchUsage: typeof fetchUsage
+  createApiKey: typeof createApiKey
+  revokeApiKey: typeof revokeApiKey
   signOut: () => Promise<unknown>
   deleteUser: () => Promise<unknown>
   navigate: (path: string) => void
   adopt: () => Promise<unknown>
+  pathname?: string
 }
 
 const defaultDeps: DashboardDeps = {
   fetchMe,
   fetchBoards,
   deleteBoard,
-  createApiKey,
-  revokeApiKey,
-  fetchUsage,
   startCheckout,
   openPortal,
   createHostedBoard: defaultCreateHostedBoard,
+  fetchApiKeys,
+  fetchUsage,
+  createApiKey,
+  revokeApiKey,
   signOut: () => authClient.signOut(),
   deleteUser: () => authClient.deleteUser(),
   navigate: (path: string) => location.assign(path),
   adopt: adoptBrowserBoards,
+}
+
+function viewFor(pathname: string): 'boards' | 'agents' | 'settings' {
+  return pathname.endsWith('/agents')
+    ? 'agents'
+    : pathname.endsWith('/settings')
+      ? 'settings'
+      : 'boards'
 }
 
 export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
@@ -66,6 +82,13 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
   const [capMessage, setCapMessage] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([])
+  const [usage, setUsage] = useState<{
+    count: number
+    limit: number
+  } | null>(null)
+  const [newTokenOpen, setNewTokenOpen] = useState(false)
+  const view = viewFor(deps.pathname ?? location.pathname)
 
   useEffect(() => {
     let cancelled = false
@@ -146,6 +169,31 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
     return () => clearTimeout(timer)
   }, [toast])
 
+  const refreshKeys = async (): Promise<void> => {
+    try {
+      setApiKeys(await deps.fetchApiKeys())
+    } catch {
+      // Keep whatever list is already on screen; the agents view stays usable.
+    }
+  }
+
+  const refreshUsage = async (): Promise<void> => {
+    try {
+      setUsage(await deps.fetchUsage())
+    } catch {
+      // Informational only; the agents view stays usable without it.
+    }
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKeys/refreshUsage are redefined every render, only their call needs to react to view/deps
+  useEffect(() => {
+    if (view !== 'agents') {
+      return
+    }
+    void refreshKeys()
+    void refreshUsage()
+  }, [view, deps])
+
   const createBoard = async (): Promise<void> => {
     setCapMessage(false)
     try {
@@ -191,81 +239,67 @@ export function DashboardApp(props: { deps?: Partial<DashboardDeps> }) {
     }
   }
 
+  const revoke = async (id: string): Promise<void> => {
+    try {
+      await deps.revokeApiKey(id)
+      setApiKeys((current) => current.filter((key) => key.id !== id))
+    } catch {
+      setToast('Could not revoke the token, try again')
+    }
+  }
+
   if (!me) {
     return null
   }
 
   return (
     <div className="dashboard">
-      <header className="dashboard-header">
-        <a href="/" className="dashboard-wordmark">
-          tlwb
-        </a>
-        <div className="dashboard-user">
-          {me.user.image ? (
-            <img
-              src={me.user.image}
-              alt={`${me.user.name}'s avatar`}
-              className="dashboard-avatar"
-            />
-          ) : (
-            <span className="dashboard-avatar dashboard-avatar-initial">
-              {me.user.name.charAt(0).toUpperCase()}
-            </span>
-          )}
-          <span className="dashboard-user-name">{me.user.name}</span>
-          <button type="button" onClick={() => void signOut()}>
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      {confirming ? <Notice kind="banner">Payment confirming…</Notice> : null}
-
-      <section className="dashboard-boards">
-        <div className="dashboard-boards-toolbar">
-          <button type="button" onClick={() => void createBoard()}>
-            New board
-          </button>
-          {cap !== null ? (
-            <span className="dashboard-gauge">
-              {boards.length}/{cap} boards
-            </span>
-          ) : null}
-          {cap !== null && me.billing ? (
-            <div className="dashboard-upgrade">
-              <button type="button" onClick={() => void upgrade('month')}>
-                Upgrade monthly
-              </button>
-              <button type="button" onClick={() => void upgrade('year')}>
-                Upgrade yearly
-              </button>
-            </div>
-          ) : null}
-        </div>
-        {capMessage ? (
-          <p className="dashboard-cap-message">
-            You have reached your board limit.
-            {me.billing ? (
-              <button type="button" onClick={() => void upgrade('month')}>
-                Upgrade
-              </button>
-            ) : null}
-          </p>
-        ) : null}
-        <div className="dashboard-grid">
-          {boards.map((board) => (
-            <BoardCard
-              key={board.id}
-              board={board}
-              onDelete={(id) => void deleteBoardById(id)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <Settings user={me.user} billing={me.billing} deps={deps} />
-
+      <Sidebar
+        active={view}
+        user={me.user}
+        boardCount={boards.length}
+        cap={cap}
+        billing={me.billing}
+        onUpgrade={() => void upgrade('month')}
+      />
+      <main className="dashboard-main">
+        {confirming ? <Notice kind="banner">Payment confirming…</Notice> : null}
+        {view === 'boards' ? (
+          <BoardsView
+            me={me}
+            boards={boards}
+            cap={cap}
+            capReached={capMessage}
+            onCreate={() => void createBoard()}
+            onDelete={(id) => void deleteBoardById(id)}
+            onUpgrade={() => void upgrade('month')}
+          />
+        ) : view === 'agents' ? (
+          <AgentsView
+            keys={apiKeys}
+            usage={usage}
+            onRevoke={(id) => void revoke(id)}
+            onOpenNewToken={() => setNewTokenOpen(true)}
+          />
+        ) : (
+          <Settings
+            user={me.user}
+            billing={me.billing}
+            deps={deps}
+            onSignOut={() => void signOut()}
+          />
+        )}
+      </main>
+      <NewTokenDialog
+        open={newTokenOpen}
+        boards={boards}
+        createApiKey={deps.createApiKey}
+        fetchApiKeys={deps.fetchApiKeys}
+        onClose={() => {
+          setNewTokenOpen(false)
+          void refreshKeys()
+        }}
+      />
       {toast ? (
         <Notice kind="toast" onClose={() => setToast(null)}>
           {toast}

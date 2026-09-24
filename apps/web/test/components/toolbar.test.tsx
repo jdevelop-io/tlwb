@@ -21,4 +21,11 @@ describe('Toolbar', () => {
     expect(onPickImage).toHaveBeenCalled()
     expect(editor.setActiveTool).not.toHaveBeenCalled()
   })
+
+  it('separates hand from shapes and image from eraser', () => {
+    const { container } = render(
+      <Toolbar editor={fakeEditor()} onPickImage={() => undefined} />,
+    )
+    expect(container.querySelectorAll('.toolbar-divider')).toHaveLength(2)
+  })
 })

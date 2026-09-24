@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { withBoard } from '../agent-client'
 import { parseBoardRef } from '../board-ref'
-import { assertCaller, type Caller } from '../caller'
+import { assertBoardAllowed, assertCaller, type Caller } from '../caller'
 import {
   exceedsPixelBudget,
   imageBlock,
@@ -39,6 +39,7 @@ export function registerGetBoardScreenshot(
       return guarded(context, async () => {
         await assertCaller(deps, caller)
         const ref = parseBoardRef(board)
+        assertBoardAllowed(caller, ref.boardId)
         context.boardId = ref.boardId
         return withBoard(agentDeps(deps), ref, 'view', async (client) => {
           const elements = client.store.listElements()
