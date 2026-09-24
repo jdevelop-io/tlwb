@@ -194,7 +194,12 @@ export function BoardApp(props: {
             open={shareOpen}
             onClose={() => setShareOpen(false)}
             onConnectAgent={
-              snapshot.role !== 'local' ? account?.onConnectAgent : undefined
+              snapshot.role !== 'local' && account?.onConnectAgent
+                ? () => {
+                    setShareOpen(false)
+                    account.onConnectAgent?.()
+                  }
+                : undefined
             }
           />
           <HelpButton />

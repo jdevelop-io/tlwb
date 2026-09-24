@@ -63,6 +63,37 @@ describe('BoardApp, share dialog wiring', () => {
     await session.destroy()
   })
 
+  it('closes the share dialog before connecting an agent', async () => {
+    const boardId = `ba${Math.random().toString(36).slice(2)}`
+    writeKeys(boardId, { editKey: 'e', viewKey: 'v' })
+    const session = await openBoardSession({
+      boardId,
+      fresh: true,
+      identity,
+      connect: hostedConnect,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    const onConnectAgent = vi.fn()
+    render(
+      <BoardApp
+        session={session}
+        identity={identity}
+        account={{ homeHref: '/', onConnectAgent }}
+      />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Share' }))
+    const dialog = document.querySelector(
+      'dialog.share-dialog',
+    ) as HTMLDialogElement
+    expect(dialog.open).toBe(true)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Connect an agent' }),
+    )
+    expect(onConnectAgent).toHaveBeenCalled()
+    expect(dialog.open).toBe(false)
+    await session.destroy()
+  })
+
   it('shows the MCP endpoint on a hosted board with no account', async () => {
     const boardId = `ba${Math.random().toString(36).slice(2)}`
     writeKeys(boardId, { editKey: 'e', viewKey: 'v' })
