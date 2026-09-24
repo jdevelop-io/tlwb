@@ -177,4 +177,23 @@ describe('renderScene', () => {
     // The stroke passes through world (50, 50) with a 4px half-width.
     expect(rgbaAt(render([draw]), 50, 50)).toEqual([255, 0, 0, 255])
   })
+
+  it('fades the elements about to be erased, with their labels', () => {
+    const label = createElement('text', {
+      id: 'label-1',
+      index: 'a1',
+      x: 20,
+      y: 20,
+      width: 60,
+      height: 60,
+      containerId: 'red-1',
+    })
+    const canvas = render([redSquare(), label], {
+      erasingIds: new Set(['red-1']),
+    })
+    const [red, green, blue] = rgbaAt(canvas, 50, 50)
+    expect(red).toBe(255)
+    expect(green).toBeGreaterThan(0)
+    expect(blue).toBeGreaterThan(0)
+  })
 })

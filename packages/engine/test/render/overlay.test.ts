@@ -37,6 +37,7 @@ function snapshotFor(
     gesture: 'idle',
     lasso: null,
     guides: [],
+    erasing: [],
     ...partial,
   }
 }

@@ -238,7 +238,10 @@ export function createEditor(options: EditorOptions): Editor {
     overlay.markDirty()
     refresh()
   }
-  const unsubscribeController = controller.subscribe(invalidate)
+  const unsubscribeController = controller.subscribe(() => {
+    renderer.setErasingIds(controller.getSnapshot().erasing)
+    invalidate()
+  })
   const unsubscribeStore = store.subscribe(invalidate)
   const stopSizing = env.observeSize(container, (width, height) => {
     viewport = { width, height }

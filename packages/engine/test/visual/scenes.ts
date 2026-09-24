@@ -163,6 +163,7 @@ export function overlaySelectionScene(): OverlayScene {
         { orientation: 'vertical', position: 280 },
         { orientation: 'horizontal', position: 400 },
       ],
+      erasing: [],
     },
     peers: [],
   }
@@ -183,6 +184,7 @@ export function overlayPresenceScene(): OverlayScene {
       gesture: 'lasso',
       lasso: { x: 20, y: 20, width: 440, height: 160 },
       guides: [],
+      erasing: [],
     },
     peers: [
       {

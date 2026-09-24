@@ -53,5 +53,13 @@ export function createEraserTool(): Tool {
     onCancel() {
       hitIds = null
     },
+    getOverlay() {
+      return {
+        gesture: 'idle',
+        lasso: null,
+        guides: [],
+        erasing: hitIds ? [...hitIds] : [],
+      }
+    },
   }
 }
