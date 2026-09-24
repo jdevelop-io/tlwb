@@ -32,12 +32,16 @@ describe('ContextPanel', () => {
     expect(editor.execute).toHaveBeenCalledWith({ kind: 'bring-to-front' })
   })
 
-  it('exposes sketchiness as a slider and marks the selected swatch', () => {
+  it('exposes sketchiness as a slider and leaves no swatch checked with nothing selected', () => {
     const editor = fakeEditor({ activeTool: 'rectangle' })
     render(<ContextPanel editor={editor} store={new InMemoryBoardStore()} />)
     const slider = screen.getByRole('slider', { name: 'Sketchiness' })
     fireEvent.change(slider, { target: { value: '2' } })
     expect(editor.setDefaults).toHaveBeenCalledWith({ sketchiness: 2 })
-    expect(screen.getByRole('radio', { name: 'Stroke #1A1A1A' })).toBeChecked()
+    // `Editor` has no way to read the creation defaults back (only to
+    // write them), so with nothing selected the panel must not claim
+    // any particular color is the current one.
+    for (const radio of screen.getAllByRole('radio', { name: /^Stroke / }))
+      expect(radio).not.toBeChecked()
   })
 })

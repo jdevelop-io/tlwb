@@ -36,7 +36,6 @@ const ALIGNS: Array<{ value: TextAlign; Icon: typeof AlignLeft }> = [
   { value: 'center', Icon: AlignCenter },
   { value: 'right', Icon: AlignRight },
 ]
-const DEFAULT_TEXT_ALIGN: TextAlign = 'left'
 const DEFAULT_SKETCHINESS = 1
 const SKETCHINESS_MAX = 2
 
@@ -147,14 +146,20 @@ export function ContextPanel(props: { editor: Editor; store: BoardStore }) {
     }
   }
   const showsText = first ? first.type === 'text' : activeTool === 'text'
+  // With nothing selected, the engine's own creation defaults are not
+  // exposed on `Editor` (`setDefaults` writes them, nothing reads them
+  // back), so there is no real value to show here. Falling back to a
+  // local constant would show a value the editor may not agree with
+  // (a color just picked, for instance) as if it were selected; no
+  // selection shown at all is the honest state.
   const current = {
-    strokeColor: first?.strokeColor ?? STROKE_COLORS[0],
-    fillColor: first ? first.fillColor : FILL_COLORS[0],
-    strokeWidth: first?.strokeWidth ?? WIDTHS[1],
-    strokeStyle: first?.strokeStyle ?? STYLES[0],
+    strokeColor: first?.strokeColor,
+    fillColor: first?.fillColor,
+    strokeWidth: first?.strokeWidth,
+    strokeStyle: first?.strokeStyle,
     sketchiness: first?.sketchiness ?? DEFAULT_SKETCHINESS,
-    fontSize: first?.type === 'text' ? first.fontSize : FONT_SIZES[1],
-    textAlign: first?.type === 'text' ? first.textAlign : DEFAULT_TEXT_ALIGN,
+    fontSize: first?.type === 'text' ? first.fontSize : undefined,
+    textAlign: first?.type === 'text' ? first.textAlign : undefined,
   }
   const strokeSwatch = (color: string) => (
     <span className="swatch" style={{ background: color }} />
