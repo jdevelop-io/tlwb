@@ -30,6 +30,16 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* Scoped to `[open]`: the native `display: none` for a closed dialog
+   is a user-agent rule, and an unscoped author rule always wins the
+   cascade over it regardless of specificity. */
+.shortcuts-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(360px, calc(100vw - 32px));
+}
+
 .help-button {
   position: absolute;
   right: 16px;

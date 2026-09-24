@@ -24,8 +24,12 @@ export function HelpButton() {
       >
         ?
       </button>
-      <dialog ref={ref} className="share-dialog" onClose={() => setOpen(false)}>
-        <h2>Shortcuts</h2>
+      <dialog
+        ref={ref}
+        className="dialog shortcuts-dialog"
+        onClose={() => setOpen(false)}
+      >
+        <h2 className="dialog-title">Shortcuts</h2>
         <dl>
           {SHORTCUTS.map(([keys, what]) => (
             <div key={keys}>
@@ -36,7 +40,11 @@ export function HelpButton() {
             </div>
           ))}
         </dl>
-        <button type="button" className="close" onClick={() => setOpen(false)}>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={() => setOpen(false)}
+        >
           Close
         </button>
       </dialog>
