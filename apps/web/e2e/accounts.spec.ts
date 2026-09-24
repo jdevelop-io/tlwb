@@ -52,15 +52,10 @@ test('adopt, dashboard, cap', async ({
   await page.getByRole('button', { name: 'Create link' }).click()
   await expect(page).toHaveURL(/\/b\/[A-Za-z0-9_-]{22}$/)
   const boardId1 = boardIdFrom(page.url())
-  // Scoped to the open dialog: the editor's own help/shortcuts dialog
-  // (mounted, closed) shares the "Close" accessible name with this one,
-  // which is a pre-existing collision unrelated to the dashboard rework
-  // below -- a bare getByRole('button', { name: 'Close' }) is a
-  // strict-mode violation here.
-  await page
-    .locator('.share-dialog[open]')
-    .getByRole('button', { name: 'Close' })
-    .click()
+  // The editor's own help/shortcuts dialog also has a "Close" button,
+  // but it stays `display: none` (and out of the accessibility tree)
+  // while unopened, so the bare accessible name is unambiguous here.
+  await page.getByRole('button', { name: 'Close' }).click()
 
   // 2. Seed a session only now, so the board above really was created
   // anonymously rather than picking up an owner at creation time.
