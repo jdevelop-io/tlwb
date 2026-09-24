@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import type { HttpBindings } from '@hono/node-server'
 import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
@@ -8,7 +7,7 @@ import type { Config } from './config'
 import { getAsset, putAsset } from './db/assets'
 import { type BoardRecord, findBoard } from './db/boards'
 import type { Db } from './db/client'
-import { type Extension, identify } from './extension'
+import { type Env, type Extension, identify } from './extension'
 import { issueBoard } from './issue-board'
 import { type Role, resolveRole } from './keys'
 import { log } from './log'
@@ -26,8 +25,6 @@ export interface HttpDeps {
   /** What the deployment adds on top; nothing by default. */
   extension?: Extension
 }
-
-type Env = { Bindings: HttpBindings }
 
 /**
  * Behind a reverse proxy that appends to (or replaces)

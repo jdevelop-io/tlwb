@@ -1,13 +1,11 @@
 import { StreamableHTTPTransport } from '@hono/mcp'
-import type { HttpBindings } from '@hono/node-server'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import type { Env } from '../extension'
 import { clientIp } from '../http'
 import { createIpLimiter } from '../rate-limit'
 import type { Caller } from './caller'
 import { createMcpServer, type McpDeps } from './server'
-
-type Env = { Bindings: HttpBindings }
 
 // Matches `API_KEY_PREFIX` in `src/accounts/api-keys.ts` of a deployment
 // that composes `mcpKeys`: this module never imports that (optional,
