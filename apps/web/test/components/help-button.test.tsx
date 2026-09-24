@@ -15,7 +15,7 @@ describe('HelpButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Help' }))
     expect(showModal).toHaveBeenCalledOnce()
     expect(screen.getByText('Shortcuts')).toBeInTheDocument()
-    expect(screen.getByText('Pan and zoom')).toBeInTheDocument()
+    expect(screen.getByText('Pan')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(close).toHaveBeenCalledOnce()
     vi.restoreAllMocks()
