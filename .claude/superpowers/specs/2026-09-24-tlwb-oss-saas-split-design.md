@@ -422,3 +422,29 @@ Private repository:
 - Any change to what the hosted service offers (plans, prices, quotas).
 - A single-board or otherwise reduced public product.
 - Preserving tlwb.io's existing accounts across the migration.
+
+## 13. Amendments
+
+Found while writing the implementation plans; each overrides the
+section it names.
+
+- Section 3: `@napi-rs/canvas`, `@fontsource/caveat`, and
+  `@fontsource/inter` stay in `apps/collab-server`, and
+  `MCP_RENDER_LIMIT_PER_MIN` stays in its configuration. They serve the
+  MCP tools `read_board` (with `image`) and `get_board_screenshot`, not
+  only thumbnails. Only `thumbnail.ts` and its table columns leave.
+- Section 3: the public landing loses its pricing section and the
+  "Pricing" navigation link along with the "Sign in" link. Pricing is
+  tlwb.io's; the private landing keeps it.
+- Section 5: the schema change lands as two migrations so that every
+  task leaves a green tree: `0005` resets `boards.owner_id` to NULL,
+  drops its foreign key, and drops the thumbnail columns; `0006` drops
+  the six account tables once nothing references them.
+- Section 6: `landing/recents.ts` keeps only the pure `renderResume`;
+  the DOM wiring that ran on import moves to `landing/main.ts`, which
+  `index.html` loads, so the library entry can export `renderResume`
+  without side effects.
+- Section 7: the private server declares its foreign key to `boards.id`
+  in the migration SQL by hand rather than through Drizzle's
+  `references()`, so that drizzle-kit never tries to create or diff a
+  `boards` table it does not own.
