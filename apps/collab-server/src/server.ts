@@ -19,6 +19,9 @@ export async function startServer(
   extension: Extension = {},
 ): Promise<RunningServer> {
   const database = await connectDatabase(config.databaseUrl)
+  // The deployment's own tables may reference this server's, so its
+  // migrations run once ours have.
+  await extension.migrate?.(database.db)
   const rooms = createRooms({ db: database.db, config })
   const app = createApp({ db: database.db, config, rooms, extension })
 
