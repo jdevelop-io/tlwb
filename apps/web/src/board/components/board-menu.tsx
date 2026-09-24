@@ -1,8 +1,5 @@
-import { useState } from 'react'
-import type { Me } from '../../auth/client'
-import { readKeys } from '../session/keys'
+import type { ReactNode } from 'react'
 import { listRecents } from '../session/recents'
-import { requestAdoption } from '../session/server'
 
 function relative(updatedAt: number): string {
   const minutes = Math.round((Date.now() - updatedAt) / 60_000)
@@ -13,45 +10,8 @@ function relative(updatedAt: number): string {
   return `${Math.round(hours / 24)} d ago`
 }
 
-function AdoptEntry(props: { boardId: string; editKey: string }) {
-  const [adopted, setAdopted] = useState(false)
-
-  if (adopted) {
-    return (
-      <button type="button" disabled>
-        In your account
-      </button>
-    )
-  }
-
-  const click = async (): Promise<void> => {
-    const result = await requestAdoption([
-      { boardId: props.boardId, editKey: props.editKey },
-    ])
-    if (result.adopted.includes(props.boardId)) {
-      setAdopted(true)
-    }
-  }
-
-  return (
-    <button type="button" onClick={() => void click()}>
-      Add to my account
-    </button>
-  )
-}
-
-export function BoardMenu(props: {
-  currentId: string
-  me: Me | null
-  hosted: boolean
-}) {
+export function BoardMenu(props: { currentId: string; items?: ReactNode }) {
   const recents = listRecents().filter((item) => item.id !== props.currentId)
-  const keys = readKeys(props.currentId)
-  const canAdopt =
-    props.me !== null &&
-    props.hosted &&
-    Boolean(keys?.editKey) &&
-    Boolean(keys?.viewKey)
   return (
     <nav className="board-menu" aria-label="Boards">
       <a href="/b/new">New board</a>
@@ -67,9 +27,7 @@ export function BoardMenu(props: {
           ))}
         </ul>
       ) : null}
-      {canAdopt && keys?.editKey ? (
-        <AdoptEntry boardId={props.currentId} editKey={keys.editKey} />
-      ) : null}
+      {props.items}
       <a href="/">Home</a>
     </nav>
   )

@@ -6,16 +6,15 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { WebSocket as WsClient } from 'ws'
 import * as Y from 'yjs'
-import { createAuth } from '../src/accounts/auth'
 import { loadConfig } from '../src/config'
 import { createBoard, loadBoard } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
-import { boards, session as sessionTable, user } from '../src/db/schema'
+import { boards } from '../src/db/schema'
+import type { Extension } from '../src/extension'
 import { generateKey, hashKey } from '../src/keys'
 import { encodeUpdate } from '../src/protocol'
 import { createRooms } from '../src/rooms'
 import { attachWebSocket } from '../src/ws'
-import { sessionCookie } from './session-cookie'
 
 const url = process.env.DATABASE_URL as string
 let database: Awaited<ReturnType<typeof connectDatabase>>
@@ -45,7 +44,11 @@ function waitFor(check: () => boolean, timeoutMs = 5_000): Promise<void> {
 }
 
 /** A server, a board, and the URL of that board's WebSocket endpoint. */
-async function serve(overrides: Record<string, string> = {}, ping?: number) {
+async function serve(
+  overrides: Record<string, string> = {},
+  ping?: number,
+  extension: Extension = {},
+) {
   const boardId = randomUUID()
   const editKey = generateKey()
   const viewKey = generateKey()
@@ -61,14 +64,11 @@ async function serve(overrides: Record<string, string> = {}, ping?: number) {
   const server = http.createServer()
   await new Promise<void>((resolve) => server.listen(0, resolve))
   const rooms = createRooms({ db: database.db, config })
-  // Null unless the caller's overrides supply AUTH_SECRET: every
-  // existing call keeps today's token-only behaviour untouched.
-  const auth = createAuth({ db: database.db, config })
   const wss = attachWebSocket(server, {
     db: database.db,
     config,
     rooms,
-    auth,
+    extension,
     pingIntervalMs: ping,
   })
   const port = (server.address() as AddressInfo).port
@@ -168,50 +168,22 @@ describe('WebSocket payload cap', () => {
   })
 })
 
-const AUTH_ENV = {
-  AUTH_SECRET: 'test-secret-at-least-32-characters!!',
-  GITHUB_CLIENT_ID: 'gid',
-  GITHUB_CLIENT_SECRET: 'gsec',
-}
-
 describe('WebSocket ownership', () => {
-  it('grants the owning session edit access without a key', async () => {
-    const server = await serve(AUTH_ENV)
+  it('grants the identified owner edit access without a key', async () => {
+    const ownerId = randomUUID()
+    const server = await serve({}, undefined, {
+      identify: async (headers) =>
+        headers.get('x-who') === ownerId ? { id: ownerId } : null,
+    })
     try {
-      const ownerId = randomUUID()
-      const token = randomUUID()
-      await database.db.insert(user).values({
-        id: ownerId,
-        name: 'Owner',
-        email: `${ownerId}@example.com`,
-      })
-      await database.db.insert(sessionTable).values({
-        id: randomUUID(),
-        token,
-        userId: ownerId,
-        expiresAt: new Date(Date.now() + 3_600_000),
-      })
       await database.db
         .update(boards)
         .set({ ownerId })
         .where(eq(boards.id, server.boardId))
 
-      const cookie = sessionCookie(
-        token,
-        server.config.accounts?.secret as string,
-      )
-
-      // Verify the cookie format empirically against Better Auth's own
-      // session endpoint before trusting it over the WebSocket upgrade.
-      const auth = createAuth({ db: database.db, config: server.config })
-      const liveSession = await auth?.api.getSession({
-        headers: new Headers({ cookie }),
-      })
-      expect(liveSession?.user.id).toBe(ownerId)
-
       const client = new WsClient(
         `ws://localhost:${server.port}/ws/${server.boardId}`,
-        { headers: { cookie } },
+        { headers: { 'x-who': ownerId } },
       )
       let closeCode: number | null = null
       client.on('close', (code) => {
@@ -260,11 +232,6 @@ describe('WebSocket ownership', () => {
     const server = await serve()
     try {
       const ownerId = randomUUID()
-      await database.db.insert(user).values({
-        id: ownerId,
-        name: 'Owner',
-        email: `${ownerId}@example.com`,
-      })
       await database.db
         .update(boards)
         .set({ ownerId })

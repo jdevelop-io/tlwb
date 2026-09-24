@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "start": "tsx src/main.ts",
     "dev": "tsx watch src/main.ts",
@@ -19,12 +22,10 @@
     "@napi-rs/canvas": "^1.0.8",
     "@tlwb/engine": "workspace:*",
     "@tlwb/store-yjs": "workspace:*",
-    "better-auth": "^1.7.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.4",
     "lib0": "^0.2.117",
     "postgres": "^3.4.9",
-    "stripe": "^22.6.1",
     "tsx": "^4.20.0",
     "ws": "^8.21.3",
     "y-protocols": "^1.0.7",

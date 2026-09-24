@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadConfig } from '../../src/config'
 import { connectDatabase } from '../../src/db/client'
+import type { Extension } from '../../src/extension'
 import { createApp } from '../../src/http'
 import { createRooms, type RoomRegistry } from '../../src/rooms'
 
@@ -17,7 +18,11 @@ afterAll(async () => {
   await database.close()
 })
 
-function app(overrides: Record<string, string> = {}, now?: () => number) {
+function app(
+  overrides: Record<string, string> = {},
+  now?: () => number,
+  extension: Extension = {},
+) {
   const config = loadConfig({
     DATABASE_URL: url,
     CORS_ORIGIN: 'http://a',
@@ -25,7 +30,7 @@ function app(overrides: Record<string, string> = {}, now?: () => number) {
     ...overrides,
   })
   rooms = createRooms({ db: database.db, config })
-  return createApp({ db: database.db, config, rooms, now })
+  return createApp({ db: database.db, config, rooms, now, extension })
 }
 
 function rpc(
@@ -190,6 +195,13 @@ describe('POST /mcp', () => {
         }),
       }),
     )
+    expect(response.status).toBe(200)
+  })
+
+  it('ignores a bearer when no extension resolves keys', async () => {
+    const request = rpc('tools/list')
+    request.headers.set('authorization', 'Bearer tlwb_stale')
+    const response = await app({ TRUST_PROXY: 'true' }).request(request)
     expect(response.status).toBe(200)
   })
 })

@@ -126,3 +126,8 @@
 .share-dialog .error {
   color: var(--color-danger);
 }
+
+.share-agent-endpoint code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}

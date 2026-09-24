@@ -95,29 +95,6 @@ export async function listOwnedBoards(
     .orderBy(desc(boards.updatedAt))
 }
 
-export async function readThumbnail(
-  db: Db,
-  boardId: string,
-): Promise<{ thumbnail: Buffer | null; thumbnailSeq: number | null }> {
-  const [row] = await db
-    .select({ thumbnail: boards.thumbnail, thumbnailSeq: boards.thumbnailSeq })
-    .from(boards)
-    .where(eq(boards.id, boardId))
-  return row ?? { thumbnail: null, thumbnailSeq: null }
-}
-
-export async function writeThumbnail(
-  db: Db,
-  boardId: string,
-  png: Uint8Array,
-  seq: number,
-): Promise<void> {
-  await db
-    .update(boards)
-    .set({ thumbnail: Buffer.from(png), thumbnailSeq: seq })
-    .where(eq(boards.id, boardId))
-}
-
 /** Purges a board and everything it owns: its updates, its assets, itself. */
 export async function deleteBoardRows(db: Db, boardId: string): Promise<void> {
   await db.transaction(async (tx) => {

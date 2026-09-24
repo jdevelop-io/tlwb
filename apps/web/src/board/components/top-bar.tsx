@@ -1,8 +1,8 @@
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { Me } from '../../auth/client'
 import { useSession } from '../hooks/use-session'
 import type { BoardSession } from '../session/board-session'
+import type { AccountProps } from './board-app'
 import { BoardMenu } from './board-menu'
 import { Logotype } from './logotype'
 import './top-bar.css'
@@ -24,8 +24,11 @@ function useBoardName(session: BoardSession): string {
   return name
 }
 
-export function TopBar(props: { session: BoardSession; me: Me | null }) {
-  const { session, me } = props
+export function TopBar(props: {
+  session: BoardSession
+  account?: AccountProps
+}) {
+  const { session, account } = props
   const snapshot = useSession(session)
   const name = useBoardName(session)
   const [draft, setDraft] = useState<string | null>(null)
@@ -68,7 +71,7 @@ export function TopBar(props: { session: BoardSession; me: Me | null }) {
 
   return (
     <header className="top-bar">
-      <Logotype size="editor" href={me ? '/dashboard' : '/'} />
+      <Logotype size="editor" href={account?.homeHref ?? '/'} />
       <button
         ref={menuButtonRef}
         type="button"
@@ -80,11 +83,7 @@ export function TopBar(props: { session: BoardSession; me: Me | null }) {
         <ChevronDown size={16} />
       </button>
       {menuOpen ? (
-        <BoardMenu
-          currentId={snapshot.boardId}
-          me={me}
-          hosted={snapshot.role !== 'local'}
-        />
+        <BoardMenu currentId={snapshot.boardId} items={account?.menuItems} />
       ) : null}
       <span className="top-bar-divider" aria-hidden="true" />
       <input

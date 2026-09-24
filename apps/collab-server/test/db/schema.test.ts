@@ -14,32 +14,62 @@ describe('schema migration', () => {
     await database.close()
   })
 
-  it('creates the accounts tables', async () => {
-    const rows = await database.db.execute(sql`
-      select table_name from information_schema.tables
-      where table_name in
-        ('user', 'session', 'account', 'verification',
-         'api_keys', 'mcp_usage')
-    `)
-    expect(rows.length).toBe(6)
+  it('creates the board tables, tolerating extra tables another schema adds, never the account ones', async () => {
+    // A shared database may carry tables this migration knows nothing
+    // about, added by another schema entirely; the assertion below must
+    // survive that, so one is planted here to prove it does.
+    await database.db.execute(
+      sql`create table if not exists unrelated_schema_probe (id text primary key)`,
+    )
+    try {
+      const rows = await database.db.execute(sql`
+        select table_name from information_schema.tables
+        where table_schema = 'public' and table_type = 'BASE TABLE'
+          and table_name not like '\_\_drizzle%'
+      `)
+      const tableNames = rows.map((row) => String(row.table_name))
+      expect(tableNames).toEqual(
+        expect.arrayContaining(['assets', 'board_updates', 'boards']),
+      )
+      for (const accountTable of [
+        'user',
+        'session',
+        'account',
+        'verification',
+        'api_keys',
+        'mcp_usage',
+      ]) {
+        expect(tableNames).not.toContain(accountTable)
+      }
+    } finally {
+      await database.db.execute(
+        sql`drop table if exists unrelated_schema_probe`,
+      )
+    }
   })
 
-  it('extends boards with ownership and thumbnail columns', async () => {
-    const rows = await database.db.execute(sql`
+  it('keeps ownership as an opaque column with no foreign key', async () => {
+    const columns = await database.db.execute(sql`
       select column_name from information_schema.columns
       where table_name = 'boards' and column_name in
         ('owner_id', 'shared_at', 'agent_at', 'thumbnail', 'thumbnail_seq')
     `)
-    expect(rows.length).toBe(5)
+    expect(columns.map((row) => row.column_name).sort()).toEqual([
+      'agent_at',
+      'owner_id',
+      'shared_at',
+    ])
+    const constraints = await database.db.execute(sql`
+      select constraint_name from information_schema.table_constraints
+      where table_name = 'boards' and constraint_type = 'FOREIGN KEY'
+    `)
+    expect(constraints.length).toBe(0)
   })
 
-  it('indexes the three hot lookups: boards.owner_id, api_keys.key_hash, user.stripe_customer_id', async () => {
+  it('indexes boards.owner_id', async () => {
     const rows = await database.db.execute(sql`
-      select indexname from pg_indexes
-      where indexname in
-        ('boards_owner_id_idx', 'api_keys_key_hash_idx',
-         'user_stripe_customer_id_idx')
+      select indexname from pg_indexes where indexname = 'boards_owner_id_idx'
     `)
-    expect(rows.length).toBe(3)
+    expect(rows.length).toBe(1)
   })
 })

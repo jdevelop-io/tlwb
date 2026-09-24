@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Config } from '../config'
 import type { Db } from '../db/client'
+import type { Extension } from '../extension'
 import type { IpLimiter } from '../rate-limit'
 import type { RoomRegistry } from '../rooms'
 import type { AgentDeps } from './agent-client'
@@ -24,6 +25,7 @@ export interface McpDeps {
    * general MCP limit is too generous to bound it on its own.
    */
   renderLimiter: IpLimiter
+  extension: Extension
   now?: () => number
 }
 

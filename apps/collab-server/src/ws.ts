@@ -1,11 +1,10 @@
 import type { Server as HttpServer, IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { type RawData, type WebSocket, WebSocketServer } from 'ws'
-import type { Auth } from './accounts/auth'
-import { sessionUser } from './accounts/auth'
 import type { Config } from './config'
 import { findBoard, markShared } from './db/boards'
 import type { Db } from './db/client'
+import { type Extension, identify } from './extension'
 import { roleFor } from './http'
 import type { Role } from './keys'
 import { log } from './log'
@@ -18,7 +17,7 @@ export interface WsDeps {
   db: Db
   config: Config
   rooms: RoomRegistry
-  auth: Auth | null
+  extension?: Extension
   /** Overridden by the tests only; production runs on PING_INTERVAL_MS. */
   pingIntervalMs?: number
 }
@@ -55,7 +54,7 @@ function parseUpgrade(request: IncomingMessage): Upgrade | null {
   return { boardId: match[1], token: url.searchParams.get('token') ?? '' }
 }
 
-/** Node's raw header map, reshaped into the `Headers` `sessionUser` reads. */
+/** Node's raw header map, reshaped into the `Headers` the extension reads. */
 function nodeHeaders(request: IncomingMessage): Headers {
   return new Headers(
     Object.entries(request.headers).flatMap(([key, value]) =>
@@ -107,14 +106,14 @@ export function attachWebSocket(
     if (!board) {
       return CLOSE.unknownBoard
     }
-    const user = await sessionUser(deps.auth, headers)
-    const role = roleFor(board, upgrade.token || null, user?.id ?? null)
+    const principal = await identify(deps.extension ?? {}, headers)
+    const role = roleFor(board, upgrade.token || null, principal?.id ?? null)
     if (!role) {
       return CLOSE.unauthorized
     }
     // A key-based connection on an owned board is someone else using a
-    // share link: that is what the dashboard's "shared" badge reports.
-    const foreignKey = board.ownerId !== null && user?.id !== board.ownerId
+    // share link: that is what a dashboard's "shared" badge reports.
+    const foreignKey = board.ownerId !== null && principal?.id !== board.ownerId
     return { role, foreignKey }
   }
 

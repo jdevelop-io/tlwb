@@ -1,12 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Me } from '../../src/auth/client'
 import { TopBar } from '../../src/board/components/top-bar'
 import { openBoardSession } from '../../src/board/session/board-session'
 import { touchRecent } from '../../src/board/session/recents'
 
 const identity = { name: 'Ada', color: '#1971C2' }
-const me: Me = { name: 'Ada', email: 'ada@x.com', image: null, plan: 'free' }
 
 beforeEach(() => localStorage.clear())
 
@@ -18,7 +16,7 @@ describe('TopBar', () => {
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    render(<TopBar session={session} me={null} />)
+    render(<TopBar session={session} />)
     const name = screen.getByRole('textbox', { name: 'Board name' })
     expect(name).toHaveValue('Untitled')
     fireEvent.change(name, { target: { value: 'Roadmap' } })
@@ -37,7 +35,7 @@ describe('TopBar', () => {
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    render(<TopBar session={session} me={null} />)
+    render(<TopBar session={session} />)
     fireEvent.click(screen.getByRole('button', { name: 'tlwb menu' }))
     expect(screen.getByRole('link', { name: 'New board' })).toHaveAttribute(
       'href',
@@ -59,7 +57,7 @@ describe('TopBar', () => {
     })
     if (session === 'not-found') throw new Error('unexpected')
     const setMeta = vi.spyOn(session.store, 'setMeta')
-    render(<TopBar session={session} me={null} />)
+    render(<TopBar session={session} />)
     const name = screen.getByRole('textbox', { name: 'Board name' })
     name.focus()
     fireEvent.change(name, { target: { value: 'Discarded' } })
@@ -76,7 +74,7 @@ describe('TopBar', () => {
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    render(<TopBar session={session} me={null} />)
+    render(<TopBar session={session} />)
     const toggle = screen.getByRole('button', { name: 'tlwb menu' })
     fireEvent.click(toggle)
     expect(
@@ -95,7 +93,7 @@ describe('TopBar', () => {
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    render(<TopBar session={session} me={null} />)
+    render(<TopBar session={session} />)
     const toggle = screen.getByRole('button', { name: 'tlwb menu' })
     fireEvent.click(toggle) // open
     fireEvent.click(toggle) // close
@@ -107,29 +105,19 @@ describe('TopBar', () => {
     await session.destroy()
   })
 
-  it('links the wordmark to home when signed out', async () => {
-    const session = await openBoardSession({
-      boardId: 'top6',
-      fresh: true,
-      identity,
-    })
-    if (session === 'not-found') throw new Error('unexpected')
-    render(<TopBar session={session} me={null} />)
-    expect(screen.getByRole('link', { name: 'tlwb' })).toHaveAttribute(
-      'href',
-      '/',
-    )
-    await session.destroy()
-  })
-
-  it('links the wordmark to the dashboard when signed in', async () => {
+  it('links the wordmark where the account says, and home otherwise', async () => {
     const session = await openBoardSession({
       boardId: 'top7',
       fresh: true,
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    render(<TopBar session={session} me={me} />)
+    const { rerender } = render(<TopBar session={session} />)
+    expect(screen.getByRole('link', { name: 'tlwb' })).toHaveAttribute(
+      'href',
+      '/',
+    )
+    rerender(<TopBar session={session} account={{ homeHref: '/dashboard' }} />)
     expect(screen.getByRole('link', { name: 'tlwb' })).toHaveAttribute(
       'href',
       '/dashboard',
@@ -144,7 +132,7 @@ describe('TopBar', () => {
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    render(<TopBar session={session} me={null} />)
+    render(<TopBar session={session} />)
     const indicator = screen.getByText('Saved')
     expect(indicator.previousElementSibling?.tagName).toBe('svg')
     expect(
@@ -160,7 +148,7 @@ describe('TopBar', () => {
       identity,
     })
     if (session === 'not-found') throw new Error('unexpected')
-    render(<TopBar session={session} me={null} />)
+    render(<TopBar session={session} />)
     const wordmark = screen.getByRole('link', { name: 'tlwb' })
     // dispatchEvent (what fireEvent.click returns) answers false only
     // when a handler called preventDefault: a true here is the proof

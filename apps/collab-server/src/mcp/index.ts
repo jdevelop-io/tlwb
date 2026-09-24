@@ -1,14 +1,17 @@
 import { StreamableHTTPTransport } from '@hono/mcp'
-import type { HttpBindings } from '@hono/node-server'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { API_KEY_PREFIX, resolveApiKey } from '../accounts/api-keys'
+import type { Env } from '../extension'
 import { clientIp } from '../http'
 import { createIpLimiter } from '../rate-limit'
 import type { Caller } from './caller'
 import { createMcpServer, type McpDeps } from './server'
 
-type Env = { Bindings: HttpBindings }
+// Matches `API_KEY_PREFIX` in `src/accounts/api-keys.ts` of a deployment
+// that composes `mcpKeys`: this module never imports that (optional,
+// deployment-only) module, so the prefix is named again here rather
+// than reaching for it.
+const API_KEY_PREFIX = 'tlwb_'
 
 /**
  * The MCP endpoint, stateless: one transport and one McpServer per
@@ -38,19 +41,20 @@ export function createMcpApp(
       const ip = clientIp(c, deps.trustProxy)
       const bearer = c.req.header('authorization')?.match(/^Bearer (.+)$/)?.[1]
       let caller: Caller = { kind: 'anonymous', ip }
-      if (bearer?.startsWith(API_KEY_PREFIX)) {
-        const keyed = await resolveApiKey(deps.db, bearer)
-        // keyId is not part of Caller: nothing downstream of here needs
-        // the token's own id, only what it identifies and scopes.
-        caller = keyed
-          ? {
-              kind: 'keyed',
-              ip,
-              userId: keyed.userId,
-              plan: keyed.plan,
-              boardIds: keyed.boardIds,
-            }
-          : { kind: 'invalid', ip }
+      // With nothing to resolve a key against, or a bearer that is not
+      // one of this deployment's own keys, the bearer is noise: the
+      // caller stays anonymous rather than being refused.
+      if (bearer?.startsWith(API_KEY_PREFIX) && deps.extension.mcpKeys) {
+        const keyed = await deps.extension.mcpKeys.resolve(bearer)
+        caller =
+          keyed === 'invalid'
+            ? { kind: 'invalid', ip }
+            : {
+                kind: 'keyed',
+                ip,
+                userId: keyed.userId,
+                boardIds: keyed.boardIds,
+              }
       }
       if (
         c.req.method === 'POST' &&

@@ -219,10 +219,27 @@ describe('ShareDialog, hosted', () => {
     expect(onConnectAgent).toHaveBeenCalled()
   })
 
-  it('sends a signed-out visitor to sign in to connect an agent', () => {
+  it('shows the MCP endpoint when no agent connection is wired', () => {
     renderHosted()
-    expect(
-      screen.getByRole('link', { name: 'Connect an agent' }),
-    ).toHaveAttribute('href', '/login')
+    expect(screen.queryByRole('link', { name: 'Connect an agent' })).toBeNull()
+    expect(screen.getByText(`${location.origin}/mcp`)).toBeInTheDocument()
+    expect(screen.getByText(/this board's edit link/)).toBeInTheDocument()
+  })
+
+  it('tells a view-only visitor to hand over the view link, not the edit link', async () => {
+    const viewOnlyId = `sdhv${Math.random().toString(36).slice(2)}`
+    writeKeys(viewOnlyId, { viewKey: 'v' })
+    const viewSession = await openBoardSession({
+      boardId: viewOnlyId,
+      fresh: true,
+      identity,
+      connect: hostedConnect,
+    })
+    if (viewSession === 'not-found') throw new Error('unexpected')
+    render(<ShareDialog session={viewSession} open onClose={() => undefined} />)
+    expect(screen.getByText(`${location.origin}/mcp`)).toBeInTheDocument()
+    expect(screen.getByText(/this board's view link/)).toBeInTheDocument()
+    expect(screen.queryByText(/this board's edit link/)).toBeNull()
+    await viewSession.destroy()
   })
 })

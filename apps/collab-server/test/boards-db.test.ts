@@ -2,16 +2,23 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
+import { readBoardStore } from '../src/board-read'
+import { putAsset } from '../src/db/assets'
 import {
   appendUpdate,
+  claimBoard,
   compactBoard,
+  countOwnedBoards,
   createBoard,
+  deleteBoardRows,
+  disownBoards,
   findBoard,
+  listOwnedBoards,
   loadBoard,
   markShared,
 } from '../src/db/boards'
 import { connectDatabase } from '../src/db/client'
-import { boards, user } from '../src/db/schema'
+import { assets, boards, boardUpdates } from '../src/db/schema'
 import { generateKey, hashKey } from '../src/keys'
 
 const url = process.env.DATABASE_URL as string
@@ -48,12 +55,9 @@ describe('boards', () => {
     const id = randomUUID()
     await createBoard(database.db, id, hashes())
     expect((await findBoard(database.db, id))?.ownerId).toBeNull()
+    // `ownerId` is an opaque column with no foreign key: whoever the
+    // extension's `identify` says a request is.
     const ownerId = randomUUID()
-    await database.db.insert(user).values({
-      id: ownerId,
-      name: 'Owner',
-      email: `${ownerId}@example.com`,
-    })
     await database.db.update(boards).set({ ownerId }).where(eq(boards.id, id))
     expect((await findBoard(database.db, id))?.ownerId).toBe(ownerId)
   })
@@ -165,5 +169,89 @@ describe('boards', () => {
     expect(loaded?.snapshotSeq).toBe(seqs[1])
     expect(loaded?.updates.map((row) => row.seq)).toEqual([seqs[2]])
     doc.destroy()
+  })
+})
+
+describe('claimBoard', () => {
+  it('claims an unowned board once; a later claim cannot steal it', async () => {
+    const id = randomUUID()
+    await createBoard(database.db, id, hashes())
+    const ownerId = randomUUID()
+    expect(await claimBoard(database.db, id, ownerId)).toBe(true)
+    expect((await findBoard(database.db, id))?.ownerId).toBe(ownerId)
+    expect(await claimBoard(database.db, id, randomUUID())).toBe(false)
+    expect((await findBoard(database.db, id))?.ownerId).toBe(ownerId)
+  })
+})
+
+describe('disownBoards', () => {
+  it('clears owner_id on every board it owns, leaving other owners alone', async () => {
+    const ownerId = randomUUID()
+    const otherOwnerId = randomUUID()
+    const mine = randomUUID()
+    const theirs = randomUUID()
+    await createBoard(database.db, mine, hashes(), ownerId)
+    await createBoard(database.db, theirs, hashes(), otherOwnerId)
+    await disownBoards(database.db, ownerId)
+    expect((await findBoard(database.db, mine))?.ownerId).toBeNull()
+    expect((await findBoard(database.db, theirs))?.ownerId).toBe(otherOwnerId)
+  })
+})
+
+describe('countOwnedBoards and listOwnedBoards', () => {
+  it('counts and lists only the boards owned by that id', async () => {
+    const ownerId = randomUUID()
+    const first = randomUUID()
+    const second = randomUUID()
+    await createBoard(database.db, first, hashes(), ownerId)
+    await createBoard(database.db, second, hashes(), ownerId)
+    expect(await countOwnedBoards(database.db, ownerId)).toBe(2)
+    expect(await countOwnedBoards(database.db, randomUUID())).toBe(0)
+    const listed = await listOwnedBoards(database.db, ownerId)
+    expect(listed.map((board) => board.id).sort()).toEqual(
+      [first, second].sort(),
+    )
+  })
+})
+
+describe('deleteBoardRows', () => {
+  it('purges the board, its updates, and its assets together', async () => {
+    const id = randomUUID()
+    await createBoard(database.db, id, hashes())
+    await appendUpdate(database.db, id, new Uint8Array([1]))
+    await putAsset(database.db, {
+      boardId: id,
+      hash: 'a'.repeat(64),
+      mime: 'image/png',
+      bytes: new Uint8Array([1, 2, 3]),
+    })
+    await deleteBoardRows(database.db, id)
+    expect(await findBoard(database.db, id)).toBeUndefined()
+    expect(
+      await database.db
+        .select()
+        .from(boardUpdates)
+        .where(eq(boardUpdates.boardId, id)),
+    ).toEqual([])
+    expect(
+      await database.db.select().from(assets).where(eq(assets.boardId, id)),
+    ).toEqual([])
+  })
+})
+
+describe('readBoardStore', () => {
+  it('is undefined for a board that does not exist', async () => {
+    expect(await readBoardStore(database.db, randomUUID())).toBeUndefined()
+  })
+
+  it('rebuilds a readable store at the latest persisted sequence', async () => {
+    const id = randomUUID()
+    await createBoard(database.db, id, hashes())
+    const doc = new Y.Doc()
+    const seq = await appendUpdate(database.db, id, Y.encodeStateAsUpdate(doc))
+    doc.destroy()
+    const loaded = await readBoardStore(database.db, id)
+    expect(loaded?.latestSeq).toBe(seq)
+    expect(loaded?.store.listElements()).toEqual([])
   })
 })

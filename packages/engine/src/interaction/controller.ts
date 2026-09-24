@@ -137,8 +137,8 @@ const DUPLICATE_OFFSET = 10
 /**
  * The headless editor: owns the active tool and the selection, routes
  * already-projected pointer input and keyboard input, and exposes the
- * state the overlay rendering needs. The next plan's createEditor binds
- * DOM events onto it.
+ * state the overlay rendering needs. `createEditor` binds DOM events
+ * onto it.
  */
 export function createInteractionController(
   options: InteractionControllerOptions,

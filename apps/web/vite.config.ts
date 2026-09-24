@@ -8,27 +8,14 @@ import {
 } from 'vite'
 
 /**
- * Multi-page app routes the dev and preview servers must serve:
- * `/b/<id>` for a board, and the fixed pages below.
+ * Multi-page app route the dev and preview servers must serve:
+ * `/b/<id>` for a board.
  */
 function pageRoutes(): Plugin {
-  const pages: Record<string, string> = {
-    '/login': '/login.html',
-    '/dashboard': '/dashboard.html',
-    '/dashboard/agents': '/dashboard.html',
-    '/dashboard/settings': '/dashboard.html',
-    '/privacy': '/privacy.html',
-    '/terms': '/terms.html',
-  }
   const rewrite = (server: ViteDevServer | PreviewServer): void => {
     server.middlewares.use((req, _res, next) => {
       if (req.url?.startsWith('/b/')) {
         req.url = '/board.html'
-      } else {
-        const page = pages[req.url?.split('?')[0] ?? '']
-        if (page) {
-          req.url = page
-        }
       }
       next()
     })
@@ -61,10 +48,6 @@ export default defineConfig({
       input: {
         landing: resolve(__dirname, 'index.html'),
         board: resolve(__dirname, 'board.html'),
-        login: resolve(__dirname, 'login.html'),
-        dashboard: resolve(__dirname, 'dashboard.html'),
-        privacy: resolve(__dirname, 'privacy.html'),
-        terms: resolve(__dirname, 'terms.html'),
       },
     },
   },

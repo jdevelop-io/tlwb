@@ -58,7 +58,7 @@ describe('openBoardSession: a signed-in visitor with no key', () => {
       boardId: 'owned-elsewhere',
       fresh: false,
       identity,
-      signedIn: true,
+      keylessOwner: true,
       connect: fake.connect,
     })
     await vi.waitFor(() => expect(fake.calls).toHaveLength(1))
@@ -83,7 +83,7 @@ describe('openBoardSession: a signed-in visitor with no key', () => {
       boardId: 'not-mine',
       fresh: false,
       identity,
-      signedIn: true,
+      keylessOwner: true,
       connect: fake.connect,
     })
     await vi.waitFor(() => expect(fake.calls).toHaveLength(1))
@@ -98,7 +98,7 @@ describe('openBoardSession: a signed-in visitor with no key', () => {
       boardId: 'flaky',
       fresh: false,
       identity,
-      signedIn: true,
+      keylessOwner: true,
       connect: fake.connect,
     })
     await vi.waitFor(() => expect(fake.calls).toHaveLength(1))
@@ -132,7 +132,7 @@ describe('openBoardSession: a signed-in visitor with no key', () => {
       boardId: 'unreachable',
       fresh: false,
       identity,
-      signedIn: true,
+      keylessOwner: true,
       connect: fake.connect,
       // A short override: proves the fallback actually fires without a
       // real multi-second wait in the suite.

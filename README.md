@@ -66,6 +66,17 @@ and the web application (`pnpm --filter @tlwb/web dev`) on
 `http://localhost:5173`; the Vite server proxies `/api` and `/ws` to
 the collaboration server.
 
+The self-hosted product is anonymous by design: no accounts, no
+sign-in, nothing to configure beyond the variables in
+`apps/collab-server/README.md`.
+
+### Upgrading
+
+Migrations `0005` and `0006` irreversibly drop board ownership,
+accounts, API keys, and usage counts. If a previous version of this
+deployment ever ran with accounts enabled, back that data up before
+upgrading past them.
+
 ### Letting an agent draw
 
 The stack serves an MCP endpoint at `http://localhost:8080/mcp`. Add it
