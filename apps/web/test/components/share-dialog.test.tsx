@@ -117,7 +117,7 @@ describe('ShareDialog', () => {
     await session.destroy()
   })
 
-  it('shows only the links whose keys it holds', async () => {
+  it('disables Can edit and shows the view link on a view-only board', async () => {
     writeKeys('sd3', { viewKey: 'v' })
     const session = await openBoardSession({
       boardId: 'sd3',
@@ -132,6 +132,24 @@ describe('ShareDialog', () => {
       (screen.getByRole('textbox', { name: 'Share link' }) as HTMLInputElement)
         .value,
     ).toContain('#view=v')
+    await session.destroy()
+  })
+
+  it('disables Can view on a board reached only through an edit link', async () => {
+    writeKeys('sd5', { editKey: 'e' })
+    const session = await openBoardSession({
+      boardId: 'sd5',
+      fresh: true,
+      identity,
+      connect: hostedConnect,
+    })
+    if (session === 'not-found') throw new Error('unexpected')
+    render(<ShareDialog session={session} open onClose={() => undefined} />)
+    expect(screen.getByRole('radio', { name: 'Can view' })).toBeDisabled()
+    expect(
+      (screen.getByRole('textbox', { name: 'Share link' }) as HTMLInputElement)
+        .value,
+    ).toContain('#edit=e')
     await session.destroy()
   })
 

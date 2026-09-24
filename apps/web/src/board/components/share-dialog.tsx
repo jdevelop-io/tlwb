@@ -155,6 +155,7 @@ export function ShareDialog(props: {
                   aria-label="Can view"
                   checked={effectiveRole === 'view'}
                   onChange={() => setRole('view')}
+                  disabled={!keys?.viewKey}
                 />
                 Can view
               </label>
