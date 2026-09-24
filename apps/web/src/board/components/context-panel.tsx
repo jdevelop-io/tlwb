@@ -13,6 +13,7 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { useEditorState } from '../hooks/use-editor-state'
 import './context-panel.css'
 import { FILL_COLORS, STROKE_COLORS } from '../session/palette'
@@ -128,6 +129,18 @@ function Choice<T extends string | number | null>(props: {
 export function ContextPanel(props: { editor: Editor; store: BoardStore }) {
   const { editor, store } = props
   const { activeTool, selectedIds, readOnly } = useEditorState(editor)
+  // A style patch changes the element in the store, not the editor
+  // state, so the element shown has to be read through a store
+  // subscription. The store keeps an unchanged element's identity,
+  // which makes it a valid snapshot.
+  const firstId = selectedIds[0]
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribe(listener),
+    [store],
+  )
+  const first = useSyncExternalStore(subscribe, () =>
+    firstId === undefined ? undefined : store.getElement(firstId),
+  )
   const selected = selectedIds.flatMap((id) => {
     const element = store.getElement(id)
     return element ? [element] : []
@@ -137,7 +150,6 @@ export function ContextPanel(props: { editor: Editor; store: BoardStore }) {
   if (readOnly || (selected.length === 0 && passiveTool)) {
     return null
   }
-  const first = selected[0]
   const patch = (patchProps: ElementProps): void => {
     if (selected.length > 0) {
       editor.updateSelection(patchProps)
